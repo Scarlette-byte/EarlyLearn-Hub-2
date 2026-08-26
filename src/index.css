@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+/* Respect device safe areas (notches, home indicator) on the auth cards */
+.safe-x {
+  margin-left: max(16px, env(safe-area-inset-left));
+  margin-right: max(16px, env(safe-area-inset-right));
+}
+
+/* --- Login / Sign up scene animations (from the original static pages) --- */
+@keyframes rise {
+  from {
+    transform: translateX(-50%) translateY(40px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+.animate-rise {
+  animation: rise 1.6s ease-out;
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-pop {
+  animation: pop 0.5s ease-out;
+}
+
+/* Cloud shape: an oval body plus two rounded "puffs" via pseudo-elements */
+.cloud {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 50px;
+}
+.cloud::before,
+.cloud::after {
+  content: '';
+  position: absolute;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 50%;
+}
+.cloud-1 {
+  width: 90px;
+  height: 30px;
+  top: 14%;
+  left: 10%;
+}
+.cloud-1::before {
+  width: 45px;
+  height: 45px;
+  top: -22px;
+  left: 8px;
+}
+.cloud-1::after {
+  width: 35px;
+  height: 35px;
+  top: -16px;
+  left: 45px;
+}
+.cloud-2 {
+  width: 70px;
+  height: 24px;
+  top: 24%;
+  right: 12%;
+}
+.cloud-2::before {
+  width: 36px;
+  height: 36px;
+  top: -18px;
+  left: 6px;
+}
+.cloud-2::after {
+  width: 28px;
+  height: 28px;
+  top: -12px;
+  left: 36px;
+}
+@media (max-width: 420px) {
+  .cloud-1,
+  .cloud-2 {
+    transform: scale(0.8);
+  }
+}

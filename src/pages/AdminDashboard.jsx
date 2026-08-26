@@ -1,0 +1,448 @@
+import { useEffect, useState, useCallback } from 'react';
+import { supabase, barangays } from '../lib/supabaseClient';
+import DashboardLayout from '../components/DashboardLayout.jsx';
+import {
+  cardBox,
+  cardBoxTitle,
+  table,
+  th,
+  td,
+  pillClass,
+  msgOk,
+  msgError,
+  input,
+  btnAdd,
+  delBtn,
+  ageTag,
+} from '../lib/ui.js';
+
+const TABS = [
+  { key: 'overview', label: 'Overview', icon: '📊' },
+  { key: 'users', label: 'Manage Users', icon: '👥' },
+  { key: 'categories', label: 'Categories', icon: '🗂️' },
+  { key: 'materials', label: 'Materials', icon: '📚' },
+  { key: 'approvals', label: 'Pending Approval', icon: '✅' },
+];
+
+export default function AdminDashboard() {
+  const [activeTab, setActiveTab] = useState('overview');
+
+  // Users tab
+  const [profiles, setProfiles] = useState([]);
+  const [usersMsg, setUsersMsg] = useState({ text: '', type: '' });
+
+  // Categories tab
+  const [categories, setCategories] = useState([]);
+  const [newCatIcon, setNewCatIcon] = useState('');
+  const [newCatName, setNewCatName] = useState('');
+  const [catMsg, setCatMsg] = useState({ text: '', type: '' });
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [catContents, setCatContents] = useState([]);
+  const [catContentsMsg, setCatContentsMsg] = useState('');
+
+  // Materials tab
+  const [materials, setMaterials] = useState([]);
+
+  // Approvals tab
+  const [approvals, setApprovals] = useState([]);
+
+  // --- Load Users ---
+  const loadUsers = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, role, barangay')
+      .order('full_name');
+
+    if (error || !data) {
+      setUsersMsg({ text: '❌ ' + (error?.message || 'Failed to load users'), type: 'error' });
+      return;
+    }
+    setProfiles(data);
+  }, []);
+
+  async function updateRole(id, role) {
+    const { error } = await supabase.from('profiles').update({ role }).eq('id', id);
+    if (error) setUsersMsg({ text: '❌ ' + error.message, type: 'error' });
+    else {
+      setUsersMsg({ text: '✅ Role updated', type: 'ok' });
+      loadUsers();
+    }
+  }
+
+  async function updateBarangay(id, barangay) {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ barangay: barangay || null })
+      .eq('id', id);
+    if (error) setUsersMsg({ text: '❌ ' + error.message, type: 'error' });
+    else setUsersMsg({ text: '✅ Barangay updated', type: 'ok' });
+  }
+
+  // --- Load Categories ---
+  const loadCategories = useCallback(async () => {
+    const { data, error } = await supabase.from('categories').select('*').order('created_at');
+    if (!error && data) setCategories(data);
+  }, []);
+
+  async function addCategory() {
+    if (!newCatIcon.trim() || !newCatName.trim()) {
+      setCatMsg({ text: '⚠️ Please enter both an icon and a name', type: 'error' });
+      return;
+    }
+    const { error } = await supabase
+      .from('categories')
+      .insert({ icon: newCatIcon.trim(), name: newCatName.trim() });
+    if (error) {
+      setCatMsg({ text: '❌ ' + error.message, type: 'error' });
+    } else {
+      setCatMsg({ text: '✅ Added!', type: 'ok' });
+      setNewCatIcon('');
+      setNewCatName('');
+      loadCategories();
+    }
+  }
+
+  async function deleteCategory(id) {
+    if (!confirm('Delete this category?')) return;
+    const { error } = await supabase.from('categories').delete().eq('id', id);
+    if (!error) loadCategories();
+  }
+
+  async function showCategoryContents(category) {
+    setSelectedCategory(category);
+    setCatContentsMsg('');
+    const { data, error } = await supabase
+      .from('materials')
+      .select('title, type, age_range')
+      .eq('category_id', category.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      setCatContentsMsg('❌ ' + error.message);
+      setCatContents([]);
+      return;
+    }
+    if (!data || data.length === 0) {
+      setCatContentsMsg(`No materials yet in "${category.name}". Teachers will upload these.`);
+      setCatContents([]);
+      return;
+    }
+    setCatContents(data);
+  }
+
+  // --- Load Materials (monitor content) ---
+  const loadMaterials = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('materials')
+      .select('id, title, type, age_range, status, categories(name)')
+      .order('created_at', { ascending: false });
+    if (!error && data) setMaterials(data);
+  }, []);
+
+  async function deleteMaterial(id) {
+    if (!confirm('Delete this material?')) return;
+    const { error } = await supabase.from('materials').delete().eq('id', id);
+    if (!error) {
+      loadMaterials();
+      loadApprovals();
+    }
+  }
+
+  // --- Load Pending Approval list ---
+  const loadApprovals = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('materials')
+      .select('id, title, type, categories(name)')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+    if (!error && data) setApprovals(data);
+    else setApprovals([]);
+  }, []);
+
+  async function decideApproval(id, action) {
+    const { error } = await supabase.from('materials').update({ status: action }).eq('id', id);
+    if (!error) {
+      loadApprovals();
+      loadMaterials();
+    }
+  }
+
+  useEffect(() => {
+    loadUsers();
+    loadCategories();
+    loadMaterials();
+    loadApprovals();
+  }, [loadUsers, loadCategories, loadMaterials, loadApprovals]);
+
+  const statusPillKind = (s) => ({ approved: 'teacher', pending: 'admin', rejected: 'student' }[s] || 'teacher');
+
+  return (
+    <DashboardLayout
+      logoSubtitle="Admin"
+      tabs={TABS}
+      title="Admin Dashboard"
+      subtitle="Manolo Fortich, Bukidnon · EarlyLearn Hub"
+      avatar="👤"
+      stats={[
+        { label: 'Total Users', value: profiles.length || '-' },
+        { label: 'Categories', value: categories.length || '-' },
+        { label: 'Materials Uploaded', value: materials.length || '-' },
+      ]}
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+    >
+      {/* OVERVIEW */}
+      {activeTab === 'overview' && (
+        <div className={cardBox}>
+          <h3 className={cardBoxTitle}>Welcome!</h3>
+          <p className="text-sm text-[#5c5342]">
+            Use the menu on the left to manage users, categories, and learning materials.
+          </p>
+        </div>
+      )}
+
+      {/* USERS */}
+      {activeTab === 'users' && (
+        <div className={cardBox}>
+          <h3 className={cardBoxTitle}>User Accounts</h3>
+          <div className="overflow-x-auto">
+            <table className={table}>
+              <thead>
+                <tr>
+                  <th className={th}>Name</th>
+                  <th className={th}>Role</th>
+                  <th className={th}>Change Role</th>
+                  <th className={th}>Barangay</th>
+                  <th className={th}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {profiles.map((p) => (
+                  <tr key={p.id}>
+                    <td className={td}>{p.full_name || '(no name)'}</td>
+                    <td className={td}>
+                      <span className={pillClass(p.role)}>{p.role}</span>
+                    </td>
+                    <td className={td}>
+                      <select
+                        value={p.role}
+                        onChange={(e) => updateRole(p.id, e.target.value)}
+                        className="px-2.5 py-1.5 rounded-lg border border-[#E5DCC9] text-xs text-dash-ink"
+                      >
+                        <option value="admin">admin</option>
+                        <option value="teacher">teacher</option>
+                        <option value="student">student</option>
+                      </select>
+                    </td>
+                    <td className={td}>
+                      <select
+                        value={p.barangay || ''}
+                        onChange={(e) => updateBarangay(p.id, e.target.value)}
+                        className="px-2.5 py-1.5 rounded-lg border border-[#E5DCC9] text-xs text-dash-ink"
+                      >
+                        <option value="">— select —</option>
+                        {barangays.map((b) => (
+                          <option key={b} value={b}>
+                            {b}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className={td}></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {usersMsg.text && (
+            <p className={usersMsg.type === 'error' ? msgError : msgOk}>{usersMsg.text}</p>
+          )}
+        </div>
+      )}
+
+      {/* CATEGORIES */}
+      {activeTab === 'categories' && (
+        <>
+          <div className={cardBox}>
+            <h3 className={cardBoxTitle}>Learning Categories</h3>
+            <p className="text-[13px] text-[#8a7f66] -mt-2.5 mb-4">
+              👉 Click a category to see the materials inside it.
+            </p>
+            <div className="flex gap-3 flex-wrap">
+              {categories.map((c) => (
+                <div
+                  key={c.id}
+                  onClick={() => showCategoryContents(c)}
+                  className="bg-[#FFFDF8] border border-card-border rounded-2xl px-3.5 pt-4.5 pb-3.5 text-center w-[108px] relative cursor-pointer"
+                >
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteCategory(c.id);
+                    }}
+                    className="absolute top-1.5 right-2 cursor-pointer text-[#ccc] text-xs border-none bg-transparent hover:text-danger"
+                  >
+                    ✕
+                  </button>
+                  <div className="text-[34px]">{c.icon}</div>
+                  <div className="text-[13px] font-bold mt-2 text-[#4A4030]">{c.name}</div>
+                  <div className="h-[3px] w-5 bg-gold rounded mx-auto mt-1.5" />
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2.5 mt-4 flex-wrap">
+              <input
+                type="text"
+                placeholder="Icon (e.g. 🚗)"
+                value={newCatIcon}
+                onChange={(e) => setNewCatIcon(e.target.value)}
+                className={`${input} w-[110px]`}
+              />
+              <input
+                type="text"
+                placeholder="Category name"
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+                className={`${input} flex-1 min-w-[160px]`}
+              />
+              <button onClick={addCategory} className={btnAdd}>
+                + Add Category
+              </button>
+            </div>
+            {catMsg.text && (
+              <p className={catMsg.type === 'error' ? msgError : msgOk}>{catMsg.text}</p>
+            )}
+          </div>
+
+          {selectedCategory && (
+            <div className={cardBox}>
+              <h3 className={cardBoxTitle}>
+                {selectedCategory.icon} Materials in "{selectedCategory.name}"
+              </h3>
+              <div className="overflow-x-auto">
+                <table className={table}>
+                  <thead>
+                    <tr>
+                      <th className={th}>Title</th>
+                      <th className={th}>Type</th>
+                      <th className={th}>Age</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {catContents.map((m, i) => (
+                      <tr key={i}>
+                        <td className={td}>{m.title}</td>
+                        <td className={td}>{m.type}</td>
+                        <td className={td}>
+                          <span className={ageTag}>{m.age_range || '-'}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {catContentsMsg && <p className="text-[13px] mt-3 text-dash-ink-soft">{catContentsMsg}</p>}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* MATERIALS */}
+      {activeTab === 'materials' && (
+        <div className={cardBox}>
+          <h3 className={cardBoxTitle}>Learning Materials (Monitor Content)</h3>
+          <div className="overflow-x-auto">
+            <table className={table}>
+              <thead>
+                <tr>
+                  <th className={th}>Title</th>
+                  <th className={th}>Category</th>
+                  <th className={th}>Type</th>
+                  <th className={th}>Age</th>
+                  <th className={th}>Status</th>
+                  <th className={th}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {materials.map((m) => (
+                  <tr key={m.id}>
+                    <td className={td}>{m.title}</td>
+                    <td className={td}>{m.categories?.name || '-'}</td>
+                    <td className={td}>{m.type}</td>
+                    <td className={td}>
+                      <span className={ageTag}>{m.age_range || '-'}</span>
+                    </td>
+                    <td className={td}>
+                      <span className={pillClass(statusPillKind(m.status))}>{m.status || 'approved'}</span>
+                    </td>
+                    <td className={td}>
+                      <button onClick={() => deleteMaterial(m.id)} className={delBtn}>
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {materials.length === 0 && (
+            <p className="text-[13px] mt-3 text-dash-ink-soft">
+              No materials yet. Teachers will upload these from their dashboard.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* PENDING APPROVAL */}
+      {activeTab === 'approvals' && (
+        <div className={cardBox}>
+          <h3 className={cardBoxTitle}>Pending Approval</h3>
+          <p className="text-[13px] text-dash-ink-soft -mt-2.5 mb-4">
+            Newly uploaded materials from teachers wait here until approved. Students only see
+            approved content.
+          </p>
+          <div className="overflow-x-auto">
+            <table className={table}>
+              <thead>
+                <tr>
+                  <th className={th}>Title</th>
+                  <th className={th}>Category</th>
+                  <th className={th}>Type</th>
+                  <th className={th}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {approvals.map((m) => (
+                  <tr key={m.id}>
+                    <td className={td}>{m.title}</td>
+                    <td className={td}>{m.categories?.name || '-'}</td>
+                    <td className={td}>{m.type}</td>
+                    <td className={td}>
+                      <button
+                        onClick={() => decideApproval(m.id, 'approved')}
+                        className={`${btnAdd} px-3 py-[5px] text-[11.5px] mr-1.5`}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => decideApproval(m.id, 'rejected')}
+                        className={`${btnAdd} px-3 py-[5px] text-[11.5px] bg-danger`}
+                      >
+                        Reject
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {approvals.length === 0 && (
+            <p className="text-[13px] mt-3 text-dash-ink-soft">
+              Nothing pending approval right now.
+            </p>
+          )}
+        </div>
+      )}
+    </DashboardLayout>
+  );
+}
