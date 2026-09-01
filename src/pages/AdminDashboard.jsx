@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase, barangays } from '../lib/supabaseClient';
 import DashboardLayout from '../components/DashboardLayout.jsx';
+import ManageTeachers from './ManageTeachers.jsx';
+import ManageLearners from './ManageLearners.jsx';
 import {
   cardBox,
   cardBoxTitle,
@@ -19,6 +21,8 @@ import {
 const TABS = [
   { key: 'overview', label: 'Overview', icon: '📊' },
   { key: 'users', label: 'Manage Users', icon: '👥' },
+  { key: 'teachers', label: 'Manage Teachers', icon: '🍎' },
+  { key: 'learners', label: 'Manage Learners', icon: '🧒' },
   { key: 'categories', label: 'Categories', icon: '🗂️' },
   { key: 'materials', label: 'Materials', icon: '📚' },
   { key: 'approvals', label: 'Pending Approval', icon: '✅' },
@@ -259,6 +263,12 @@ export default function AdminDashboard() {
           )}
         </div>
       )}
+
+      {/* MANAGE TEACHERS */}
+      {activeTab === 'teachers' && <ManageTeachers />}
+
+      {/* MANAGE LEARNERS */}
+      {activeTab === 'learners' && <ManageLearners />}
 
       {/* CATEGORIES */}
       {activeTab === 'categories' && (

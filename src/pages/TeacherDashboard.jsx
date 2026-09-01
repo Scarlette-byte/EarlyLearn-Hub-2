@@ -20,6 +20,7 @@ import {
 
 const TABS = [
   { key: 'overview', label: 'Overview', icon: '📊' },
+  { key: 'mylearners', label: 'My Learners', icon: '🧒' },
   { key: 'upload', label: 'Upload Materials', icon: '⬆️' },
   { key: 'announcements', label: 'Announcements', icon: '📢' },
   { key: 'submissions', label: 'Check Submissions', icon: '📝' },
@@ -58,6 +59,11 @@ export default function TeacherDashboard({ profile }) {
   // Profile tab
   const [myBarangay, setMyBarangay] = useState('');
   const [profileMsg, setProfileMsg] = useState({ text: '', type: '' });
+
+  // My Learners tab — auto-filtered by this teacher's assigned CDC
+  const [myCdcName, setMyCdcName] = useState(null);
+  const [myLearners, setMyLearners] = useState([]);
+  const [learnersLoading, setLearnersLoading] = useState(true);
 
   // --- Load categories into the dropdown ---
   const loadCategoryOptions = useCallback(async () => {
@@ -196,6 +202,34 @@ export default function TeacherDashboard({ profile }) {
     else setProfileMsg({ text: '✅ Barangay saved!', type: 'ok' });
   }
 
+  // --- My Learners: find this teacher's CDC, then list learners in that same CDC ---
+  const loadMyLearners = useCallback(async () => {
+    setLearnersLoading(true);
+    const { data: teacherRow } = await supabase
+      .from('teachers')
+      .select('cdc_id, cdcs(name)')
+      .eq('id', currentUserId)
+      .single();
+
+    if (!teacherRow || !teacherRow.cdc_id) {
+      setMyCdcName(null);
+      setMyLearners([]);
+      setLearnersLoading(false);
+      return;
+    }
+
+    setMyCdcName(teacherRow.cdcs?.name || null);
+
+    const { data: learners } = await supabase
+      .from('learners')
+      .select('id, full_name, birthdate, parent_name, parent_contact')
+      .eq('cdc_id', teacherRow.cdc_id)
+      .order('full_name');
+
+    setMyLearners(learners || []);
+    setLearnersLoading(false);
+  }, [currentUserId]);
+
   useEffect(() => {
     loadCategoryOptions();
     loadMyMaterials();
@@ -203,7 +237,16 @@ export default function TeacherDashboard({ profile }) {
     loadSubmissions();
     loadProgress();
     loadMyProfile();
-  }, [loadCategoryOptions, loadMyMaterials, loadAnnouncements, loadSubmissions, loadProgress, loadMyProfile]);
+    loadMyLearners();
+  }, [
+    loadCategoryOptions,
+    loadMyMaterials,
+    loadAnnouncements,
+    loadSubmissions,
+    loadProgress,
+    loadMyProfile,
+    loadMyLearners,
+  ]);
 
   const statusPillKind = (s) => ({ approved: 'checked', pending: 'submitted', rejected: 'submitted' }[s] || 'checked');
   const statusLabel = (s) => (s === 'rejected' ? '❌ rejected' : s || 'approved');
@@ -234,6 +277,56 @@ export default function TeacherDashboard({ profile }) {
             Use the menu on the left to upload materials/activities, post announcements, and
             check student submissions.
           </p>
+        </div>
+      )}
+
+      {/* MY LEARNERS — auto-matched by CDC, no manual assignment needed */}
+      {activeTab === 'mylearners' && (
+        <div className={cardBox}>
+          <h3 className={cardBoxTitle}>My Learners</h3>
+          {learnersLoading && <p className="text-[13px] text-dash-ink-soft">Loading...</p>}
+
+          {!learnersLoading && !myCdcName && (
+            <p className="text-[13px] text-dash-ink-soft">
+              You're not yet assigned to a CDC. Please ask the Admin to assign your CDC in
+              "Manage Teachers" — your learners will appear here automatically once that's set.
+            </p>
+          )}
+
+          {!learnersLoading && myCdcName && (
+            <>
+              <p className="text-[12.5px] text-dash-ink-soft -mt-2.5 mb-4">
+                Showing learners assigned to <strong>{myCdcName}</strong>.
+              </p>
+              <div className="overflow-x-auto">
+                <table className={table}>
+                  <thead>
+                    <tr>
+                      <th className={th}>Name</th>
+                      <th className={th}>Birthdate</th>
+                      <th className={th}>Parent</th>
+                      <th className={th}>Contact</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {myLearners.map((l) => (
+                      <tr key={l.id}>
+                        <td className={td}>{l.full_name}</td>
+                        <td className={td}>{l.birthdate || '-'}</td>
+                        <td className={td}>{l.parent_name || '-'}</td>
+                        <td className={td}>{l.parent_contact || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {myLearners.length === 0 && (
+                <p className="text-[13px] mt-3 text-dash-ink-soft">
+                  No learners recorded yet for {myCdcName}.
+                </p>
+              )}
+            </>
+          )}
         </div>
       )}
 
