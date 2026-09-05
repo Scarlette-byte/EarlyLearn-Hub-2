@@ -3,6 +3,7 @@ import { supabase, barangays } from '../lib/supabaseClient';
 import DashboardLayout from '../components/DashboardLayout.jsx';
 import ManageTeachers from './ManageTeachers.jsx';
 import ManageLearners from './ManageLearners.jsx';
+import ManageCurriculum from './ManageCurriculum.jsx';
 import {
   cardBox,
   cardBoxTitle,
@@ -23,6 +24,7 @@ const TABS = [
   { key: 'users', label: 'Manage Users', icon: '👥' },
   { key: 'teachers', label: 'Manage Teachers', icon: '🍎' },
   { key: 'learners', label: 'Manage Learners', icon: '🧒' },
+  { key: 'curriculum', label: 'Curriculum Guide', icon: '📘' },
   { key: 'categories', label: 'Categories', icon: '🗂️' },
   { key: 'materials', label: 'Materials', icon: '📚' },
   { key: 'approvals', label: 'Pending Approval', icon: '✅' },
@@ -267,8 +269,11 @@ export default function AdminDashboard() {
       {/* MANAGE TEACHERS */}
       {activeTab === 'teachers' && <ManageTeachers />}
 
-      {/* MANAGE LEARNERS */}
-      {activeTab === 'learners' && <ManageLearners />}
+     {/* MANAGE LEARNERS */}
+     {activeTab === 'learners' && <ManageLearners />}
+
+     {/* CURRICULUM GUIDE */}
+     {activeTab === 'curriculum' && <ManageCurriculum />}
 
       {/* CATEGORIES */}
       {activeTab === 'categories' && (

@@ -37,11 +37,15 @@ export default function TeacherDashboard({ profile }) {
   const [matCategory, setMatCategory] = useState('');
   const [matType, setMatType] = useState('video');
   const [matTitle, setMatTitle] = useState('');
-  const [matAge, setMatAge] = useState('3-4');
+  const [matAge, setMatAge] = useState('K1 (3.0-3.11)');
   const [matUrl, setMatUrl] = useState('');
   const [matText, setMatText] = useState('');
   const [uploadMsg, setUploadMsg] = useState({ text: '', type: '' });
   const [myMaterials, setMyMaterials] = useState([]);
+
+  // Curriculum linking (optional)
+  const [curriculumEntries, setCurriculumEntries] = useState([]);
+  const [matCurriculumId, setMatCurriculumId] = useState('');
 
   // Announcements tab
   const [annTitle, setAnnTitle] = useState('');
@@ -65,12 +69,24 @@ export default function TeacherDashboard({ profile }) {
   const [myLearners, setMyLearners] = useState([]);
   const [learnersLoading, setLearnersLoading] = useState(true);
 
-  // --- Load categories into the dropdown ---
+    // --- Load categories into the dropdown ---
   const loadCategoryOptions = useCallback(async () => {
     const { data } = await supabase.from('categories').select('id, name, icon').order('name');
     setCategoryOptions(data || []);
     if (data && data.length && !matCategory) setMatCategory(data[0].id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Load curriculum entries that match the selected age level (K1 or K2)
+  const loadCurriculumEntries = useCallback(async (ageValue) => {
+    const level = ageValue.startsWith('K1') ? 'K1' : 'K2';
+    const { data } = await supabase
+      .from('curriculum_guide')
+      .select('id, quarter, theme, week, sub_theme')
+      .eq('level', level)
+      .order('quarter')
+      .order('week');
+    setCurriculumEntries(data || []);
   }, []);
 
   // --- Load my uploaded materials ---
@@ -88,7 +104,7 @@ export default function TeacherDashboard({ profile }) {
       setUploadMsg({ text: '⚠️ Please enter a title and select a category', type: 'error' });
       return;
     }
-    const { error } = await supabase.from('materials').insert({
+      const { error } = await supabase.from('materials').insert({
       category_id: matCategory,
       type: matType,
       title: matTitle.trim(),
@@ -96,6 +112,7 @@ export default function TeacherDashboard({ profile }) {
       content_url: matUrl.trim() || null,
       content_text: matText.trim() || null,
       created_by: currentUserId,
+      curriculum_guide_id: matCurriculumId || null,
     });
     if (error) {
       setUploadMsg({ text: '❌ ' + error.message, type: 'error' });
@@ -230,7 +247,7 @@ export default function TeacherDashboard({ profile }) {
     setLearnersLoading(false);
   }, [currentUserId]);
 
-  useEffect(() => {
+   useEffect(() => {
     loadCategoryOptions();
     loadMyMaterials();
     loadAnnouncements();
@@ -238,6 +255,7 @@ export default function TeacherDashboard({ profile }) {
     loadProgress();
     loadMyProfile();
     loadMyLearners();
+    loadCurriculumEntries(matAge);
   }, [
     loadCategoryOptions,
     loadMyMaterials,
@@ -246,6 +264,7 @@ export default function TeacherDashboard({ profile }) {
     loadProgress,
     loadMyProfile,
     loadMyLearners,
+    loadCurriculumEntries,
   ]);
 
   const statusPillKind = (s) => ({ approved: 'checked', pending: 'submitted', rejected: 'submitted' }[s] || 'checked');
@@ -369,33 +388,42 @@ export default function TeacherDashboard({ profile }) {
             className={input}
           />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
-            <div>
+                    <div>
               <label className={label}>Age Range</label>
-              <select value={matAge} onChange={(e) => setMatAge(e.target.value)} className={input}>
-                <option value="3-4">3-4 years old</option>
-                <option value="5-6">5-6 years old</option>
+              <select
+                value={matAge}
+                onChange={(e) => {
+                  setMatAge(e.target.value);
+                  setMatCurriculumId('');
+                  loadCurriculumEntries(e.target.value);
+                }}
+                className={input}
+              >
+                <option value="K1 (3.0-3.11)">K1 (3.0-3.11)</option>
+                <option value="K2 (4.0-4.11)">K2 (4.0-4.11)</option>
               </select>
             </div>
-            <div>
-              <label className={label}>Content URL (video/image link, optional)</label>
-              <input
-                type="text"
-                placeholder="https://..."
-                value={matUrl}
-                onChange={(e) => setMatUrl(e.target.value)}
-                className={input}
-              />
-            </div>
-          </div>
-
-          <label className={label}>Text Content / Activity Question (optional)</label>
+                    <label className={label}>Text Content / Activity Question (optional)</label>
           <textarea
             placeholder="e.g. What letter is this? or simple content"
             value={matText}
             onChange={(e) => setMatText(e.target.value)}
             className={`${input} min-h-[70px] resize-y`}
           />
+
+          <label className={label}>Link to Curriculum Guide (optional)</label>
+          <select
+            value={matCurriculumId}
+            onChange={(e) => setMatCurriculumId(e.target.value)}
+            className={input}
+          >
+            <option value="">— not linked —</option>
+            {curriculumEntries.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.quarter} · {c.week} · {c.sub_theme}
+              </option>
+            ))}
+          </select>
 
           <button onClick={handleUpload} className={btnPrimary}>
             Upload
