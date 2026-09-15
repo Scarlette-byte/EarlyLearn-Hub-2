@@ -82,6 +82,10 @@ export default function TeacherDashboard({ profile }) {
   const [learnerMsg, setLearnerMsg] = useState({ text: '', type: '' });
   const [savingLearner, setSavingLearner] = useState(false);
 
+  // Parent account generation
+  const [parentGenLoading, setParentGenLoading] = useState(null); // holds learner id currently generating
+  const [newParentCreds, setNewParentCreds] = useState(null); // { learnerName, loginEmail, tempPassword }
+
   // --- My Assignments: curriculum entries admin has assigned to me ---
   const loadAssignments = useCallback(async () => {
     setAssignmentsLoading(true);
@@ -324,7 +328,7 @@ export default function TeacherDashboard({ profile }) {
 
     const { data: learners } = await supabase
       .from('learners')
-      .select('id, full_name, birthdate, parent_name, parent_contact')
+      .select('id, full_name, birthdate, parent_name, parent_contact, parent_login_email')
       .eq('cdc_id', teacherRow.cdc_id)
       .order('full_name');
 
@@ -338,23 +342,74 @@ export default function TeacherDashboard({ profile }) {
       return;
     }
     setSavingLearner(true);
-    const { error } = await supabase.from('learners').insert({
-      full_name: lFullName.trim(),
-      birthdate: lBirthdate || null,
-      barangay: null,
-      cdc_id: myCdcId,
-      parent_name: lParentName.trim() || null,
-      parent_contact: lParentContact.trim() || null,
-    });
-    setSavingLearner(false);
+
+    const { data: inserted, error } = await supabase
+      .from('learners')
+      .insert({
+        full_name: lFullName.trim(),
+        birthdate: lBirthdate || null,
+        barangay: null,
+        cdc_id: myCdcId,
+        parent_name: lParentName.trim() || null,
+        parent_contact: lParentContact.trim() || null,
+      })
+      .select()
+      .single();
+
     if (error) {
+      setSavingLearner(false);
       setLearnerMsg({ text: '❌ ' + error.message, type: 'error' });
+      return;
+    }
+
+    // Right after saving the learner, auto-generate the parent's login account
+    const { data: fnData, error: fnError } = await supabase.functions.invoke(
+      'create-parent-account',
+      { body: { learnerId: inserted.id } }
+    );
+
+    setSavingLearner(false);
+
+    if (fnError || fnData?.error) {
+      setLearnerMsg({
+        text:
+          '✅ Learner added. ⚠️ Parent account could not be created automatically (' +
+          (fnData?.error || fnError.message) +
+          '). You can generate it from the table below.',
+        type: 'error',
+      });
     } else {
-      setLearnerMsg({ text: '✅ Learner added', type: 'ok' });
-      setLFullName('');
-      setLBirthdate('');
-      setLParentName('');
-      setLParentContact('');
+      setLearnerMsg({ text: '✅ Learner added and parent account created!', type: 'ok' });
+      setNewParentCreds({
+        learnerName: lFullName.trim(),
+        loginEmail: fnData.loginEmail,
+        tempPassword: fnData.tempPassword,
+      });
+    }
+
+    setLFullName('');
+    setLBirthdate('');
+    setLParentName('');
+    setLParentContact('');
+    loadMyLearners();
+  }
+
+  async function generateParentAccount(learner) {
+    setParentGenLoading(learner.id);
+    const { data: fnData, error: fnError } = await supabase.functions.invoke(
+      'create-parent-account',
+      { body: { learnerId: learner.id } }
+    );
+    setParentGenLoading(null);
+
+    if (fnError || fnData?.error) {
+      alert('❌ ' + (fnData?.error || fnError.message));
+    } else {
+      setNewParentCreds({
+        learnerName: learner.full_name,
+        loginEmail: fnData.loginEmail,
+        tempPassword: fnData.tempPassword,
+      });
       loadMyLearners();
     }
   }
@@ -536,6 +591,30 @@ export default function TeacherDashboard({ profile }) {
                 <p className={learnerMsg.type === 'error' ? msgError : msgOk}>{learnerMsg.text}</p>
               )}
 
+              {newParentCreds && (
+                <div className="bg-[#FFF8E1] border border-[#E8D48A] rounded-xl p-4 mt-3">
+                  <p className="text-[13px] font-bold text-dash-ink mb-1">
+                    🔑 Parent Login for {newParentCreds.learnerName}
+                  </p>
+                  <p className="text-[13px] text-dash-ink">
+                    Login ID: <strong>{newParentCreds.loginEmail}</strong>
+                  </p>
+                  <p className="text-[13px] text-dash-ink">
+                    Password: <strong>{newParentCreds.tempPassword}</strong>
+                  </p>
+                  <p className="text-[12px] text-dash-ink-soft mt-2">
+                    Isulat o ipadala ni sa parent karon dayon — dili na ni makita pag-usab human
+                    nimo isira ni nga box.
+                  </p>
+                  <button
+                    onClick={() => setNewParentCreds(null)}
+                    className="text-[12px] font-bold text-dash-ink-soft underline bg-transparent border-none cursor-pointer mt-2"
+                  >
+                    Isira
+                  </button>
+                </div>
+              )}
+
               <h3 className={`${cardBoxTitle} mt-7`}>All Learners</h3>
               <div className="overflow-x-auto">
                 <table className={table}>
@@ -545,6 +624,7 @@ export default function TeacherDashboard({ profile }) {
                       <th className={th}>Birthdate</th>
                       <th className={th}>Parent</th>
                       <th className={th}>Contact</th>
+                      <th className={th}>Parent Login</th>
                       <th className={th}></th>
                     </tr>
                   </thead>
@@ -555,6 +635,21 @@ export default function TeacherDashboard({ profile }) {
                         <td className={td}>{l.birthdate || '-'}</td>
                         <td className={td}>{l.parent_name || '-'}</td>
                         <td className={td}>{l.parent_contact || '-'}</td>
+                        <td className={td}>
+                          {l.parent_login_email ? (
+                            <span className="text-[11.5px] text-dash-ink-soft">
+                              {l.parent_login_email}
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => generateParentAccount(l)}
+                              disabled={parentGenLoading === l.id}
+                              className={btnSmall}
+                            >
+                              {parentGenLoading === l.id ? 'Generating...' : 'Generate'}
+                            </button>
+                          )}
+                        </td>
                         <td className={td}>
                           <button onClick={() => deleteMyLearner(l.id)} className={delBtn}>
                             ✕
