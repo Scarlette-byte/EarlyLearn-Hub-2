@@ -3,6 +3,7 @@ import { supabase, barangays } from '../lib/supabaseClient';
 import DashboardLayout from '../components/DashboardLayout.jsx';
 import ManageTeachers from './ManageTeachers.jsx';
 import ManageLearners from './ManageLearners.jsx';
+import ManageCurriculum from './ManageCurriculum.jsx';
 import {
   cardBox,
   cardBoxTitle,
@@ -23,8 +24,8 @@ const TABS = [
   { key: 'users', label: 'Manage Users', icon: '👥' },
   { key: 'teachers', label: 'Manage Teachers', icon: '🍎' },
   { key: 'learners', label: 'Manage Learners', icon: '🧒' },
+  { key: 'curriculum', label: 'Curriculum Guide', icon: '📘' },
   { key: 'categories', label: 'Categories', icon: '🗂️' },
-  { key: 'materials', label: 'Materials', icon: '📚' },
   { key: 'approvals', label: 'Pending Approval', icon: '✅' },
 ];
 
@@ -270,6 +271,9 @@ export default function AdminDashboard() {
       {/* MANAGE LEARNERS */}
       {activeTab === 'learners' && <ManageLearners />}
 
+      {/* CURRICULUM GUIDE */}
+      {activeTab === 'curriculum' && <ManageCurriculum />}
+
       {/* CATEGORIES */}
       {activeTab === 'categories' && (
         <>
@@ -355,52 +359,6 @@ export default function AdminDashboard() {
             </div>
           )}
         </>
-      )}
-
-      {/* MATERIALS */}
-      {activeTab === 'materials' && (
-        <div className={cardBox}>
-          <h3 className={cardBoxTitle}>Learning Materials (Monitor Content)</h3>
-          <div className="overflow-x-auto">
-            <table className={table}>
-              <thead>
-                <tr>
-                  <th className={th}>Title</th>
-                  <th className={th}>Category</th>
-                  <th className={th}>Type</th>
-                  <th className={th}>Age</th>
-                  <th className={th}>Status</th>
-                  <th className={th}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {materials.map((m) => (
-                  <tr key={m.id}>
-                    <td className={td}>{m.title}</td>
-                    <td className={td}>{m.categories?.name || '-'}</td>
-                    <td className={td}>{m.type}</td>
-                    <td className={td}>
-                      <span className={ageTag}>{m.age_range || '-'}</span>
-                    </td>
-                    <td className={td}>
-                      <span className={pillClass(statusPillKind(m.status))}>{m.status || 'approved'}</span>
-                    </td>
-                    <td className={td}>
-                      <button onClick={() => deleteMaterial(m.id)} className={delBtn}>
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {materials.length === 0 && (
-            <p className="text-[13px] mt-3 text-dash-ink-soft">
-              No materials yet. Teachers will upload these from their dashboard.
-            </p>
-          )}
-        </div>
       )}
 
       {/* PENDING APPROVAL */}

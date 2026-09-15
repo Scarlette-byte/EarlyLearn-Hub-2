@@ -55,12 +55,15 @@ export default function StudentDashboard({ profile }) {
   }, []);
 
   // --- Load "My Activities" to-do list ---
+  // ONLY curriculum-linked activities (assigned by Admin -> uploaded by Teacher
+  // via "My Assignments") should appear here. Free-form activities are excluded.
   const loadPendingActivities = useCallback(async () => {
     const { data: activities, error } = await supabase
       .from('materials')
       .select('*, categories(name, icon)')
       .eq('type', 'activity')
       .eq('status', 'approved')
+      .not('curriculum_guide_id', 'is', null)
       .order('created_at', { ascending: false });
 
     const { data: mySubs } = await supabase

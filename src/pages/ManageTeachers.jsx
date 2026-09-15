@@ -151,19 +151,6 @@ export default function ManageTeachers() {
           </button>
         </div>
         {cdcMsg.text && <p className={cdcMsg.type === 'error' ? msgError : msgOk}>{cdcMsg.text}</p>}
-
-        {cdcs.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-3">
-            {cdcs.map((c) => (
-              <span
-                key={c.id}
-                className="text-[12px] bg-[#F6F1E7] text-[#5c5342] px-3 py-1 rounded-full font-semibold"
-              >
-                {c.name} · {c.barangay}
-              </span>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Add Teacher */}
@@ -223,6 +210,7 @@ export default function ManageTeachers() {
               {cdcsForBarangay(teacherBarangay).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
+                  {c.official_teacher_name ? ` — was: ${c.official_teacher_name}` : ''}
                 </option>
               ))}
             </select>
