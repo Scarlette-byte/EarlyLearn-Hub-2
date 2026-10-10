@@ -14,12 +14,6 @@ export default function ManageTeachers() {
   const [contactNumber, setContactNumber] = useState('');
   const [saving, setSaving] = useState(false);
   const [formMsg, setFormMsg] = useState({ text: '', type: '' });
-
-  // Add CDC form
-  const [newCdcName, setNewCdcName] = useState('');
-  const [newCdcBarangay, setNewCdcBarangay] = useState('');
-  const [cdcMsg, setCdcMsg] = useState({ text: '', type: '' });
-
   // Credentials modal (shown once right after creating an account)
   const [credentials, setCredentials] = useState(null); // { email, tempPassword }
 
@@ -40,24 +34,6 @@ export default function ManageTeachers() {
     loadTeachers();
     loadCdcs();
   }, [loadTeachers, loadCdcs]);
-
-  async function addCdc() {
-    if (!newCdcName.trim() || !newCdcBarangay) {
-      setCdcMsg({ text: '⚠️ Please enter a CDC name and select a barangay', type: 'error' });
-      return;
-    }
-    const { error } = await supabase
-      .from('cdcs')
-      .insert({ name: newCdcName.trim(), barangay: newCdcBarangay });
-    if (error) {
-      setCdcMsg({ text: '❌ ' + error.message, type: 'error' });
-    } else {
-      setCdcMsg({ text: '✅ CDC added', type: 'ok' });
-      setNewCdcName('');
-      setNewCdcBarangay('');
-      loadCdcs();
-    }
-  }
 
   async function addTeacher() {
     if (!fullName.trim() || !email.trim() || !teacherBarangay) {
@@ -119,52 +95,6 @@ export default function ManageTeachers() {
 
   return (
     <>
-      {/* CDC management */}
-      <div className={cardBox}>
-        <h3 className={cardBoxTitle}>Child Development Centers (CDCs)</h3>
-        <p className="text-[13px] text-[#8a7f66] -mt-2.5 mb-4">
-          Add each CDC once here — teachers and learners will both be tagged with a CDC so the
-          system can match them automatically.
-        </p>
-        <div className="flex gap-2.5 flex-wrap mb-2">
-          <input
-            type="text"
-            placeholder="CDC name (e.g. CDC 1)"
-            value={newCdcName}
-            onChange={(e) => setNewCdcName(e.target.value)}
-            className={`${input} flex-1 min-w-[160px]`}
-          />
-          <select
-            value={newCdcBarangay}
-            onChange={(e) => setNewCdcBarangay(e.target.value)}
-            className={`${input} w-[200px]`}
-          >
-            <option value="">— select barangay —</option>
-            {barangays.map((b) => (
-              <option key={b} value={b}>
-                {b}
-              </option>
-            ))}
-          </select>
-          <button onClick={addCdc} className={btnPrimary}>
-            + Add CDC
-          </button>
-        </div>
-        {cdcMsg.text && <p className={cdcMsg.type === 'error' ? msgError : msgOk}>{cdcMsg.text}</p>}
-
-        {cdcs.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-3">
-            {cdcs.map((c) => (
-              <span
-                key={c.id}
-                className="text-[12px] bg-[#F6F1E7] text-[#5c5342] px-3 py-1 rounded-full font-semibold"
-              >
-                {c.name} · {c.barangay}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
 
       {/* Add Teacher */}
       <div className={cardBox}>
