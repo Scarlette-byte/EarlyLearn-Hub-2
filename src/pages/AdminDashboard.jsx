@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase, barangays } from '../lib/supabaseClient';
 import DashboardLayout from '../components/DashboardLayout.jsx';
+import ManageUsers from './ManageUsers.jsx';
 import ManageTeachers from './ManageTeachers.jsx';
 import ManageLearners from './ManageLearners.jsx';
 import {
@@ -28,7 +29,7 @@ const TABS = [
   { key: 'approvals', label: 'Pending Approval', icon: '✅' },
 ];
 
-export default function AdminDashboard() {
+export default function AdminDashboard({ profile }) {
   const [activeTab, setActiveTab] = useState('overview');
 
   // Users tab
@@ -206,63 +207,7 @@ export default function AdminDashboard() {
       )}
 
       {/* USERS */}
-      {activeTab === 'users' && (
-        <div className={cardBox}>
-          <h3 className={cardBoxTitle}>User Accounts</h3>
-          <div className="overflow-x-auto">
-            <table className={table}>
-              <thead>
-                <tr>
-                  <th className={th}>Name</th>
-                  <th className={th}>Role</th>
-                  <th className={th}>Change Role</th>
-                  <th className={th}>Barangay</th>
-                  <th className={th}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {profiles.map((p) => (
-                  <tr key={p.id}>
-                    <td className={td}>{p.full_name || '(no name)'}</td>
-                    <td className={td}>
-                      <span className={pillClass(p.role)}>{p.role}</span>
-                    </td>
-                    <td className={td}>
-                      <select
-                        value={p.role}
-                        onChange={(e) => updateRole(p.id, e.target.value)}
-                        className="px-2.5 py-1.5 rounded-lg border border-[#E5DCC9] text-xs text-dash-ink"
-                      >
-                        <option value="admin">admin</option>
-                        <option value="teacher">teacher</option>
-                        <option value="student">student</option>
-                      </select>
-                    </td>
-                    <td className={td}>
-                      <select
-                        value={p.barangay || ''}
-                        onChange={(e) => updateBarangay(p.id, e.target.value)}
-                        className="px-2.5 py-1.5 rounded-lg border border-[#E5DCC9] text-xs text-dash-ink"
-                      >
-                        <option value="">— select —</option>
-                        {barangays.map((b) => (
-                          <option key={b} value={b}>
-                            {b}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className={td}></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {usersMsg.text && (
-            <p className={usersMsg.type === 'error' ? msgError : msgOk}>{usersMsg.text}</p>
-          )}
-        </div>
-      )}
+      {activeTab === 'users' && <ManageUsers currentUser={profile} />}
 
       {/* MANAGE TEACHERS */}
       {activeTab === 'teachers' && <ManageTeachers />}
