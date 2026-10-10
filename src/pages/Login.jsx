@@ -135,6 +135,12 @@ export default function Login() {
         >
           Don't have an account? Sign Up here
         </Link>
+        <Link
+          to="/"
+          className="block mt-2.5 text-[12px] text-ink-soft no-underline font-semibold hover:text-ink hover:underline"
+        >
+          ← Back to EarlyLearn Hub
+        </Link>
       </div>
     </div>
   );

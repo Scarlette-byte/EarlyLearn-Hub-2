@@ -173,6 +173,12 @@ export default function SignUp() {
         >
           ⬅ Back to Log In
         </Link>
+        <Link
+          to="/"
+          className="block mt-2.5 text-[12px] text-ink-soft no-underline font-semibold hover:text-ink hover:underline"
+        >
+          ← Back to EarlyLearn Hub
+        </Link>
       </div>
     </div>
   );
