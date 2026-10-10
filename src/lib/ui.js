@@ -14,6 +14,7 @@ export const td = 'px-4 py-3 text-[15px] border-b border-[#F6F1E7] text-[#3B3324
 
 export function pillClass(kind) {
   const map = {
+    superadmin: 'bg-[#EDE4FF] text-[#5A2E9E] border border-[#D5C2F8]',
     admin: 'bg-[#F6E4C2] text-[#8A6420]',
     teacher: 'bg-[#DCEBDD] text-[#3D7048]',
     student: 'bg-[#DCE8F2] text-[#386B93]',

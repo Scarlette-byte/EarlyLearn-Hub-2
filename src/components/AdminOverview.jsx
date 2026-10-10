@@ -36,7 +36,7 @@ export default function AdminOverview({
 
   // Calculations
   const totalUsers = profiles.length;
-  const adminCount = profiles.filter((p) => p.role === 'admin').length;
+  const adminCount = profiles.filter((p) => p.role === 'admin' || p.role === 'superadmin').length;
   const teacherCount = teachers.length || profiles.filter((p) => p.role === 'teacher').length;
   const learnerCount = learners.length || profiles.filter((p) => p.role === 'student').length;
   const pendingApprovalsCount = approvals.length;

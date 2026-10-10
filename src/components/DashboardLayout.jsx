@@ -12,6 +12,8 @@ export default function DashboardLayout({
   title,
   subtitle,
   avatar,
+  roleBadge,
+  isSuperAdmin,
   stats, // [{ label, value }]
   activeTab,
   onTabChange,
@@ -30,7 +32,11 @@ export default function DashboardLayout({
       {/* Mobile top bar with menu toggle */}
       <div className="md:hidden flex items-center justify-between bg-sidebar text-gold px-4 py-3">
         <div className="flex items-center gap-2 font-fraunces font-bold text-[15px]">
-          <span className="w-5 h-5 rounded-md bg-gold/20 border border-gold/40 flex items-center justify-center text-gold text-xs font-bold">E</span>
+          <span className={`w-5 h-5 rounded-md flex items-center justify-center text-xs font-bold ${
+            isSuperAdmin ? 'bg-purple-500/20 border border-purple-400/40 text-[#E0C6FF]' : 'bg-gold/20 border border-gold/40 text-gold'
+          }`}>
+            {isSuperAdmin ? 'S' : 'E'}
+          </span>
           EarlyLearn <span className="text-sidebar-text font-nunito text-[10px] uppercase tracking-wider">{logoSubtitle}</span>
         </div>
         <button
@@ -51,12 +57,16 @@ export default function DashboardLayout({
         <div
           className="absolute -top-16 -right-16 w-40 h-40 rounded-full pointer-events-none"
           style={{
-            background: 'radial-gradient(circle, rgba(201,120,74,0.33), transparent 70%)',
+            background: isSuperAdmin
+              ? 'radial-gradient(circle, rgba(147,51,234,0.3), transparent 70%)'
+              : 'radial-gradient(circle, rgba(201,120,74,0.33), transparent 70%)',
           }}
         />
         <div className="hidden md:flex items-center gap-2.5 mb-6 px-1.5 relative z-10">
-          <div className="w-7 h-7 rounded-lg bg-gold/20 border border-gold/40 flex items-center justify-center text-gold text-xs font-bold font-fraunces">
-            EL
+          <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold font-fraunces ${
+            isSuperAdmin ? 'bg-purple-500/20 border border-purple-400/40 text-[#E0C6FF]' : 'bg-gold/20 border border-gold/40 text-gold'
+          }`}>
+            {isSuperAdmin ? 'SA' : 'EL'}
           </div>
           <div>
             <div className="font-fraunces text-[17px] font-bold text-gold leading-tight">EarlyLearn</div>
@@ -96,11 +106,23 @@ export default function DashboardLayout({
       <div className="flex-1 p-5 sm:p-8 md:p-[32px_38px] overflow-y-auto">
         <div className="flex justify-between items-start mb-6 gap-3">
           <div>
-            <h1 className="font-fraunces text-xl sm:text-2xl font-bold m-0 text-dash-ink">{title}</h1>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="font-fraunces text-xl sm:text-2xl font-bold m-0 text-dash-ink">{title}</h1>
+              {roleBadge && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold tracking-wide bg-[#EDE4FF] text-[#5A2E9E] border border-[#D5C2F8] shadow-2xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#7A3EE6] animate-pulse" />
+                  {roleBadge}
+                </span>
+              )}
+            </div>
             <p className="text-dash-ink-soft text-xs mt-1 tracking-wide">{subtitle}</p>
           </div>
-          <div className="w-[38px] h-[38px] rounded-full bg-[#FAF3E6] border border-[#E5DAC4] text-[#8A6420] flex items-center justify-center text-xs font-bold flex-shrink-0">
-            {typeof avatar === 'string' && avatar.length <= 2 ? avatar : 'AD'}
+          <div className={`w-[38px] h-[38px] rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+            isSuperAdmin
+              ? 'bg-[#EDE4FF] border border-[#D5C2F8] text-[#5A2E9E]'
+              : 'bg-[#FAF3E6] border border-[#E5DAC4] text-[#8A6420]'
+          }`}>
+            {typeof avatar === 'string' && avatar.length <= 2 ? avatar : (isSuperAdmin ? 'SA' : 'AD')}
           </div>
         </div>
 

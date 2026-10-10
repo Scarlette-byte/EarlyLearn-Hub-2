@@ -8,6 +8,13 @@ import {
   pillClass,
 } from '../lib/ui.js';
 import {
+  getEffectiveRole,
+  isSuperAdminUser,
+  getDbRole,
+  addSuperAdminId,
+  removeSuperAdminId,
+} from '../lib/roles.js';
+import {
   IconSearch,
   IconPlus,
   IconRefresh,
@@ -81,7 +88,16 @@ export default function ManageUsers({ currentUser }) {
       // Ignored
     }
 
-    setUsers(profs || []);
+    const mappedUsers = (profs || []).map((u) => {
+      const effectiveRole = getEffectiveRole(u);
+      return {
+        ...u,
+        role: effectiveRole,
+        isSuperAdmin: effectiveRole === 'superadmin',
+      };
+    });
+
+    setUsers(mappedUsers);
     setLoading(false);
   }, []);
 
@@ -106,6 +122,7 @@ export default function ManageUsers({ currentUser }) {
 
   // --- Statistics ---
   const totalCount = users.length;
+  const superadminCount = users.filter((u) => u.role === 'superadmin').length;
   const adminCount = users.filter((u) => u.role === 'admin').length;
   const teacherCount = users.filter((u) => u.role === 'teacher').length;
   const studentCount = users.filter((u) => u.role === 'student').length;
@@ -127,12 +144,23 @@ export default function ManageUsers({ currentUser }) {
       return;
     }
 
+    // Role safety guard
+    if (
+      (isSuperAdminUser(editModalUser) || editRole === 'superadmin') &&
+      !isSuperAdminUser(currentUser)
+    ) {
+      alert('Access Restricted: Only an authorized Superadmin can assign or modify the Superadmin role.');
+      return;
+    }
+
     setEditSaving(true);
+    const dbRole = getDbRole(editRole);
+
     const { error } = await supabase
       .from('profiles')
       .update({
         full_name: editName.trim(),
-        role: editRole,
+        role: dbRole,
         barangay: editBarangay || null,
       })
       .eq('id', editModalUser.id);
@@ -142,6 +170,11 @@ export default function ManageUsers({ currentUser }) {
     if (error) {
       alert('Failed to update user: ' + error.message);
     } else {
+      if (editRole === 'superadmin') {
+        addSuperAdminId(editModalUser.id);
+      } else if (isSuperAdminUser(editModalUser)) {
+        removeSuperAdminId(editModalUser.id);
+      }
       setMsg({ text: `User "${editName.trim()}" updated successfully.`, type: 'ok' });
       setEditModalUser(null);
       loadUsers();
@@ -231,11 +264,22 @@ export default function ManageUsers({ currentUser }) {
       return;
     }
 
+    if (isSuperAdminUser(u) && !isSuperAdminUser(currentUser)) {
+      alert('Access Restricted: Only a Superadmin can delete a Superadmin account.');
+      return;
+    }
+
+    if (isSuperAdminUser(u) && u.id === '3cb5bc92-1742-414d-8d12-e9cc523464f6') {
+      alert('Protected Account: The primary Municipal Superadmin account is protected and cannot be deleted.');
+      return;
+    }
+
     const { error } = await supabase.from('profiles').delete().eq('id', u.id);
 
     if (error) {
       setMsg({ text: 'Failed to delete user: ' + error.message, type: 'error' });
     } else {
+      removeSuperAdminId(u.id);
       try {
         await supabase.from('teachers').delete().eq('id', u.id);
       } catch {
@@ -262,6 +306,11 @@ export default function ManageUsers({ currentUser }) {
       return;
     }
 
+    if (newRole === 'superadmin' && !isSuperAdminUser(currentUser)) {
+      alert('Access Restricted: Only an authorized Superadmin can create a new Superadmin account.');
+      return;
+    }
+
     setCreateSaving(true);
     const { authEmail, isPhone, display } = normalizeAuthIdentifier(newIdentifier);
 
@@ -272,6 +321,8 @@ export default function ManageUsers({ currentUser }) {
         data: {
           full_name: newFullName.trim(),
           role: newRole,
+          is_superadmin: newRole === 'superadmin',
+          role_tier: newRole,
           barangay: newBarangay || null,
           contact_number: isPhone ? display : null,
         },
@@ -286,15 +337,20 @@ export default function ManageUsers({ currentUser }) {
 
     const createdUserId = authData.user?.id;
     if (createdUserId) {
+      const dbRole = getDbRole(newRole);
       const { error: profError } = await supabase.from('profiles').upsert({
         id: createdUserId,
         full_name: newFullName.trim(),
-        role: newRole,
+        role: dbRole,
         barangay: newBarangay || null,
       });
 
       if (profError) {
-        alert('Account created, but profile record failed: ' + profError.message);
+        alert('Account created, but profile record notice: ' + profError.message);
+      }
+
+      if (newRole === 'superadmin') {
+        addSuperAdminId(createdUserId);
       }
 
       if (newRole === 'teacher') {
@@ -332,13 +388,22 @@ export default function ManageUsers({ currentUser }) {
       {/* ---------------------------------------------------- */}
       {/* 1. KPI SUMMARY STRIP                                 */}
       {/* ---------------------------------------------------- */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="bg-white rounded-xl p-4 shadow-xs border border-card-border text-center">
           <span className="font-fraunces text-2xl sm:text-3xl font-bold text-dash-ink block">
             {totalCount}
           </span>
           <span className="text-[11px] font-bold text-dash-ink-soft uppercase tracking-wider">
             Total Users
+          </span>
+        </div>
+
+        <div className="bg-white rounded-xl p-4 shadow-xs border border-card-border text-center">
+          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-[#5A2E9E] block">
+            {superadminCount}
+          </span>
+          <span className="text-[11px] font-bold text-[#5A2E9E] uppercase tracking-wider">
+            Superadmins
           </span>
         </div>
 
@@ -369,7 +434,7 @@ export default function ManageUsers({ currentUser }) {
           </span>
         </div>
 
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-card-border text-center col-span-2 sm:col-span-1">
+        <div className="bg-white rounded-xl p-4 shadow-xs border border-card-border text-center">
           <span className="font-fraunces text-2xl sm:text-3xl font-bold text-accent block">
             {barangayCount}
           </span>
@@ -457,6 +522,7 @@ export default function ManageUsers({ currentUser }) {
               className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] font-nunito text-xs text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent cursor-pointer"
             >
               <option value="all">All Roles ({totalCount})</option>
+              <option value="superadmin">Superadmins ({superadminCount})</option>
               <option value="admin">Administrators ({adminCount})</option>
               <option value="teacher">Teachers ({teacherCount})</option>
               <option value="student">Learners / Parents ({studentCount})</option>
@@ -503,7 +569,9 @@ export default function ManageUsers({ currentUser }) {
                       <div className="flex items-center gap-2.5">
                         <div
                           className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
-                            u.role === 'admin'
+                            u.role === 'superadmin'
+                              ? 'bg-[#EDE4FF] text-[#5A2E9E]'
+                              : u.role === 'admin'
                               ? 'bg-[#FAF3E6] text-[#8A6420]'
                               : u.role === 'teacher'
                               ? 'bg-[#EDF6EE] text-[#2E6B39]'
@@ -531,7 +599,7 @@ export default function ManageUsers({ currentUser }) {
                     {/* Role Pill */}
                     <td className={td}>
                       <span className={pillClass(u.role)}>
-                        {u.role === 'student' ? 'student / parent' : u.role}
+                        {u.role === 'student' ? 'student / parent' : (u.role === 'superadmin' ? 'Superadmin' : u.role)}
                       </span>
                     </td>
 
@@ -647,7 +715,8 @@ export default function ManageUsers({ currentUser }) {
                   onChange={(e) => setEditRole(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] font-nunito text-sm text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent cursor-pointer"
                 >
-                  <option value="admin">Administrator (System Access)</option>
+                  <option value="superadmin">Superadmin (Municipal Governance & Full System Control)</option>
+                  <option value="admin">Administrator (MSWD ECCD Staff)</option>
                   <option value="teacher">Day Care Teacher (Teacher Portal)</option>
                   <option value="student">Student / Parent (Learning Portal)</option>
                 </select>
@@ -879,7 +948,8 @@ export default function ManageUsers({ currentUser }) {
                   >
                     <option value="student">Student / Parent (Learning Portal)</option>
                     <option value="teacher">Day Care Teacher (Teacher Portal)</option>
-                    <option value="admin">Administrator (Full Access)</option>
+                    <option value="admin">Administrator (MSWD ECCD Staff)</option>
+                    <option value="superadmin">Superadmin (Municipal Governance & Full System Control)</option>
                   </select>
                 </div>
 

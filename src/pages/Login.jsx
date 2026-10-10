@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase, normalizeAuthIdentifier } from '../lib/supabaseClient';
+import { getEffectiveRole } from '../lib/roles.js';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -44,31 +45,44 @@ export default function Login() {
       const metaRole = user.user_metadata?.role || 'student';
       const metaName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
       const metaBarangay = user.user_metadata?.barangay || null;
+      const dbRole = metaRole === 'teacher' ? 'teacher' : (metaRole === 'admin' || metaRole === 'superadmin' ? 'admin' : 'student');
 
       const { data: createdProf } = await supabase
         .from('profiles')
         .upsert({
           id: user.id,
           full_name: metaName,
-          role: metaRole === 'teacher' ? 'teacher' : 'student',
+          role: dbRole,
           barangay: metaBarangay,
         })
         .select('role, full_name, barangay')
         .single();
 
       profile = createdProf || {
-        role: metaRole === 'teacher' ? 'teacher' : 'student',
+        role: dbRole,
         full_name: metaName,
         barangay: metaBarangay,
       };
     }
 
-    setMsg({ text: `✅ Welcome, ${profile.full_name || user.email}!`, type: 'ok' });
+    const effectiveRole = getEffectiveRole({
+      ...(profile || {}),
+      id: user.id,
+      email: user.email,
+      user_metadata: user.user_metadata,
+    });
+
+    const roleTag = effectiveRole === 'superadmin' ? ' • Superadmin' : '';
+    setMsg({ text: `✅ Welcome, ${profile.full_name || user.email}!${roleTag}`, type: 'ok' });
 
     setTimeout(() => {
-      if (profile.role === 'admin') navigate('/admin-dashboard');
-      else if (profile.role === 'teacher') navigate('/teacher-dashboard');
-      else navigate('/student-dashboard');
+      if (effectiveRole === 'superadmin' || effectiveRole === 'admin') {
+        navigate('/admin-dashboard');
+      } else if (effectiveRole === 'teacher') {
+        navigate('/teacher-dashboard');
+      } else {
+        navigate('/student-dashboard');
+      }
     }, 900);
   }
 
