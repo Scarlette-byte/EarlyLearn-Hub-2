@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase, barangays } from '../lib/supabaseClient';
 import DashboardLayout from '../components/DashboardLayout.jsx';
+import AdminOverview from '../components/AdminOverview.jsx';
 import ManageUsers from './ManageUsers.jsx';
 import ManageTeachers from './ManageTeachers.jsx';
 import ManageLearners from './ManageLearners.jsx';
@@ -50,6 +51,11 @@ export default function AdminDashboard({ profile }) {
 
   // Approvals tab
   const [approvals, setApprovals] = useState([]);
+
+  // Additional overview metrics
+  const [teachers, setTeachers] = useState([]);
+  const [learners, setLearners] = useState([]);
+  const [cdcs, setCdcs] = useState([]);
 
   // --- Load Users ---
   const loadUsers = useCallback(async () => {
@@ -172,12 +178,28 @@ export default function AdminDashboard({ profile }) {
     }
   }
 
+  const loadExtraStats = useCallback(async () => {
+    try {
+      const [{ data: tData }, { data: lData }, { data: cData }] = await Promise.all([
+        supabase.from('teachers').select('id, full_name, barangay'),
+        supabase.from('learners').select('id, full_name, barangay'),
+        supabase.from('cdcs').select('id, name, barangay'),
+      ]);
+      if (tData) setTeachers(tData);
+      if (lData) setLearners(lData);
+      if (cData) setCdcs(cData);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   useEffect(() => {
     loadUsers();
     loadCategories();
     loadMaterials();
     loadApprovals();
-  }, [loadUsers, loadCategories, loadMaterials, loadApprovals]);
+    loadExtraStats();
+  }, [loadUsers, loadCategories, loadMaterials, loadApprovals, loadExtraStats]);
 
   const statusPillKind = (s) => ({ approved: 'teacher', pending: 'admin', rejected: 'student' }[s] || 'teacher');
 
@@ -188,22 +210,33 @@ export default function AdminDashboard({ profile }) {
       title="Admin Dashboard"
       subtitle="Manolo Fortich, Bukidnon · EarlyLearn Hub"
       avatar="👤"
-      stats={[
-        { label: 'Total Users', value: profiles.length || '-' },
-        { label: 'Categories', value: categories.length || '-' },
-        { label: 'Materials Uploaded', value: materials.length || '-' },
-      ]}
+      stats={
+        activeTab === 'overview'
+          ? null
+          : [
+              { label: 'Total Users', value: profiles.length || '-' },
+              { label: 'Categories', value: categories.length || '-' },
+              { label: 'Materials Uploaded', value: materials.length || '-' },
+              { label: 'Pending Review', value: approvals.length || '0' },
+            ]
+      }
       activeTab={activeTab}
       onTabChange={setActiveTab}
     >
       {/* OVERVIEW */}
       {activeTab === 'overview' && (
-        <div className={cardBox}>
-          <h3 className={cardBoxTitle}>Welcome!</h3>
-          <p className="text-sm text-[#5c5342]">
-            Use the menu on the left to manage users, categories, and learning materials.
-          </p>
-        </div>
+        <AdminOverview
+          profile={profile}
+          profiles={profiles}
+          teachers={teachers}
+          learners={learners}
+          cdcs={cdcs}
+          categories={categories}
+          materials={materials}
+          approvals={approvals}
+          onTabChange={setActiveTab}
+          decideApproval={decideApproval}
+        />
       )}
 
       {/* USERS */}
