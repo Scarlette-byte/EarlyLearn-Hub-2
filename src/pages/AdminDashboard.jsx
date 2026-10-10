@@ -8,6 +8,7 @@ import ChildDevelopmentMonitoring from '../components/admin/ChildDevelopmentMoni
 import ReportsGeneration from '../components/admin/ReportsGeneration.jsx';
 import ProgramMonitoring from '../components/admin/ProgramMonitoring.jsx';
 import ManageTeachers from './ManageTeachers.jsx';
+import ManageUsers from './ManageUsers.jsx';
 import {
   baselineCdcs,
   baselineLearners,
@@ -28,21 +29,30 @@ import {
   delBtn,
   ageTag,
 } from '../lib/ui.js';
+import {
+  IconOverview,
+  IconUsers,
+  IconTeachers,
+  IconLearners,
+  IconCategories,
+  IconMaterials,
+  IconApprovals,
+} from '../components/Icons.jsx';
 
 const TABS = [
-  { key: 'overview', label: 'MSWD Overview', icon: '🏛️' },
-  { key: 'children', label: '1. Child Records', icon: '🧒' },
-  { key: 'centers', label: '2. Daycare Centers', icon: '🏫' },
-  { key: 'development', label: '3. Child Development', icon: '📈' },
-  { key: 'reports', label: '4. Reports Generation', icon: '📄' },
-  { key: 'programs', label: '5. Program Monitoring', icon: '📋' },
-  { key: 'teachers', label: 'Daycare Workers', icon: '🍎' },
-  { key: 'users', label: 'User Roles', icon: '👥' },
-  { key: 'categories', label: 'Categories', icon: '🗂️' },
-  { key: 'materials', label: 'Materials Approval', icon: '📚' },
+  { key: 'overview', label: 'MSWD Overview', icon: <IconOverview className="w-4 h-4" /> },
+  { key: 'children', label: '1. Child Records', icon: <IconLearners className="w-4 h-4" /> },
+  { key: 'centers', label: '2. Daycare Centers', icon: <IconTeachers className="w-4 h-4" /> },
+  { key: 'development', label: '3. Child Development', icon: <IconApprovals className="w-4 h-4" /> },
+  { key: 'reports', label: '4. Reports Generation', icon: <IconMaterials className="w-4 h-4" /> },
+  { key: 'programs', label: '5. Program Monitoring', icon: <IconOverview className="w-4 h-4" /> },
+  { key: 'teachers', label: 'Daycare Workers', icon: <IconTeachers className="w-4 h-4" /> },
+  { key: 'users', label: 'Manage Users', icon: <IconUsers className="w-4 h-4" /> },
+  { key: 'categories', label: 'Categories', icon: <IconCategories className="w-4 h-4" /> },
+  { key: 'materials', label: 'Learning Content', icon: <IconMaterials className="w-4 h-4" /> },
 ];
 
-export default function AdminDashboard() {
+export default function AdminDashboard({ profile }) {
   const [activeTab, setActiveTab] = useState('overview');
 
   // Core MSWD Datasets
@@ -73,84 +83,85 @@ export default function AdminDashboard() {
 
   // --- Load CDCs from Supabase, merging with baseline ---
   const loadCdcs = useCallback(async () => {
-    const { data, error } = await supabase.from('cdcs').select('*').order('barangay, name');
-    if (!error && data && data.length > 0) {
-      // Merge unique by name
-      const existingNames = new Set(data.map((c) => c.name));
-      const filteredBaseline = baselineCdcs.filter((b) => !existingNames.has(b.name));
-      setCdcs([...data, ...filteredBaseline]);
-    } else {
+    try {
+      const { data, error } = await supabase.from('cdcs').select('*').order('barangay, name');
+      if (!error && data && data.length > 0) {
+        const existingNames = new Set(data.map((c) => c.name));
+        const filteredBaseline = baselineCdcs.filter((b) => !existingNames.has(b.name));
+        setCdcs([...data, ...filteredBaseline]);
+      } else {
+        setCdcs(baselineCdcs);
+      }
+    } catch {
       setCdcs(baselineCdcs);
     }
   }, []);
 
   // --- Load Learners from Supabase, merging with baseline ---
   const loadLearners = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('learners')
-      .select('id, full_name, birthdate, barangay, cdc_id, parent_name, parent_contact, cdcs(name)')
-      .order('full_name');
+    try {
+      const { data, error } = await supabase
+        .from('learners')
+        .select('id, full_name, birthdate, barangay, cdc_id, parent_name, parent_contact, cdcs(name)')
+        .order('full_name');
 
-    if (!error && data && data.length > 0) {
-      const existingIds = new Set(data.map((l) => l.id));
-      const formattedData = data.map((l) => ({
-        ...l,
-        cdc_name: l.cdcs?.name || 'CDC Center',
-        enrollment_status: l.enrollment_status || 'Enrolled',
-        age: 3,
-      }));
-      const nonDuplicatedBaseline = baselineLearners.filter((b) => !existingIds.has(b.id));
-      setLearners([...formattedData, ...nonDuplicatedBaseline]);
-    } else {
+      if (!error && data && data.length > 0) {
+        const existingIds = new Set(data.map((l) => l.id));
+        const formattedData = data.map((l) => ({
+          ...l,
+          cdc_name: l.cdcs?.name || 'CDC Center',
+          enrollment_status: l.enrollment_status || 'Enrolled',
+          age: 3,
+        }));
+        const nonDuplicatedBaseline = baselineLearners.filter((b) => !existingIds.has(b.id));
+        setLearners([...formattedData, ...nonDuplicatedBaseline]);
+      } else {
+        setLearners(baselineLearners);
+      }
+    } catch {
       setLearners(baselineLearners);
     }
   }, []);
 
   // --- Load Teachers / CDWs ---
   const loadTeachers = useCallback(async () => {
-    const { data } = await supabase
-      .from('teachers')
-      .select('id, full_name, barangay, contact_number, email, cdc_id, cdcs(name)')
-      .order('full_name');
-    setTeachers(data || []);
+    try {
+      const { data } = await supabase
+        .from('teachers')
+        .select('id, full_name, barangay, contact_number, email, cdc_id, cdcs(name)')
+        .order('full_name');
+      setTeachers(data || []);
+    } catch {
+      setTeachers([]);
+    }
   }, []);
 
   // --- Load Users ---
   const loadUsers = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, full_name, role, barangay')
-      .order('full_name');
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, role, barangay')
+        .order('full_name');
 
-    if (error || !data) {
-      setUsersMsg({ text: '❌ ' + (error?.message || 'Failed to load users'), type: 'error' });
-      return;
+      if (error || !data) {
+        setUsersMsg({ text: '❌ ' + (error?.message || 'Failed to load users'), type: 'error' });
+        return;
+      }
+      setProfiles(data);
+    } catch {
+      setProfiles([]);
     }
-    setProfiles(data);
   }, []);
-
-  async function updateRole(id, role) {
-    const { error } = await supabase.from('profiles').update({ role }).eq('id', id);
-    if (error) setUsersMsg({ text: '❌ ' + error.message, type: 'error' });
-    else {
-      setUsersMsg({ text: '✅ Role updated', type: 'ok' });
-      loadUsers();
-    }
-  }
-
-  async function updateBarangay(id, barangay) {
-    const { error } = await supabase
-      .from('profiles')
-      .update({ barangay: barangay || null })
-      .eq('id', id);
-    if (error) setUsersMsg({ text: '❌ ' + error.message, type: 'error' });
-    else setUsersMsg({ text: '✅ Barangay updated', type: 'ok' });
-  }
 
   // --- Load Categories ---
   const loadCategories = useCallback(async () => {
-    const { data, error } = await supabase.from('categories').select('*').order('created_at');
-    if (!error && data) setCategories(data);
+    try {
+      const { data, error } = await supabase.from('categories').select('*').order('created_at');
+      if (!error && data) setCategories(data);
+    } catch {
+      setCategories([]);
+    }
   }, []);
 
   async function addCategory() {
@@ -201,11 +212,15 @@ export default function AdminDashboard() {
 
   // --- Load Materials ---
   const loadMaterials = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('materials')
-      .select('id, title, type, age_range, status, categories(name)')
-      .order('created_at', { ascending: false });
-    if (!error && data) setMaterials(data);
+    try {
+      const { data, error } = await supabase
+        .from('materials')
+        .select('id, title, type, age_range, status, categories(name)')
+        .order('created_at', { ascending: false });
+      if (!error && data) setMaterials(data);
+    } catch {
+      setMaterials([]);
+    }
   }, []);
 
   async function deleteMaterial(id) {
@@ -219,13 +234,17 @@ export default function AdminDashboard() {
 
   // --- Load Approvals ---
   const loadApprovals = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('materials')
-      .select('id, title, type, categories(name)')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false });
-    if (!error && data) setApprovals(data);
-    else setApprovals([]);
+    try {
+      const { data, error } = await supabase
+        .from('materials')
+        .select('id, title, type, categories(name)')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+      if (!error && data) setApprovals(data);
+      else setApprovals([]);
+    } catch {
+      setApprovals([]);
+    }
   }, []);
 
   async function decideApproval(id, action) {
@@ -244,10 +263,8 @@ export default function AdminDashboard() {
       ...newLearnerData,
     };
 
-    // Optimistically update
     setLearners((prev) => [created, ...prev]);
 
-    // Attempt Supabase insert
     try {
       await supabase.from('learners').insert({
         full_name: newLearnerData.full_name,
@@ -258,7 +275,7 @@ export default function AdminDashboard() {
         parent_contact: newLearnerData.parent_contact || null,
       });
     } catch {
-      // Keep optimistic item
+      // optimistic update retained
     }
   }
 
@@ -270,7 +287,7 @@ export default function AdminDashboard() {
     try {
       await supabase.from('learners').update(updates).eq('id', id);
     } catch {
-      // Gracefully handled
+      // handled
     }
   }
 
@@ -279,7 +296,7 @@ export default function AdminDashboard() {
     try {
       await supabase.from('learners').delete().eq('id', id);
     } catch {
-      // Gracefully handled
+      // handled
     }
   }
 
@@ -334,7 +351,7 @@ export default function AdminDashboard() {
       tabs={TABS}
       title="MSWD Admin Dashboard"
       subtitle="Municipal Social Welfare and Development Office • Manolo Fortich, Bukidnon"
-      avatar="🏛️"
+      avatar={profile?.full_name ? profile.full_name.slice(0, 2).toUpperCase() : '🏛️'}
       stats={[
         { label: 'Registered Children (3–4)', value: learners.length },
         { label: 'Daycare Centers (CDCs)', value: cdcs.length },
@@ -422,68 +439,9 @@ export default function AdminDashboard() {
       {activeTab === 'teachers' && <ManageTeachers />}
 
       {/* ---------------------------------------------------- */}
-      {/* USER ROLES MANAGEMENT                                */}
+      {/* USER MANAGEMENT (SUPER ADMIN)                        */}
       {/* ---------------------------------------------------- */}
-      {activeTab === 'users' && (
-        <div className={cardBox}>
-          <h3 className={cardBoxTitle}>User Accounts & System Roles</h3>
-          <p className="text-xs text-dash-ink-soft -mt-2.5 mb-4">
-            Assign municipal roles (Admin, Teacher/CDW, Student) across all 22 barangays of Manolo Fortich.
-          </p>
-          <div className="overflow-x-auto">
-            <table className={table}>
-              <thead>
-                <tr>
-                  <th className={th}>Name</th>
-                  <th className={th}>Role</th>
-                  <th className={th}>Change Role</th>
-                  <th className={th}>Barangay</th>
-                  <th className={th}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {profiles.map((p) => (
-                  <tr key={p.id}>
-                    <td className={td}>{p.full_name || '(no name)'}</td>
-                    <td className={td}>
-                      <span className={pillClass(p.role)}>{p.role}</span>
-                    </td>
-                    <td className={td}>
-                      <select
-                        value={p.role}
-                        onChange={(e) => updateRole(p.id, e.target.value)}
-                        className="px-2.5 py-1.5 rounded-lg border border-[#E5DCC9] text-xs text-dash-ink"
-                      >
-                        <option value="admin">admin</option>
-                        <option value="teacher">teacher</option>
-                        <option value="student">student</option>
-                      </select>
-                    </td>
-                    <td className={td}>
-                      <select
-                        value={p.barangay || ''}
-                        onChange={(e) => updateBarangay(p.id, e.target.value)}
-                        className="px-2.5 py-1.5 rounded-lg border border-[#E5DCC9] text-xs text-dash-ink"
-                      >
-                        <option value="">— select —</option>
-                        {barangays.map((b) => (
-                          <option key={b} value={b}>
-                            {b}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className={td}></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {usersMsg.text && (
-            <p className={usersMsg.type === 'error' ? msgError : msgOk}>{usersMsg.text}</p>
-          )}
-        </div>
-      )}
+      {activeTab === 'users' && <ManageUsers currentUser={profile} />}
 
       {/* ---------------------------------------------------- */}
       {/* CATEGORIES MANAGEMENT                                */}
@@ -493,7 +451,7 @@ export default function AdminDashboard() {
           <div className={cardBox}>
             <h3 className={cardBoxTitle}>Learning Categories</h3>
             <p className="text-[13px] text-[#8a7f66] -mt-2.5 mb-4">
-              👉 Click a category to see the materials inside it.
+              Select a category to inspect its learning materials.
             </p>
             <div className="flex gap-3 flex-wrap">
               {categories.map((c) => (

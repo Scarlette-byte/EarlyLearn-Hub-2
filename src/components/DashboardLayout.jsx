@@ -29,8 +29,9 @@ export default function DashboardLayout({
     <div className="min-h-screen flex flex-col md:flex-row bg-dashbg font-nunito text-dash-ink">
       {/* Mobile top bar with menu toggle */}
       <div className="md:hidden flex items-center justify-between bg-sidebar text-gold px-4 py-3">
-        <div className="font-fraunces font-bold text-[15px]">
-          🌻 EarlyLearn <span className="text-sidebar-text font-nunito text-[10px] uppercase tracking-wider">{logoSubtitle}</span>
+        <div className="flex items-center gap-2 font-fraunces font-bold text-[15px]">
+          <span className="w-5 h-5 rounded-md bg-gold/20 border border-gold/40 flex items-center justify-center text-gold text-xs font-bold">E</span>
+          EarlyLearn <span className="text-sidebar-text font-nunito text-[10px] uppercase tracking-wider">{logoSubtitle}</span>
         </div>
         <button
           onClick={() => setMobileNavOpen((v) => !v)}
@@ -53,11 +54,16 @@ export default function DashboardLayout({
             background: 'radial-gradient(circle, rgba(201,120,74,0.33), transparent 70%)',
           }}
         />
-        <div className="hidden md:block font-fraunces text-[17px] font-bold text-gold mb-6 px-1.5 relative z-10">
-          🌻 EarlyLearn
-          <small className="block font-nunito text-[10px] font-semibold text-[#A99A82] tracking-widest uppercase mt-0.5">
-            {logoSubtitle}
-          </small>
+        <div className="hidden md:flex items-center gap-2.5 mb-6 px-1.5 relative z-10">
+          <div className="w-7 h-7 rounded-lg bg-gold/20 border border-gold/40 flex items-center justify-center text-gold text-xs font-bold font-fraunces">
+            EL
+          </div>
+          <div>
+            <div className="font-fraunces text-[17px] font-bold text-gold leading-tight">EarlyLearn</div>
+            <small className="block font-nunito text-[10px] font-semibold text-[#A99A82] tracking-wider uppercase">
+              {logoSubtitle}
+            </small>
+          </div>
         </div>
 
         {tabs.map((tab) => (
@@ -67,19 +73,20 @@ export default function DashboardLayout({
               onTabChange(tab.key);
               setMobileNavOpen(false);
             }}
-            className={`px-3.5 py-2.5 rounded-[10px] text-[13.5px] font-bold cursor-pointer border-none text-left font-nunito relative z-10 ${
+            className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-[10px] text-[13.5px] font-bold cursor-pointer border-none text-left font-nunito relative z-10 transition-colors ${
               activeTab === tab.key
                 ? 'bg-accent text-[#FFF9F0]'
                 : 'bg-transparent text-sidebar-text hover:bg-white/[0.06]'
             }`}
           >
-            {tab.icon} &nbsp;{tab.label}
+            <span className="shrink-0">{tab.icon}</span>
+            <span>{tab.label}</span>
           </button>
         ))}
 
         <button
           onClick={handleLogout}
-          className="mt-auto md:mt-auto py-2.5 px-3.5 rounded-[10px] bg-transparent border border-[#5A4C3B] text-sidebar-text cursor-pointer text-xs font-bold relative z-10"
+          className="mt-auto md:mt-auto py-2.5 px-3.5 rounded-[10px] bg-transparent border border-[#5A4C3B] text-sidebar-text cursor-pointer text-xs font-bold relative z-10 hover:bg-white/[0.06] transition-colors"
         >
           Log Out
         </button>
@@ -92,8 +99,8 @@ export default function DashboardLayout({
             <h1 className="font-fraunces text-xl sm:text-2xl font-bold m-0 text-dash-ink">{title}</h1>
             <p className="text-dash-ink-soft text-xs mt-1 tracking-wide">{subtitle}</p>
           </div>
-          <div className="w-[38px] h-[38px] rounded-full bg-gold flex items-center justify-center text-base flex-shrink-0">
-            {avatar}
+          <div className="w-[38px] h-[38px] rounded-full bg-[#FAF3E6] border border-[#E5DAC4] text-[#8A6420] flex items-center justify-center text-xs font-bold flex-shrink-0">
+            {typeof avatar === 'string' && avatar.length <= 2 ? avatar : 'AD'}
           </div>
         </div>
 
