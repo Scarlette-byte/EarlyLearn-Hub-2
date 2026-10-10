@@ -373,8 +373,8 @@ export default function TeacherDashboard({ profile }) {
             <div>
               <label className={label}>Age Range</label>
               <select value={matAge} onChange={(e) => setMatAge(e.target.value)} className={input}>
-                <option value="3-4">3-4 years old</option>
-                <option value="5-6">5-6 years old</option>
+                <option value="3-4">3-4 years old (Day Care & Nursery)</option>
+                <option value="5-6">5-6 years old (Kindergarten)</option>
               </select>
             </div>
             <div>
