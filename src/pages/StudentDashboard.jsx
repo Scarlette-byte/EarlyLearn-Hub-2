@@ -183,8 +183,22 @@ export default function StudentDashboard({ profile }) {
       <div className="max-w-[600px] mx-auto px-5 pt-6 pb-16 text-center">
         <div className="flex justify-between items-center mb-4.5">
           <div>
-            <p className="font-baloo text-2xl font-bold m-0 text-left">👋 Hi, {greetingName}!</p>
-            <p className="text-[15px] text-[#6b5c42] mt-0.5 text-left">Choose what you'd like to learn</p>
+            <p className="font-baloo text-2xl font-bold m-0 text-left">
+              👋 Hi, {profile?.full_name?.includes('(Parent:') ? profile.full_name.split(' (Parent:')[0] : greetingName}!
+            </p>
+            <p className="text-[13.5px] text-[#6b5c42] mt-0.5 text-left flex items-center gap-1.5 flex-wrap">
+              {profile?.full_name?.includes('(Parent:') && (
+                <span className="inline-block px-2.5 py-0.5 rounded-full bg-coral/20 text-coral-deep text-[11px] font-black">
+                  👨‍👩‍👧 Guided by {profile.full_name.split(' (Parent:')[1]?.replace(')', '')}
+                </span>
+              )}
+              {profile?.barangay && (
+                <span className="inline-block px-2.5 py-0.5 rounded-full bg-sun/40 text-[#6B5313] text-[11px] font-black">
+                  📍 Brgy. {profile.barangay}
+                </span>
+              )}
+              <span>Choose what you'd like to learn</span>
+            </p>
           </div>
           <button
             onClick={handleLogout}
@@ -193,6 +207,17 @@ export default function StudentDashboard({ profile }) {
             Log Out
           </button>
         </div>
+
+        {/* Parent-Assisted Mode Tip for 3-4 year olds */}
+        {profile?.full_name?.includes('(Parent:') && view === 'home' && (
+          <div className="bg-white/80 rounded-2xl p-3 text-left mb-3.5 border border-[#F0E4CE] shadow-sm flex items-center gap-2.5 text-xs text-[#6B5C42]">
+            <span className="text-xl">🌟</span>
+            <div>
+              <span className="font-extrabold text-[#943535]">Parent Guided Mode (Ages 3–4): </span>
+              <span>Tap on any story or activity below to guide your little learner through today's lesson!</span>
+            </div>
+          </div>
+        )}
 
         {/* HOME VIEW */}
         {view === 'home' && (

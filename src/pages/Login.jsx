@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabaseClient';
+import { supabase, normalizeAuthIdentifier } from '../lib/supabaseClient';
 
 export default function Login() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [msg, setMsg] = useState({ text: '', type: '' });
   const [loading, setLoading] = useState(false);
@@ -12,10 +12,17 @@ export default function Login() {
   async function handleSubmit(e) {
     e.preventDefault();
     setMsg({ text: '', type: '' });
+
+    const { authEmail, isPhone } = normalizeAuthIdentifier(identifier);
+    if (!authEmail) {
+      setMsg({ text: '⚠️ Please enter your email or mobile phone number.', type: 'error' });
+      return;
+    }
+
     setLoading(true);
 
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: authEmail,
       password,
     });
 
@@ -26,19 +33,34 @@ export default function Login() {
     }
 
     const user = data.user;
-    const { data: profile, error: profileError } = await supabase
+    let { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('role, full_name')
+      .select('role, full_name, barangay')
       .eq('id', user.id)
       .single();
 
-    if (profileError) {
-      setMsg({
-        text: '⚠️ Login ok, but no profile record was found. Check the setup guide.',
-        type: 'error',
-      });
-      setLoading(false);
-      return;
+    if (profileError || !profile) {
+      // Auto-heal missing profile row using metadata
+      const metaRole = user.user_metadata?.role || 'student';
+      const metaName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
+      const metaBarangay = user.user_metadata?.barangay || null;
+
+      const { data: createdProf } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id,
+          full_name: metaName,
+          role: metaRole === 'teacher' ? 'teacher' : 'student',
+          barangay: metaBarangay,
+        })
+        .select('role, full_name, barangay')
+        .single();
+
+      profile = createdProf || {
+        role: metaRole === 'teacher' ? 'teacher' : 'student',
+        full_name: metaName,
+        barangay: metaBarangay,
+      };
     }
 
     setMsg({ text: `✅ Welcome, ${profile.full_name || user.email}!`, type: 'ok' });
@@ -81,18 +103,26 @@ export default function Login() {
         </p>
 
         <form onSubmit={handleSubmit} className="text-left">
-          <label htmlFor="email" className="block font-bold text-[13px] sm:text-xs text-ink mt-3.5 mb-1.5">
-            Email
+          <label htmlFor="identifier" className="block font-bold text-[13px] sm:text-xs text-ink mt-3.5 mb-1.5">
+            Email or Mobile Phone Number
           </label>
-          <input
-            id="email"
-            type="email"
-            required
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-3.5 py-3 rounded-2xl border-2 border-[#E6E6E6] font-nunito text-base outline-none transition-colors focus:border-sky-deep"
-          />
+          <div className="relative">
+            <input
+              id="identifier"
+              type="text"
+              required
+              placeholder="09123456789 or you@example.com"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              className="w-full px-3.5 py-3 rounded-2xl border-2 border-[#E6E6E6] font-nunito text-base outline-none transition-colors focus:border-sky-deep pr-10"
+            />
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-ink-soft text-sm">
+              📱
+            </div>
+          </div>
+          <p className="text-[11px] text-ink-soft mt-1">
+            💡 Log in with either your 11-digit mobile number or email address.
+          </p>
 
           <label
             htmlFor="password"

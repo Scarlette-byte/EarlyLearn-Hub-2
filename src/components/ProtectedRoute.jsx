@@ -29,7 +29,7 @@ export default function ProtectedRoute({ allowedRoles, children }) {
 
       const { data: prof } = await supabase
         .from('profiles')
-        .select('role, full_name')
+        .select('role, full_name, barangay')
         .eq('id', user.id)
         .single();
 
