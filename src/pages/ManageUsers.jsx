@@ -2,19 +2,23 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase, barangays, normalizeAuthIdentifier } from '../lib/supabaseClient';
 import {
   cardBox,
-  cardBoxTitle,
   table,
   th,
   td,
   pillClass,
-  msgOk,
-  msgError,
-  input,
-  label,
-  btnPrimary,
-  btnSmall,
-  delBtn,
 } from '../lib/ui.js';
+import {
+  IconSearch,
+  IconPlus,
+  IconRefresh,
+  IconEdit,
+  IconKey,
+  IconTrash,
+  IconDice,
+  IconCopy,
+  IconCheck,
+  IconClose,
+} from '../components/Icons.jsx';
 
 export default function ManageUsers({ currentUser }) {
   const [users, setUsers] = useState([]);
@@ -59,12 +63,11 @@ export default function ManageUsers({ currentUser }) {
       .order('full_name');
 
     if (profError) {
-      setMsg({ text: '❌ Failed to load users: ' + profError.message, type: 'error' });
+      setMsg({ text: 'Failed to load users: ' + profError.message, type: 'error' });
       setLoading(false);
       return;
     }
 
-    // Try fetching teachers table to correlate emails & contact numbers
     try {
       const { data: teachs } = await supabase
         .from('teachers')
@@ -75,7 +78,7 @@ export default function ManageUsers({ currentUser }) {
       });
       setTeachersMap(tMap);
     } catch {
-      // Ignore if teachers table is inaccessible
+      // Ignored
     }
 
     setUsers(profs || []);
@@ -108,7 +111,7 @@ export default function ManageUsers({ currentUser }) {
   const studentCount = users.filter((u) => u.role === 'student').length;
   const barangayCount = new Set(users.map((u) => u.barangay).filter(Boolean)).size;
 
-  // --- Edit User (Username / Full Name, Role, Barangay) ---
+  // --- Edit User ---
   function openEditModal(u) {
     setEditModalUser(u);
     setEditName(u.full_name || '');
@@ -120,7 +123,7 @@ export default function ManageUsers({ currentUser }) {
     e.preventDefault();
     if (!editModalUser) return;
     if (!editName.trim()) {
-      alert('Full Name / Username cannot be empty.');
+      alert('Full Name cannot be empty.');
       return;
     }
 
@@ -137,15 +140,15 @@ export default function ManageUsers({ currentUser }) {
     setEditSaving(false);
 
     if (error) {
-      alert('❌ Failed to update user: ' + error.message);
+      alert('Failed to update user: ' + error.message);
     } else {
-      setMsg({ text: `✅ User "${editName.trim()}" successfully updated!`, type: 'ok' });
+      setMsg({ text: `User "${editName.trim()}" updated successfully.`, type: 'ok' });
       setEditModalUser(null);
       loadUsers();
     }
   }
 
-  // --- Change Password / Reset ---
+  // --- Change Password ---
   function openPasswordModal(u) {
     setPasswordModalUser(u);
     setNewPassword('');
@@ -171,7 +174,6 @@ export default function ManageUsers({ currentUser }) {
 
     setPasswordSaving(true);
 
-    // If super admin is editing their own account, update directly via auth
     if (currentUser?.id === passwordModalUser.id) {
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
@@ -180,20 +182,18 @@ export default function ManageUsers({ currentUser }) {
       setPasswordSaving(false);
 
       if (error) {
-        alert('❌ Failed to update password: ' + error.message);
+        alert('Failed to update password: ' + error.message);
       } else {
         setPasswordSuccessData({
           user: passwordModalUser,
           password: newPassword,
           method: 'direct',
         });
-        setMsg({ text: `✅ Your password has been successfully updated!`, type: 'ok' });
+        setMsg({ text: 'Your password has been updated successfully.', type: 'ok' });
       }
       return;
     }
 
-    // For other users:
-    // If the user has an associated email (or virtual email), send reset link or provide manual temp password
     const userEmail =
       teachersMap[passwordModalUser.id]?.email ||
       `${passwordModalUser.id.replace(/-/g, '').slice(0, 10)}@earlylearn.ph`;
@@ -201,7 +201,7 @@ export default function ManageUsers({ currentUser }) {
     try {
       await supabase.auth.resetPasswordForEmail(userEmail);
     } catch {
-      // Ignore if user has no public mailbox
+      // Ignored
     }
 
     setPasswordSaving(false);
@@ -211,7 +211,7 @@ export default function ManageUsers({ currentUser }) {
       method: 'manual',
     });
     setMsg({
-      text: `✅ Password update instructions prepared for "${passwordModalUser.full_name}"!`,
+      text: `Password credentials prepared for "${passwordModalUser.full_name}".`,
       type: 'ok',
     });
   }
@@ -227,22 +227,21 @@ export default function ManageUsers({ currentUser }) {
     }
 
     if (currentUser?.id === u.id) {
-      alert('⚠️ You cannot delete your own active administrator account!');
+      alert('You cannot delete your own active administrator account.');
       return;
     }
 
     const { error } = await supabase.from('profiles').delete().eq('id', u.id);
 
     if (error) {
-      setMsg({ text: '❌ Failed to delete user: ' + error.message, type: 'error' });
+      setMsg({ text: 'Failed to delete user: ' + error.message, type: 'error' });
     } else {
-      // If teacher, attempt cleanup on teachers table
       try {
         await supabase.from('teachers').delete().eq('id', u.id);
       } catch {
         // Ignored
       }
-      setMsg({ text: `✅ User "${u.full_name}" deleted successfully.`, type: 'ok' });
+      setMsg({ text: `User "${u.full_name}" deleted successfully.`, type: 'ok' });
       loadUsers();
     }
   }
@@ -255,7 +254,7 @@ export default function ManageUsers({ currentUser }) {
       return;
     }
     if (!newIdentifier.trim()) {
-      alert('Please enter a mobile number or email address.');
+      alert('Please enter a mobile phone number or email address.');
       return;
     }
     if (!newUserPassword || newUserPassword.length < 6) {
@@ -264,10 +263,8 @@ export default function ManageUsers({ currentUser }) {
     }
 
     setCreateSaving(true);
-
     const { authEmail, isPhone, display } = normalizeAuthIdentifier(newIdentifier);
 
-    // Step 1: Create auth account
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: authEmail,
       password: newUserPassword,
@@ -282,12 +279,11 @@ export default function ManageUsers({ currentUser }) {
     });
 
     if (authError) {
-      alert('❌ Failed to create user: ' + authError.message);
+      alert('Failed to create user: ' + authError.message);
       setCreateSaving(false);
       return;
     }
 
-    // Step 2: Upsert profile row
     const createdUserId = authData.user?.id;
     if (createdUserId) {
       const { error: profError } = await supabase.from('profiles').upsert({
@@ -298,7 +294,7 @@ export default function ManageUsers({ currentUser }) {
       });
 
       if (profError) {
-        alert('⚠️ Auth account created, but profile error: ' + profError.message);
+        alert('Account created, but profile record failed: ' + profError.message);
       }
 
       if (newRole === 'teacher') {
@@ -334,11 +330,11 @@ export default function ManageUsers({ currentUser }) {
   return (
     <div className="space-y-6">
       {/* ---------------------------------------------------- */}
-      {/* KPI METRIC CARDS                                     */}
+      {/* 1. KPI SUMMARY STRIP                                 */}
       {/* ---------------------------------------------------- */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
-        <div className="bg-white rounded-2xl p-4 shadow-card border border-card-border text-center">
-          <span className="font-baloo text-2xl sm:text-3xl font-extrabold text-dash-ink block">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div className="bg-white rounded-xl p-4 shadow-xs border border-card-border text-center">
+          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-dash-ink block">
             {totalCount}
           </span>
           <span className="text-[11px] font-bold text-dash-ink-soft uppercase tracking-wider">
@@ -346,55 +342,55 @@ export default function ManageUsers({ currentUser }) {
           </span>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 shadow-card border border-card-border text-center">
-          <span className="font-baloo text-2xl sm:text-3xl font-extrabold text-[#8A6420] block">
+        <div className="bg-white rounded-xl p-4 shadow-xs border border-card-border text-center">
+          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-[#8A6420] block">
             {adminCount}
           </span>
           <span className="text-[11px] font-bold text-[#8A6420] uppercase tracking-wider">
-            Admins
+            Administrators
           </span>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 shadow-card border border-card-border text-center">
-          <span className="font-baloo text-2xl sm:text-3xl font-extrabold text-[#3D7048] block">
+        <div className="bg-white rounded-xl p-4 shadow-xs border border-card-border text-center">
+          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-[#2E6B39] block">
             {teacherCount}
           </span>
-          <span className="text-[11px] font-bold text-[#3D7048] uppercase tracking-wider">
+          <span className="text-[11px] font-bold text-[#2E6B39] uppercase tracking-wider">
             Teachers
           </span>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 shadow-card border border-card-border text-center">
-          <span className="font-baloo text-2xl sm:text-3xl font-extrabold text-[#386B93] block">
+        <div className="bg-white rounded-xl p-4 shadow-xs border border-card-border text-center">
+          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-[#2A5E85] block">
             {studentCount}
           </span>
-          <span className="text-[11px] font-bold text-[#386B93] uppercase tracking-wider">
-            Learners/Parents
+          <span className="text-[11px] font-bold text-[#2A5E85] uppercase tracking-wider">
+            Learners / Parents
           </span>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 shadow-card border border-card-border text-center col-span-2 sm:col-span-1">
-          <span className="font-baloo text-2xl sm:text-3xl font-extrabold text-accent block">
+        <div className="bg-white rounded-xl p-4 shadow-xs border border-card-border text-center col-span-2 sm:col-span-1">
+          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-accent block">
             {barangayCount}
           </span>
           <span className="text-[11px] font-bold text-dash-ink-soft uppercase tracking-wider">
-            Barangays Active
+            Active Barangays
           </span>
         </div>
       </div>
 
       {/* ---------------------------------------------------- */}
-      {/* MAIN USER MANAGEMENT MODULE CARD                     */}
+      {/* 2. MAIN USER MANAGEMENT CARD                          */}
       {/* ---------------------------------------------------- */}
       <div className={cardBox}>
         {/* Module Header & Action Bar */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-card-border mb-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#F5EDE0] mb-4">
           <div>
-            <h3 className="font-fraunces text-xl font-bold text-dash-ink m-0">
-              👥 Super Admin User Management
+            <h3 className="font-fraunces text-lg font-bold text-dash-ink m-0">
+              User Accounts Management
             </h3>
             <p className="text-xs text-dash-ink-soft mt-1 m-0">
-              Manage accounts, edit usernames, update roles, assign barangays, and configure passwords.
+              Manage credentials, update roles, assign barangays, and configure account access.
             </p>
           </div>
 
@@ -405,30 +401,31 @@ export default function ManageUsers({ currentUser }) {
                 setCreatedCredentials(null);
                 generateRandomPassword();
               }}
-              className="px-4 py-2.5 rounded-xl bg-accent hover:opacity-90 text-white font-baloo font-bold text-sm shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
+              className="px-3.5 py-2 rounded-xl bg-accent hover:opacity-90 text-white font-nunito font-bold text-xs shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
             >
-              <span>➕</span>
-              <span>Add New User</span>
+              <IconPlus className="w-4 h-4" />
+              <span>Add User</span>
             </button>
 
             <button
               onClick={loadUsers}
               disabled={loading}
-              className="px-3 py-2.5 rounded-xl bg-[#F6F1E7] hover:bg-[#EFE7D8] text-dash-ink font-bold text-xs transition-colors cursor-pointer"
+              className="px-3 py-2 rounded-xl bg-[#FAF5EC] hover:bg-[#F2E8D5] text-dash-ink font-semibold text-xs transition-colors cursor-pointer border border-[#E5DAC4] flex items-center gap-1.5"
               title="Refresh users list"
             >
-              {loading ? '⏳' : '🔄 Refresh'}
+              <IconRefresh className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
             </button>
           </div>
         </div>
 
-        {/* Global Alert Notification */}
+        {/* Global Notification */}
         {msg.text && (
           <div
-            className={`p-3 rounded-xl text-xs font-bold mb-4 flex items-center justify-between ${
+            className={`p-3 rounded-xl text-xs font-semibold mb-4 flex items-center justify-between ${
               msg.type === 'error'
                 ? 'bg-danger/10 text-danger border border-danger/20'
-                : 'bg-[#DCEBDD] text-[#3D7048] border border-[#BBD5BC]'
+                : 'bg-[#EDF6EE] text-[#2E6B39] border border-[#C8DEC9]'
             }`}
           >
             <span>{msg.text}</span>
@@ -436,17 +433,17 @@ export default function ManageUsers({ currentUser }) {
               onClick={() => setMsg({ text: '', type: '' })}
               className="text-xs bg-transparent border-none cursor-pointer font-bold ml-2"
             >
-              ✕
+              <IconClose className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
 
         {/* Filter & Search Bar */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-          <div>
+          <div className="relative">
             <input
               type="text"
-              placeholder="🔍 Search by name, ID, or contact..."
+              placeholder="Search by name, ID, or contact..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] font-nunito text-xs text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent"
@@ -459,10 +456,10 @@ export default function ManageUsers({ currentUser }) {
               onChange={(e) => setRoleFilter(e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] font-nunito text-xs text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent cursor-pointer"
             >
-              <option value="all">Filter: All Roles ({totalCount})</option>
-              <option value="admin">Admins only ({adminCount})</option>
-              <option value="teacher">Teachers only ({teacherCount})</option>
-              <option value="student">Learners / Parents only ({studentCount})</option>
+              <option value="all">All Roles ({totalCount})</option>
+              <option value="admin">Administrators ({adminCount})</option>
+              <option value="teacher">Teachers ({teacherCount})</option>
+              <option value="student">Learners / Parents ({studentCount})</option>
             </select>
           </div>
 
@@ -472,25 +469,25 @@ export default function ManageUsers({ currentUser }) {
               onChange={(e) => setBarangayFilter(e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] font-nunito text-xs text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent cursor-pointer"
             >
-              <option value="all">Filter: All Barangays</option>
+              <option value="all">All Barangays</option>
               {barangays.map((b) => (
                 <option key={b} value={b}>
-                  📍 {b}
+                  {b}
                 </option>
               ))}
             </select>
           </div>
         </div>
 
-        {/* User Table */}
+        {/* Users Table */}
         <div className="overflow-x-auto">
           <table className={table}>
             <thead>
               <tr>
-                <th className={th}>User / Username</th>
+                <th className={th}>User / Account Name</th>
                 <th className={th}>Role</th>
                 <th className={th}>Barangay</th>
-                <th className={th}>Contact Info</th>
+                <th className={th}>Contact Information</th>
                 <th className={`${th} text-right`}>Actions</th>
               </tr>
             </thead>
@@ -500,17 +497,17 @@ export default function ManageUsers({ currentUser }) {
                 const teacherInfo = teachersMap[u.id];
 
                 return (
-                  <tr key={u.id} className="hover:bg-[#FFFDF9] transition-colors">
-                    {/* User & Full Name */}
+                  <tr key={u.id} className="hover:bg-[#FAF8F5] transition-colors">
+                    {/* User Full Name & ID */}
                     <td className={td}>
                       <div className="flex items-center gap-2.5">
                         <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center font-baloo font-bold text-xs shrink-0 ${
+                          className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
                             u.role === 'admin'
-                              ? 'bg-[#F6E4C2] text-[#8A6420]'
+                              ? 'bg-[#FAF3E6] text-[#8A6420]'
                               : u.role === 'teacher'
-                              ? 'bg-[#DCEBDD] text-[#3D7048]'
-                              : 'bg-[#DCE8F2] text-[#386B93]'
+                              ? 'bg-[#EDF6EE] text-[#2E6B39]'
+                              : 'bg-[#EBF4FA] text-[#2A5E85]'
                           }`}
                         >
                           {(u.full_name || 'U').charAt(0).toUpperCase()}
@@ -519,8 +516,8 @@ export default function ManageUsers({ currentUser }) {
                           <div className="font-bold text-sm text-dash-ink flex items-center gap-1.5 flex-wrap">
                             <span>{u.full_name || '(No name set)'}</span>
                             {isCurrent && (
-                              <span className="text-[10px] bg-sun/40 text-[#6B5313] px-1.5 py-0.5 rounded font-black">
-                                YOU
+                              <span className="text-[10px] bg-[#FAF3E6] border border-[#E5DAC4] text-[#8A6420] px-1.5 py-0.5 rounded font-bold">
+                                Current User
                               </span>
                             )}
                           </div>
@@ -541,54 +538,51 @@ export default function ManageUsers({ currentUser }) {
                     {/* Barangay */}
                     <td className={td}>
                       {u.barangay ? (
-                        <span className="inline-flex items-center text-xs font-semibold text-dash-ink">
-                          📍 {u.barangay}
-                        </span>
+                        <span className="text-xs font-semibold text-dash-ink">{u.barangay}</span>
                       ) : (
-                        <span className="text-xs text-dash-ink-soft italic">No barangay</span>
+                        <span className="text-xs text-dash-ink-soft italic">Unassigned</span>
                       )}
                     </td>
 
-                    {/* Contact / Email */}
+                    {/* Contact Info */}
                     <td className={td}>
                       {teacherInfo?.email ? (
                         <div className="text-xs text-dash-ink">{teacherInfo.email}</div>
                       ) : teacherInfo?.contact_number ? (
                         <div className="text-xs text-dash-ink">{teacherInfo.contact_number}</div>
                       ) : (
-                        <span className="text-xs text-dash-ink-soft italic">Registered account</span>
+                        <span className="text-xs text-dash-ink-soft">Registered account</span>
                       )}
                     </td>
 
-                    {/* Action Buttons */}
+                    {/* Actions */}
                     <td className={`${td} text-right whitespace-nowrap`}>
                       <div className="inline-flex items-center gap-1.5">
-                        {/* Edit Username / Role / Barangay */}
                         <button
                           onClick={() => openEditModal(u)}
-                          className="px-2.5 py-1 rounded-lg bg-[#FAF5EC] hover:bg-[#F2E8D5] text-dash-ink font-bold text-xs transition-colors cursor-pointer border border-[#E5DAC4]"
-                          title="Edit username, role, or barangay"
+                          className="px-2.5 py-1 rounded-lg bg-[#FAF5EC] hover:bg-[#F2E8D5] text-dash-ink font-semibold text-xs transition-colors cursor-pointer border border-[#E5DAC4] flex items-center gap-1"
+                          title="Edit user details"
                         >
-                          ✏️ Edit
+                          <IconEdit className="w-3 h-3 text-dash-ink-soft" />
+                          <span>Edit</span>
                         </button>
 
-                        {/* Password Management */}
                         <button
                           onClick={() => openPasswordModal(u)}
-                          className="px-2.5 py-1 rounded-lg bg-[#FFF2DE] hover:bg-[#FFE6C2] text-[#8A6420] font-bold text-xs transition-colors cursor-pointer border border-[#F5DCB7]"
-                          title="Change password or send reset"
+                          className="px-2.5 py-1 rounded-lg bg-[#FFF7EB] hover:bg-[#FFEED4] text-[#8A6420] font-semibold text-xs transition-colors cursor-pointer border border-[#F3E2C8] flex items-center gap-1"
+                          title="Change password"
                         >
-                          🔑 Password
+                          <IconKey className="w-3 h-3 text-[#8A6420]" />
+                          <span>Password</span>
                         </button>
 
-                        {/* Delete User */}
                         {!isCurrent && (
                           <button
                             onClick={() => handleDeleteUser(u)}
-                            className="px-2 py-1 rounded-lg hover:bg-danger/10 text-danger font-bold text-xs transition-colors cursor-pointer border border-transparent hover:border-danger/20"
+                            className="p-1.5 rounded-lg hover:bg-danger/10 text-danger transition-colors cursor-pointer border border-transparent hover:border-danger/20"
                             title="Delete user"
                           >
-                            🗑️
+                            <IconTrash className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </div>
@@ -600,24 +594,23 @@ export default function ManageUsers({ currentUser }) {
           </table>
         </div>
 
-        {/* Empty Search State */}
         {filteredUsers.length === 0 && !loading && (
           <div className="text-center py-8 text-dash-ink-soft text-sm">
-            No users found matching your filters.
+            No accounts found matching your search criteria.
           </div>
         )}
       </div>
 
-      {/* ==================================================== */}
-      {/* MODAL 1: EDIT USER (USERNAME, ROLE, BARANGAY)        */}
-      {/* ==================================================== */}
+      {/* ---------------------------------------------------- */}
+      {/* MODAL 1: EDIT USER (NAME, ROLE, BARANGAY)            */}
+      {/* ---------------------------------------------------- */}
       {editModalUser && (
-        <div className="fixed inset-0 bg-black/45 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-card-border animate-pop">
-            <div className="flex items-center justify-between pb-3 border-b border-card-border mb-4">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 sm:p-7 max-w-md w-full shadow-xl border border-card-border animate-pop">
+            <div className="flex items-center justify-between pb-3 border-b border-[#F5EDE0] mb-4">
               <div>
                 <h3 className="font-fraunces text-lg font-bold text-dash-ink m-0">
-                  ✏️ Edit User Details
+                  Edit User Details
                 </h3>
                 <p className="text-xs text-dash-ink-soft mt-0.5 m-0">
                   User ID: <span className="font-mono">{editModalUser.id.slice(0, 13)}...</span>
@@ -627,14 +620,14 @@ export default function ManageUsers({ currentUser }) {
                 onClick={() => setEditModalUser(null)}
                 className="text-dash-ink-soft hover:text-dash-ink text-lg bg-transparent border-none cursor-pointer"
               >
-                ✕
+                <IconClose className="w-4 h-4" />
               </button>
             </div>
 
             <form onSubmit={handleSaveEdit} className="space-y-4 text-left">
               <div>
                 <label className="block text-xs font-bold text-dash-ink mb-1">
-                  Full Name / Username <span className="text-coral">*</span>
+                  Full Name <span className="text-coral">*</span>
                 </label>
                 <input
                   type="text"
@@ -654,8 +647,8 @@ export default function ManageUsers({ currentUser }) {
                   onChange={(e) => setEditRole(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] font-nunito text-sm text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent cursor-pointer"
                 >
-                  <option value="admin">Administrator (Full System Access)</option>
-                  <option value="teacher">Day Care Teacher (Teacher Dashboard)</option>
+                  <option value="admin">Administrator (System Access)</option>
+                  <option value="teacher">Day Care Teacher (Teacher Portal)</option>
                   <option value="student">Student / Parent (Learning Portal)</option>
                 </select>
               </div>
@@ -672,7 +665,7 @@ export default function ManageUsers({ currentUser }) {
                   <option value="">— select barangay —</option>
                   {barangays.map((b) => (
                     <option key={b} value={b}>
-                      📍 {b}
+                      {b}
                     </option>
                   ))}
                 </select>
@@ -682,14 +675,14 @@ export default function ManageUsers({ currentUser }) {
                 <button
                   type="button"
                   onClick={() => setEditModalUser(null)}
-                  className="px-4 py-2 rounded-xl bg-[#FAF5EC] hover:bg-[#F2E7D3] text-dash-ink text-sm font-bold cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-[#FAF5EC] hover:bg-[#F2E8D5] text-dash-ink text-sm font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={editSaving}
-                  className="px-5 py-2 rounded-xl bg-accent hover:opacity-90 text-white text-sm font-bold cursor-pointer shadow-sm disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl bg-accent hover:opacity-90 text-white text-sm font-bold cursor-pointer shadow-xs disabled:opacity-50"
                 >
                   {editSaving ? 'Saving...' : 'Save Changes'}
                 </button>
@@ -699,26 +692,26 @@ export default function ManageUsers({ currentUser }) {
         </div>
       )}
 
-      {/* ==================================================== */}
-      {/* MODAL 2: PASSWORD MANAGEMENT (CHANGE / RESET)         */}
-      {/* ==================================================== */}
+      {/* ---------------------------------------------------- */}
+      {/* MODAL 2: PASSWORD MANAGEMENT                         */}
+      {/* ---------------------------------------------------- */}
       {passwordModalUser && (
-        <div className="fixed inset-0 bg-black/45 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-card-border animate-pop">
-            <div className="flex items-center justify-between pb-3 border-b border-card-border mb-4">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 sm:p-7 max-w-md w-full shadow-xl border border-card-border animate-pop">
+            <div className="flex items-center justify-between pb-3 border-b border-[#F5EDE0] mb-4">
               <div>
                 <h3 className="font-fraunces text-lg font-bold text-dash-ink m-0">
-                  🔑 Password Management
+                  Password Management
                 </h3>
                 <p className="text-xs text-dash-ink-soft mt-0.5 m-0">
-                  User: <strong>{passwordModalUser.full_name}</strong>
+                  Account: <strong>{passwordModalUser.full_name}</strong>
                 </p>
               </div>
               <button
                 onClick={() => setPasswordModalUser(null)}
                 className="text-dash-ink-soft hover:text-dash-ink text-lg bg-transparent border-none cursor-pointer"
               >
-                ✕
+                <IconClose className="w-4 h-4" />
               </button>
             </div>
 
@@ -732,9 +725,10 @@ export default function ManageUsers({ currentUser }) {
                     <button
                       type="button"
                       onClick={generateRandomPassword}
-                      className="text-[11px] text-accent font-bold hover:underline bg-transparent border-none cursor-pointer"
+                      className="text-[11px] text-accent font-semibold hover:underline bg-transparent border-none cursor-pointer flex items-center gap-1"
                     >
-                      🎲 Generate Password
+                      <IconDice className="w-3.5 h-3.5" />
+                      <span>Generate Password</span>
                     </button>
                   </div>
                   <input
@@ -747,47 +741,40 @@ export default function ManageUsers({ currentUser }) {
                     className="w-full px-3 py-2.5 rounded-xl border border-[#E5DCC9] font-mono text-sm text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent"
                   />
                   <p className="text-[11px] text-dash-ink-soft mt-1">
-                    💡 As Super Admin, you can set a temporary password or generate a secure key for
-                    this user.
+                    As Super Admin, you can set a temporary password or generate a key for this user.
                   </p>
                 </div>
 
-                <div className="p-3 rounded-xl bg-[#FAF5EC] border border-[#E8DFC9] text-xs text-dash-ink-soft leading-relaxed space-y-1">
-                  <div className="font-bold text-dash-ink">How password reset works:</div>
-                  <div>
-                    • If changing your own password, it updates your live credentials immediately.
-                  </div>
-                  <div>
-                    • If resetting for a teacher or parent, give them the new password so they can log
-                    in directly.
-                  </div>
+                <div className="p-3 rounded-xl bg-[#FAF8F5] border border-[#EFE7D8] text-xs text-dash-ink-soft leading-relaxed space-y-1">
+                  <div className="font-bold text-dash-ink">Password update instructions:</div>
+                  <div>• If updating your own account, credentials update immediately.</div>
+                  <div>• If updating for a teacher or parent, provide them with this password to log in.</div>
                 </div>
 
                 <div className="pt-2 flex gap-2 justify-end">
                   <button
                     type="button"
                     onClick={() => setPasswordModalUser(null)}
-                    className="px-4 py-2 rounded-xl bg-[#FAF5EC] hover:bg-[#F2E7D3] text-dash-ink text-sm font-bold cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-[#FAF5EC] hover:bg-[#F2E8D5] text-dash-ink text-sm font-semibold cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={passwordSaving}
-                    className="px-5 py-2 rounded-xl bg-accent hover:opacity-90 text-white text-sm font-bold cursor-pointer shadow-sm disabled:opacity-50"
+                    className="px-5 py-2 rounded-xl bg-accent hover:opacity-90 text-white text-sm font-bold cursor-pointer shadow-xs disabled:opacity-50"
                   >
-                    {passwordSaving ? 'Applying...' : 'Apply Password Change'}
+                    {passwordSaving ? 'Updating...' : 'Update Password'}
                   </button>
                 </div>
               </form>
             ) : (
-              /* Success confirmation view with copy details */
               <div className="space-y-4 text-center">
-                <div className="w-12 h-12 rounded-full bg-[#DCEBDD] text-[#3D7048] text-2xl flex items-center justify-center mx-auto">
-                  ✓
+                <div className="w-10 h-10 rounded-full bg-[#EDF6EE] text-[#2E6B39] flex items-center justify-center mx-auto">
+                  <IconCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="font-fraunces text-base font-bold text-dash-ink">
+                  <h4 className="font-fraunces text-base font-bold text-dash-ink m-0">
                     Password Ready for {passwordSuccessData.user.full_name}
                   </h4>
                   <p className="text-xs text-dash-ink-soft mt-1">
@@ -795,10 +782,10 @@ export default function ManageUsers({ currentUser }) {
                   </p>
                 </div>
 
-                <div className="bg-[#FAF5EC] rounded-2xl p-4 text-left text-xs font-mono space-y-2 border border-[#E5DAC4]">
+                <div className="bg-[#FAF8F5] rounded-xl p-4 text-left text-xs font-mono space-y-2 border border-[#EFE7D8]">
                   <div>
                     <span className="text-dash-ink-soft block text-[10px] uppercase font-bold">
-                      Account Name:
+                      Account:
                     </span>
                     <span className="font-bold text-sm text-dash-ink">
                       {passwordSuccessData.user.full_name}
@@ -818,11 +805,12 @@ export default function ManageUsers({ currentUser }) {
                   type="button"
                   onClick={() => {
                     navigator.clipboard?.writeText(passwordSuccessData.password);
-                    alert('Password copied to clipboard!');
+                    alert('Password copied to clipboard');
                   }}
-                  className="w-full py-2.5 rounded-xl bg-[#F6F1E7] hover:bg-[#ECE3D2] text-dash-ink font-bold text-xs cursor-pointer"
+                  className="w-full py-2.5 rounded-xl bg-[#FAF5EC] hover:bg-[#F2E8D5] text-dash-ink font-semibold text-xs cursor-pointer border border-[#E5DAC4] flex items-center justify-center gap-1.5"
                 >
-                  📋 Copy Password to Clipboard
+                  <IconCopy className="w-4 h-4" />
+                  <span>Copy Password to Clipboard</span>
                 </button>
 
                 <button
@@ -831,7 +819,7 @@ export default function ManageUsers({ currentUser }) {
                     setPasswordModalUser(null);
                     setPasswordSuccessData(null);
                   }}
-                  className="w-full py-2.5 rounded-xl bg-accent text-white font-bold text-sm cursor-pointer"
+                  className="w-full py-2.5 rounded-xl bg-accent text-white font-bold text-sm cursor-pointer shadow-xs"
                 >
                   Done
                 </button>
@@ -841,26 +829,26 @@ export default function ManageUsers({ currentUser }) {
         </div>
       )}
 
-      {/* ==================================================== */}
-      {/* MODAL 3: CREATE NEW USER BY SUPER ADMIN              */}
-      {/* ==================================================== */}
+      {/* ---------------------------------------------------- */}
+      {/* MODAL 3: CREATE USER ACCOUNT                         */}
+      {/* ---------------------------------------------------- */}
       {createUserModal && (
-        <div className="fixed inset-0 bg-black/45 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl border border-card-border animate-pop max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-card-border mb-4">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 sm:p-7 max-w-lg w-full shadow-xl border border-card-border animate-pop max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-[#F5EDE0] mb-4">
               <div>
                 <h3 className="font-fraunces text-lg font-bold text-dash-ink m-0">
-                  ➕ Add User (Super Admin Portal)
+                  Create User Account
                 </h3>
                 <p className="text-xs text-dash-ink-soft mt-0.5 m-0">
-                  Directly provision an account for a teacher, parent, or admin.
+                  Directly provision an account for a teacher, parent, or administrator.
                 </p>
               </div>
               <button
                 onClick={() => setCreateUserModal(false)}
                 className="text-dash-ink-soft hover:text-dash-ink text-lg bg-transparent border-none cursor-pointer"
               >
-                ✕
+                <IconClose className="w-4 h-4" />
               </button>
             </div>
 
@@ -868,7 +856,7 @@ export default function ManageUsers({ currentUser }) {
               <form onSubmit={handleCreateUser} className="space-y-3.5 text-left">
                 <div>
                   <label className="block text-xs font-bold text-dash-ink mb-1">
-                    Full Name / Username <span className="text-coral">*</span>
+                    Full Name <span className="text-coral">*</span>
                   </label>
                   <input
                     type="text"
@@ -890,8 +878,8 @@ export default function ManageUsers({ currentUser }) {
                     className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] font-nunito text-sm text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent cursor-pointer"
                   >
                     <option value="student">Student / Parent (Learning Portal)</option>
-                    <option value="teacher">Day Care Teacher (Teacher Dashboard)</option>
-                    <option value="admin">Administrator (Super Admin)</option>
+                    <option value="teacher">Day Care Teacher (Teacher Portal)</option>
+                    <option value="admin">Administrator (Full Access)</option>
                   </select>
                 </div>
 
@@ -908,7 +896,7 @@ export default function ManageUsers({ currentUser }) {
                     className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] font-nunito text-sm text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent"
                   />
                   <p className="text-[11px] text-dash-ink-soft mt-0.5">
-                    📱 Accepts standard 11-digit mobile numbers or email addresses.
+                    Accepts standard 11-digit mobile numbers or email addresses.
                   </p>
                 </div>
 
@@ -924,7 +912,7 @@ export default function ManageUsers({ currentUser }) {
                     <option value="">— select barangay —</option>
                     {barangays.map((b) => (
                       <option key={b} value={b}>
-                        📍 {b}
+                        {b}
                       </option>
                     ))}
                   </select>
@@ -943,9 +931,10 @@ export default function ManageUsers({ currentUser }) {
                         for (let i = 0; i < 8; i++) p += chars[Math.floor(Math.random() * chars.length)];
                         setNewUserPassword(p);
                       }}
-                      className="text-[11px] text-accent font-bold hover:underline bg-transparent border-none cursor-pointer"
+                      className="text-[11px] text-accent font-semibold hover:underline bg-transparent border-none cursor-pointer flex items-center gap-1"
                     >
-                      🎲 Generate Password
+                      <IconDice className="w-3.5 h-3.5" />
+                      <span>Generate Password</span>
                     </button>
                   </div>
                   <input
@@ -963,35 +952,34 @@ export default function ManageUsers({ currentUser }) {
                   <button
                     type="button"
                     onClick={() => setCreateUserModal(false)}
-                    className="px-4 py-2 rounded-xl bg-[#FAF5EC] hover:bg-[#F2E7D3] text-dash-ink text-sm font-bold cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-[#FAF5EC] hover:bg-[#F2E8D5] text-dash-ink text-sm font-semibold cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={createSaving}
-                    className="px-5 py-2 rounded-xl bg-accent hover:opacity-90 text-white text-sm font-bold cursor-pointer shadow-sm disabled:opacity-50"
+                    className="px-5 py-2 rounded-xl bg-accent hover:opacity-90 text-white text-sm font-bold cursor-pointer shadow-xs disabled:opacity-50"
                   >
                     {createSaving ? 'Creating Account...' : 'Create Account'}
                   </button>
                 </div>
               </form>
             ) : (
-              /* Success view for created user */
               <div className="space-y-4 text-center">
-                <div className="w-12 h-12 rounded-full bg-[#DCEBDD] text-[#3D7048] text-2xl flex items-center justify-center mx-auto">
-                  ✓
+                <div className="w-10 h-10 rounded-full bg-[#EDF6EE] text-[#2E6B39] flex items-center justify-center mx-auto">
+                  <IconCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="font-fraunces text-base font-bold text-dash-ink">
-                    Account Created Successfully!
+                  <h4 className="font-fraunces text-base font-bold text-dash-ink m-0">
+                    Account Created Successfully
                   </h4>
                   <p className="text-xs text-dash-ink-soft mt-1">
-                    Here are the initial credentials for the new user.
+                    Initial account credentials generated for this user.
                   </p>
                 </div>
 
-                <div className="bg-[#FAF5EC] rounded-2xl p-4 text-left text-xs font-mono space-y-2 border border-[#E5DAC4]">
+                <div className="bg-[#FAF8F5] rounded-xl p-4 text-left text-xs font-mono space-y-2 border border-[#EFE7D8]">
                   <div>
                     <span className="text-dash-ink-soft block text-[10px] uppercase font-bold">
                       Full Name:
@@ -1002,7 +990,7 @@ export default function ManageUsers({ currentUser }) {
                   </div>
                   <div>
                     <span className="text-dash-ink-soft block text-[10px] uppercase font-bold">
-                      Login (Email or Mobile):
+                      Login Identifier:
                     </span>
                     <span className="font-bold text-sm text-dash-ink select-all">
                       {createdCredentials.identifier}
@@ -1018,7 +1006,7 @@ export default function ManageUsers({ currentUser }) {
                   </div>
                   <div>
                     <span className="text-dash-ink-soft block text-[10px] uppercase font-bold">
-                      Role / Barangay:
+                      Role & Barangay:
                     </span>
                     <span className="text-dash-ink">
                       {createdCredentials.role} • {createdCredentials.barangay}
@@ -1031,11 +1019,12 @@ export default function ManageUsers({ currentUser }) {
                   onClick={() => {
                     const text = `EarlyLearn Hub Account:\nName: ${createdCredentials.fullName}\nLogin: ${createdCredentials.identifier}\nPassword: ${createdCredentials.password}`;
                     navigator.clipboard?.writeText(text);
-                    alert('Account credentials copied to clipboard!');
+                    alert('Credentials copied to clipboard');
                   }}
-                  className="w-full py-2.5 rounded-xl bg-[#F6F1E7] hover:bg-[#ECE3D2] text-dash-ink font-bold text-xs cursor-pointer"
+                  className="w-full py-2.5 rounded-xl bg-[#FAF5EC] hover:bg-[#F2E8D5] text-dash-ink font-semibold text-xs cursor-pointer border border-[#E5DAC4] flex items-center justify-center gap-1.5"
                 >
-                  📋 Copy All Credentials to Clipboard
+                  <IconCopy className="w-4 h-4" />
+                  <span>Copy Credentials to Clipboard</span>
                 </button>
 
                 <button
@@ -1044,7 +1033,7 @@ export default function ManageUsers({ currentUser }) {
                     setCreateUserModal(false);
                     setCreatedCredentials(null);
                   }}
-                  className="w-full py-2.5 rounded-xl bg-accent text-white font-bold text-sm cursor-pointer"
+                  className="w-full py-2.5 rounded-xl bg-accent text-white font-bold text-sm cursor-pointer shadow-xs"
                 >
                   Done
                 </button>

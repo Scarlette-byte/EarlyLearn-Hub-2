@@ -19,15 +19,24 @@ import {
   delBtn,
   ageTag,
 } from '../lib/ui.js';
+import {
+  IconOverview,
+  IconUsers,
+  IconTeachers,
+  IconLearners,
+  IconCategories,
+  IconMaterials,
+  IconApprovals,
+} from '../components/Icons.jsx';
 
 const TABS = [
-  { key: 'overview', label: 'Overview', icon: '📊' },
-  { key: 'users', label: 'Manage Users', icon: '👥' },
-  { key: 'teachers', label: 'Manage Teachers', icon: '🍎' },
-  { key: 'learners', label: 'Manage Learners', icon: '🧒' },
-  { key: 'categories', label: 'Categories', icon: '🗂️' },
-  { key: 'materials', label: 'Materials', icon: '📚' },
-  { key: 'approvals', label: 'Pending Approval', icon: '✅' },
+  { key: 'overview', label: 'Overview', icon: <IconOverview className="w-4 h-4" /> },
+  { key: 'users', label: 'Manage Users', icon: <IconUsers className="w-4 h-4" /> },
+  { key: 'teachers', label: 'Manage Teachers', icon: <IconTeachers className="w-4 h-4" /> },
+  { key: 'learners', label: 'Manage Learners', icon: <IconLearners className="w-4 h-4" /> },
+  { key: 'categories', label: 'Categories', icon: <IconCategories className="w-4 h-4" /> },
+  { key: 'materials', label: 'Materials', icon: <IconMaterials className="w-4 h-4" /> },
+  { key: 'approvals', label: 'Pending Approval', icon: <IconApprovals className="w-4 h-4" /> },
 ];
 
 export default function AdminDashboard({ profile }) {
@@ -209,7 +218,7 @@ export default function AdminDashboard({ profile }) {
       tabs={TABS}
       title="Admin Dashboard"
       subtitle="Manolo Fortich, Bukidnon · EarlyLearn Hub"
-      avatar="👤"
+      avatar={profile?.full_name ? profile.full_name.slice(0, 2).toUpperCase() : 'AD'}
       stats={
         activeTab === 'overview'
           ? null
@@ -254,7 +263,7 @@ export default function AdminDashboard({ profile }) {
           <div className={cardBox}>
             <h3 className={cardBoxTitle}>Learning Categories</h3>
             <p className="text-[13px] text-[#8a7f66] -mt-2.5 mb-4">
-              👉 Click a category to see the materials inside it.
+              Select a category to inspect its learning materials.
             </p>
             <div className="flex gap-3 flex-wrap">
               {categories.map((c) => (

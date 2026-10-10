@@ -1,5 +1,24 @@
 import { useState } from 'react';
 import { barangays } from '../lib/supabaseClient';
+import {
+  IconUsers,
+  IconTeachers,
+  IconLearners,
+  IconMaterials,
+  IconApprovals,
+  IconSearch,
+  IconPlus,
+  IconPin,
+  IconCalendar,
+  IconCheck,
+  IconClose,
+  IconArrowRight,
+  IconVideo,
+  IconBook,
+  IconMusic,
+  IconLayers,
+  IconCategories,
+} from './Icons.jsx';
 
 export default function AdminOverview({
   profile,
@@ -15,7 +34,7 @@ export default function AdminOverview({
 }) {
   const [barangaySearch, setBarangaySearch] = useState('');
 
-  // 1. Calculations & Metrics
+  // Calculations
   const totalUsers = profiles.length;
   const adminCount = profiles.filter((p) => p.role === 'admin').length;
   const teacherCount = teachers.length || profiles.filter((p) => p.role === 'teacher').length;
@@ -34,7 +53,7 @@ export default function AdminOverview({
   const activeBarangayCount = activeBarangaySet.size;
   const coveragePercent = Math.min(100, Math.round((activeBarangayCount / 22) * 100));
 
-  // Barangay user/learner counts map
+  // Barangay counts
   const barangayCounts = {};
   barangays.forEach((b) => {
     barangayCounts[b] = 0;
@@ -50,13 +69,12 @@ export default function AdminOverview({
     }
   });
 
-  // Media type counts
+  // Media counts
   const mediaCounts = {
     video: materials.filter((m) => m.type === 'video').length,
     pdf: materials.filter((m) => m.type === 'pdf').length,
     flashcard: materials.filter((m) => m.type === 'flashcard').length,
     audio: materials.filter((m) => m.type === 'audio').length,
-    game: materials.filter((m) => m.type === 'game' || m.type === 'interactive').length,
   };
   const totalMedia = materials.length || 1;
 
@@ -68,357 +86,312 @@ export default function AdminOverview({
     ).length;
   });
 
-  // Greeting by hour
-  const hour = new Date().getHours();
-  const greeting =
-    hour < 12 ? 'Maayong Buntag' : hour < 18 ? 'Maayong Hapon' : 'Maayong Gabii';
-
-  // Filtered barangay list for search
+  // Filtered barangays
   const filteredBarangays = barangays.filter((b) =>
     b.toLowerCase().includes(barangaySearch.toLowerCase())
   );
 
-  // Recent 4 users
-  const recentUsers = [...profiles]
-    .filter((p) => p.full_name)
-    .slice(0, 4);
+  const formattedDate = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
 
   return (
     <div className="space-y-6">
-      {/* ========================================================= */}
-      {/* 1. MUNICIPAL WELCOME & SYSTEM STATUS HERO BANNER          */}
-      {/* ========================================================= */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#FFF9EE] via-[#FDF2DC] to-[#F5E5C4] border border-[#EADBBD] rounded-3xl p-6 sm:p-7 shadow-card">
-        {/* Floating background decorative badge */}
-        <div className="absolute -right-6 -bottom-8 text-8xl opacity-15 select-none pointer-events-none">
-          🌻
-        </div>
-        <div className="absolute right-24 -top-8 text-7xl opacity-10 select-none pointer-events-none">
-          ✨
-        </div>
-
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sun/30 border border-sun/60 text-xs font-bold text-[#6B5313] mb-3">
-              <span>🏛️ Municipality of Manolo Fortich</span>
-              <span>•</span>
-              <span>ECCD Early Childhood Care & Development</span>
+      {/* --------------------------------------------------------- */}
+      {/* 1. CLEAN EXECUTIVE HERO BANNER                            */}
+      {/* --------------------------------------------------------- */}
+      <div className="bg-white border border-[#E8DFD1] rounded-2xl p-6 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div>
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-[#FAF5EC] border border-[#E5DAC4] text-[11px] font-semibold text-[#6E5D43] mb-2.5">
+              <span>Municipality of Manolo Fortich</span>
+              <span className="text-[#BDB099]">•</span>
+              <span>Early Childhood Care & Development (ECCD)</span>
             </div>
 
-            <h2 className="font-fraunces text-2xl sm:text-3xl font-extrabold text-dash-ink tracking-tight m-0">
-              {greeting}, {profile?.full_name || 'Super Admin'}! 👋
+            <h2 className="font-fraunces text-2xl font-bold text-dash-ink tracking-tight m-0">
+              Welcome back, {profile?.full_name || 'Administrator'}
             </h2>
 
-            <p className="font-nunito text-sm sm:text-[15px] text-dash-ink-soft mt-2 leading-relaxed m-0">
-              Welcome to the <strong>EarlyLearn Hub Central Administration</strong>. Supervising
-              quality early learning, curriculum materials, and child development workers across all{' '}
-              <strong>22 Barangays</strong>.
+            <p className="text-xs text-dash-ink-soft mt-1.5 max-w-2xl leading-relaxed m-0">
+              Centralized administrative dashboard for supervising daycare educators, early learners,
+              and educational curriculum materials across the 22 barangays.
             </p>
 
-            <div className="flex flex-wrap items-center gap-3.5 mt-4 text-xs font-semibold text-dash-ink">
-              <span className="inline-flex items-center gap-1.5 bg-white/70 px-2.5 py-1 rounded-lg border border-[#E8DFC8]">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                System Active & Live Synced
+            <div className="flex flex-wrap items-center gap-3 mt-4 text-xs font-medium text-dash-ink-soft">
+              <span className="inline-flex items-center gap-1.5 bg-[#FAF7F0] px-2.5 py-1 rounded-md border border-[#ECE3D2]">
+                <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                System Operational
               </span>
-              <span className="inline-flex items-center gap-1.5 bg-white/70 px-2.5 py-1 rounded-lg border border-[#E8DFC8]">
-                <span>📅</span>
-                {new Date().toLocaleDateString('en-US', {
-                  weekday: 'short',
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                })}
+              <span className="inline-flex items-center gap-1.5 bg-[#FAF7F0] px-2.5 py-1 rounded-md border border-[#ECE3D2]">
+                <IconCalendar className="w-3.5 h-3.5 text-dash-ink-soft" />
+                {formattedDate}
               </span>
-              <span className="inline-flex items-center gap-1.5 bg-white/70 px-2.5 py-1 rounded-lg border border-[#E8DFC8]">
-                <span>📍</span>
+              <span className="inline-flex items-center gap-1.5 bg-[#FAF7F0] px-2.5 py-1 rounded-md border border-[#ECE3D2]">
+                <IconPin className="w-3.5 h-3.5 text-dash-ink-soft" />
                 Manolo Fortich, Bukidnon
               </span>
             </div>
           </div>
 
-          {/* Header Action Shortcuts */}
+          {/* Quick Action Navigation Buttons */}
           <div className="flex flex-wrap lg:flex-col gap-2 shrink-0">
             <button
               onClick={() => onTabChange('users')}
-              className="px-4 py-2.5 rounded-xl bg-accent hover:opacity-90 text-white font-baloo font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="px-3.5 py-2 rounded-xl bg-accent hover:opacity-90 text-white font-nunito font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs"
             >
-              <span>👥</span>
+              <IconUsers className="w-4 h-4" />
               <span>Manage Users ({totalUsers})</span>
             </button>
 
             <button
               onClick={() => onTabChange('approvals')}
-              className={`px-4 py-2.5 rounded-xl font-baloo font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl font-nunito font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer ${
                 pendingApprovalsCount > 0
-                  ? 'bg-danger text-white hover:bg-danger/90 animate-bounce'
-                  : 'bg-white hover:bg-[#FAF4E8] text-dash-ink border border-[#E5DAC4]'
+                  ? 'bg-danger text-white hover:bg-danger/90 shadow-xs'
+                  : 'bg-[#FAF5EC] hover:bg-[#F2E8D5] text-dash-ink border border-[#E5DAC4]'
               }`}
             >
-              <span>{pendingApprovalsCount > 0 ? '⚡' : '✅'}</span>
+              <IconApprovals className="w-4 h-4" />
               <span>
                 {pendingApprovalsCount > 0
-                  ? `${pendingApprovalsCount} Pending Review!`
+                  ? `${pendingApprovalsCount} Pending Review`
                   : 'Approvals Queue (0)'}
               </span>
             </button>
 
             <button
               onClick={() => onTabChange('learners')}
-              className="px-4 py-2.5 rounded-xl bg-white hover:bg-[#FAF4E8] text-dash-ink font-baloo font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 border border-[#E5DAC4] cursor-pointer"
+              className="px-3.5 py-2 rounded-xl bg-[#FAF5EC] hover:bg-[#F2E8D5] text-dash-ink font-nunito font-bold text-xs transition-colors flex items-center justify-center gap-2 border border-[#E5DAC4] cursor-pointer"
             >
-              <span>🧒</span>
-              <span>Enrolled Learners ({learnerCount})</span>
+              <IconLearners className="w-4 h-4" />
+              <span>Learners Registry ({learnerCount})</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* ========================================================= */}
-      {/* 2. DYNAMIC 6-CARD MULTI-METRIC KPI GRID                   */}
-      {/* ========================================================= */}
+      {/* --------------------------------------------------------- */}
+      {/* 2. REFINED 6-CARD METRICS GRID                            */}
+      {/* --------------------------------------------------------- */}
       <div>
         <div className="flex items-center justify-between mb-3 px-1">
           <h3 className="font-fraunces text-base font-bold text-dash-ink m-0">
-            📊 Executive Summary Metrics
+            Overview Metrics
           </h3>
-          <span className="text-xs text-dash-ink-soft">Click any card to inspect & manage</span>
+          <span className="text-xs text-dash-ink-soft">Live system metrics</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* CARD 1: TOTAL USERS */}
+          {/* Card 1: Total Users */}
           <div
             onClick={() => onTabChange('users')}
-            className="group relative bg-white hover:bg-[#FFFDF9] rounded-2xl p-5 border border-card-border shadow-card hover:shadow-lg transition-all transform hover:-translate-y-1 cursor-pointer overflow-hidden"
+            className="bg-white rounded-xl p-5 border border-card-border shadow-xs hover:border-[#D9CDB7] transition-all cursor-pointer group"
           >
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-sun via-gold to-accent" />
             <div className="flex items-start justify-between">
               <div>
-                <span className="text-xs font-bold text-[#8A6420] uppercase tracking-wider block">
-                  Total Users
+                <span className="text-[11px] font-bold text-[#8A6420] uppercase tracking-wider block">
+                  Total Accounts
                 </span>
-                <span className="font-baloo text-3xl sm:text-4xl font-extrabold text-dash-ink block mt-1">
+                <span className="font-fraunces text-3xl font-bold text-dash-ink block mt-1">
                   {totalUsers}
                 </span>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-[#FFF5DE] text-[#8A6420] text-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                👥
+              <div className="w-10 h-10 rounded-lg bg-[#FAF3E6] text-[#8A6420] flex items-center justify-center">
+                <IconUsers className="w-5 h-5" />
               </div>
             </div>
-
-            <div className="mt-3 pt-3 border-t border-[#F7F2E7] flex items-center justify-between text-xs">
-              <span className="text-dash-ink-soft font-semibold">
-                {adminCount} Admins • {teacherCount} Teachers • {learnerCount} Students
-              </span>
-              <span className="text-accent font-bold group-hover:translate-x-1 transition-transform">
-                Manage →
+            <div className="mt-3 pt-3 border-t border-[#F5EDE0] flex items-center justify-between text-xs text-dash-ink-soft">
+              <span>{adminCount} Admins • {teacherCount} Teachers • {learnerCount} Learners</span>
+              <span className="text-accent font-semibold group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                View <IconArrowRight className="w-3 h-3" />
               </span>
             </div>
           </div>
 
-          {/* CARD 2: TEACHERS */}
+          {/* Card 2: Teachers */}
           <div
             onClick={() => onTabChange('teachers')}
-            className="group relative bg-white hover:bg-[#FDFEFC] rounded-2xl p-5 border border-[#DCEADF] shadow-card hover:shadow-lg transition-all transform hover:-translate-y-1 cursor-pointer overflow-hidden"
+            className="bg-white rounded-xl p-5 border border-card-border shadow-xs hover:border-[#C8DEC9] transition-all cursor-pointer group"
           >
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-leaf to-[#3D7048]" />
             <div className="flex items-start justify-between">
               <div>
-                <span className="text-xs font-bold text-[#3D7048] uppercase tracking-wider block">
-                  Day Care Teachers (CDWs)
+                <span className="text-[11px] font-bold text-[#2E6B39] uppercase tracking-wider block">
+                  Child Dev Workers
                 </span>
-                <span className="font-baloo text-3xl sm:text-4xl font-extrabold text-[#2F5938] block mt-1">
+                <span className="font-fraunces text-3xl font-bold text-dash-ink block mt-1">
                   {teacherCount}
                 </span>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-[#DCEBDD] text-[#3D7048] text-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                🍎
+              <div className="w-10 h-10 rounded-lg bg-[#EDF6EE] text-[#2E6B39] flex items-center justify-center">
+                <IconTeachers className="w-5 h-5" />
               </div>
             </div>
-
-            <div className="mt-3 pt-3 border-t border-[#EDF4EE] flex items-center justify-between text-xs">
-              <span className="text-dash-ink-soft font-semibold">
-                {cdcs.length > 0 ? `${cdcs.length} CDC Centers Active` : 'Accredited Teachers'}
-              </span>
-              <span className="text-[#3D7048] font-bold group-hover:translate-x-1 transition-transform">
-                Directory →
+            <div className="mt-3 pt-3 border-t border-[#EDF6EE] flex items-center justify-between text-xs text-dash-ink-soft">
+              <span>{cdcs.length > 0 ? `${cdcs.length} CDC Centers Assigned` : 'Accredited Teachers'}</span>
+              <span className="text-[#2E6B39] font-semibold group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                View <IconArrowRight className="w-3 h-3" />
               </span>
             </div>
           </div>
 
-          {/* CARD 3: LEARNERS */}
+          {/* Card 3: Learners */}
           <div
             onClick={() => onTabChange('learners')}
-            className="group relative bg-white hover:bg-[#FAFDFE] rounded-2xl p-5 border border-[#D4E7F4] shadow-card hover:shadow-lg transition-all transform hover:-translate-y-1 cursor-pointer overflow-hidden"
+            className="bg-white rounded-xl p-5 border border-card-border shadow-xs hover:border-[#CADFF0] transition-all cursor-pointer group"
           >
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-sky to-[#386B93]" />
             <div className="flex items-start justify-between">
               <div>
-                <span className="text-xs font-bold text-[#386B93] uppercase tracking-wider block">
+                <span className="text-[11px] font-bold text-[#2A5E85] uppercase tracking-wider block">
                   Enrolled Learners
                 </span>
-                <span className="font-baloo text-3xl sm:text-4xl font-extrabold text-[#234C6B] block mt-1">
+                <span className="font-fraunces text-3xl font-bold text-dash-ink block mt-1">
                   {learnerCount}
                 </span>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-[#DCE8F2] text-[#386B93] text-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                🧒
+              <div className="w-10 h-10 rounded-lg bg-[#EBF4FA] text-[#2A5E85] flex items-center justify-center">
+                <IconLearners className="w-5 h-5" />
               </div>
             </div>
-
-            <div className="mt-3 pt-3 border-t border-[#EEF5FA] flex items-center justify-between text-xs">
-              <span className="text-dash-ink-soft font-semibold">
-                Aged 3–4 with Parent Profiles
-              </span>
-              <span className="text-[#386B93] font-bold group-hover:translate-x-1 transition-transform">
-                Registry →
+            <div className="mt-3 pt-3 border-t border-[#EBF4FA] flex items-center justify-between text-xs text-dash-ink-soft">
+              <span>Ages 3–4 with Parent Profiles</span>
+              <span className="text-[#2A5E85] font-semibold group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                View <IconArrowRight className="w-3 h-3" />
               </span>
             </div>
           </div>
 
-          {/* CARD 4: APPROVED MATERIALS */}
+          {/* Card 4: Materials */}
           <div
             onClick={() => onTabChange('materials')}
-            className="group relative bg-white hover:bg-[#FFFDFB] rounded-2xl p-5 border border-[#F6E1D2] shadow-card hover:shadow-lg transition-all transform hover:-translate-y-1 cursor-pointer overflow-hidden"
+            className="bg-white rounded-xl p-5 border border-card-border shadow-xs hover:border-[#E8CEBE] transition-all cursor-pointer group"
           >
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#E88F5D] to-accent" />
             <div className="flex items-start justify-between">
               <div>
-                <span className="text-xs font-bold text-accent uppercase tracking-wider block">
-                  Learning Materials
+                <span className="text-[11px] font-bold text-accent uppercase tracking-wider block">
+                  Learning Content
                 </span>
-                <span className="font-baloo text-3xl sm:text-4xl font-extrabold text-[#944D25] block mt-1">
+                <span className="font-fraunces text-3xl font-bold text-dash-ink block mt-1">
                   {approvedMaterialsCount}
                 </span>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-[#FDEEE4] text-accent text-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                📚
+              <div className="w-10 h-10 rounded-lg bg-[#FAF0E8] text-accent flex items-center justify-center">
+                <IconMaterials className="w-5 h-5" />
               </div>
             </div>
-
-            <div className="mt-3 pt-3 border-t border-[#F8EFE8] flex items-center justify-between text-xs">
-              <span className="text-dash-ink-soft font-semibold">
-                {materials.length} total uploads across {categories.length} categories
-              </span>
-              <span className="text-accent font-bold group-hover:translate-x-1 transition-transform">
-                Library →
+            <div className="mt-3 pt-3 border-t border-[#FAF0E8] flex items-center justify-between text-xs text-dash-ink-soft">
+              <span>{materials.length} Total Uploads • {categories.length} Categories</span>
+              <span className="text-accent font-semibold group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                View <IconArrowRight className="w-3 h-3" />
               </span>
             </div>
           </div>
 
-          {/* CARD 5: PENDING APPROVALS */}
+          {/* Card 5: Approvals Queue */}
           <div
             onClick={() => onTabChange('approvals')}
-            className={`group relative bg-white rounded-2xl p-5 border shadow-card hover:shadow-lg transition-all transform hover:-translate-y-1 cursor-pointer overflow-hidden ${
+            className={`bg-white rounded-xl p-5 border shadow-xs transition-all cursor-pointer group ${
               pendingApprovalsCount > 0
-                ? 'border-danger/30 hover:bg-[#FFF8F7]'
-                : 'border-card-border hover:bg-[#FFFDF9]'
+                ? 'border-danger/30 hover:border-danger/50'
+                : 'border-card-border hover:border-[#D9CDB7]'
             }`}
           >
-            <div
-              className={`absolute top-0 left-0 right-0 h-1.5 ${
-                pendingApprovalsCount > 0
-                  ? 'bg-gradient-to-r from-coral to-danger animate-pulse'
-                  : 'bg-[#DCEBDD]'
-              }`}
-            />
             <div className="flex items-start justify-between">
               <div>
                 <span
-                  className={`text-xs font-bold uppercase tracking-wider block ${
-                    pendingApprovalsCount > 0 ? 'text-danger' : 'text-[#3D7048]'
+                  className={`text-[11px] font-bold uppercase tracking-wider block ${
+                    pendingApprovalsCount > 0 ? 'text-danger' : 'text-[#2E6B39]'
                   }`}
                 >
                   Pending Approvals
                 </span>
                 <span
-                  className={`font-baloo text-3xl sm:text-4xl font-extrabold block mt-1 ${
-                    pendingApprovalsCount > 0 ? 'text-danger' : 'text-[#3D7048]'
+                  className={`font-fraunces text-3xl font-bold block mt-1 ${
+                    pendingApprovalsCount > 0 ? 'text-danger' : 'text-dash-ink'
                   }`}
                 >
                   {pendingApprovalsCount}
                 </span>
               </div>
               <div
-                className={`w-12 h-12 rounded-2xl text-2xl flex items-center justify-center group-hover:scale-110 transition-transform ${
+                className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                   pendingApprovalsCount > 0
                     ? 'bg-danger/10 text-danger'
-                    : 'bg-[#DCEBDD] text-[#3D7048]'
+                    : 'bg-[#EDF6EE] text-[#2E6B39]'
                 }`}
               >
-                {pendingApprovalsCount > 0 ? '⏳' : '✅'}
+                <IconApprovals className="w-5 h-5" />
               </div>
             </div>
-
-            <div className="mt-3 pt-3 border-t border-[#F7F2E7] flex items-center justify-between text-xs">
-              <span className="text-dash-ink-soft font-semibold">
-                {pendingApprovalsCount > 0 ? 'Teacher submissions need review' : 'All caught up!'}
+            <div className="mt-3 pt-3 border-t border-[#F5EDE0] flex items-center justify-between text-xs text-dash-ink-soft">
+              <span>
+                {pendingApprovalsCount > 0 ? 'Teacher submissions need review' : 'All submissions verified'}
               </span>
               <span
-                className={`font-bold group-hover:translate-x-1 transition-transform ${
-                  pendingApprovalsCount > 0 ? 'text-danger' : 'text-[#3D7048]'
+                className={`font-semibold group-hover:translate-x-0.5 transition-transform flex items-center gap-1 ${
+                  pendingApprovalsCount > 0 ? 'text-danger' : 'text-[#2E6B39]'
                 }`}
               >
-                {pendingApprovalsCount > 0 ? 'Review Now →' : 'View Queue →'}
+                Review <IconArrowRight className="w-3 h-3" />
               </span>
             </div>
           </div>
 
-          {/* CARD 6: BARANGAYS COVERAGE */}
+          {/* Card 6: Municipal Coverage */}
           <div
             onClick={() => onTabChange('users')}
-            className="group relative bg-white hover:bg-[#FAF9FD] rounded-2xl p-5 border border-[#E7DEF5] shadow-card hover:shadow-lg transition-all transform hover:-translate-y-1 cursor-pointer overflow-hidden"
+            className="bg-white rounded-xl p-5 border border-card-border shadow-xs hover:border-[#D5CBE5] transition-all cursor-pointer group"
           >
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-purple to-[#6B4BB0]" />
             <div className="flex items-start justify-between">
               <div>
-                <span className="text-xs font-bold text-purple uppercase tracking-wider block">
-                  Municipal Coverage
+                <span className="text-[11px] font-bold text-[#55369A] uppercase tracking-wider block">
+                  Barangay Coverage
                 </span>
-                <span className="font-baloo text-3xl sm:text-4xl font-extrabold text-[#55369A] block mt-1">
-                  {activeBarangayCount} <span className="text-lg font-bold text-dash-ink-soft">/ 22</span>
+                <span className="font-fraunces text-3xl font-bold text-dash-ink block mt-1">
+                  {activeBarangayCount} <span className="text-base font-normal text-dash-ink-soft">/ 22</span>
                 </span>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-[#EDE4FF] text-purple text-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                📍
+              <div className="w-10 h-10 rounded-lg bg-[#F3EEFA] text-[#55369A] flex items-center justify-center">
+                <IconPin className="w-5 h-5" />
               </div>
             </div>
-
             <div className="mt-2.5">
-              <div className="w-full bg-[#EFE8FA] h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-[#F3EEFA] h-1.5 rounded-full overflow-hidden">
                 <div
-                  className="bg-purple h-full rounded-full transition-all duration-700"
+                  className="bg-[#55369A] h-full rounded-full transition-all duration-500"
                   style={{ width: `${coveragePercent}%` }}
                 />
               </div>
             </div>
-
-            <div className="mt-2.5 pt-2 border-t border-[#F3EBFD] flex items-center justify-between text-xs">
-              <span className="text-dash-ink-soft font-semibold">{coveragePercent}% of Barangays</span>
-              <span className="text-purple font-bold group-hover:translate-x-1 transition-transform">
-                Explore →
+            <div className="mt-2.5 pt-2 border-t border-[#F3EEFA] flex items-center justify-between text-xs text-dash-ink-soft">
+              <span>{coveragePercent}% of Municipality</span>
+              <span className="text-[#55369A] font-semibold group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                View <IconArrowRight className="w-3 h-3" />
               </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ========================================================= */}
-      {/* 3. PENDING APPROVAL SPOTLIGHT (IF ITEMS PENDING)          */}
-      {/* ========================================================= */}
+      {/* --------------------------------------------------------- */}
+      {/* 3. PENDING REVIEW ALERT BLOCK (IF ITEMS EXIST)            */}
+      {/* --------------------------------------------------------- */}
       {pendingApprovalsCount > 0 && (
-        <div className="bg-white rounded-3xl p-6 border-2 border-coral/30 shadow-card relative overflow-hidden">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-card-border mb-4">
+        <div className="bg-white rounded-2xl p-6 border border-danger/25 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#F5EDE0] mb-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-danger/10 text-danger text-xl flex items-center justify-center shrink-0">
-                ⚡
+              <div className="w-9 h-9 rounded-lg bg-danger/10 text-danger flex items-center justify-center shrink-0">
+                <IconApprovals className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="font-fraunces text-lg font-bold text-dash-ink m-0">
-                  Priority Review: Materials Awaiting Admin Approval ({pendingApprovalsCount})
+                <h4 className="font-fraunces text-base font-bold text-dash-ink m-0">
+                  Submissions Requiring Verification ({pendingApprovalsCount})
                 </h4>
                 <p className="text-xs text-dash-ink-soft mt-0.5 m-0">
-                  Teachers submitted new lessons that require verification before becoming visible
-                  to students.
+                  New teacher uploads must be approved before appearing in the student curriculum catalog.
                 </p>
               </div>
             </div>
@@ -427,7 +400,7 @@ export default function AdminOverview({
               onClick={() => onTabChange('approvals')}
               className="text-xs font-bold text-danger hover:underline bg-transparent border-none cursor-pointer self-start sm:self-center"
             >
-              Open Full Approvals Tab →
+              Open Approvals Queue →
             </button>
           </div>
 
@@ -435,32 +408,32 @@ export default function AdminOverview({
             {approvals.slice(0, 3).map((item) => (
               <div
                 key={item.id}
-                className="bg-[#FFFDF9] rounded-2xl p-4 border border-[#EFE7D8] flex flex-col justify-between"
+                className="bg-[#FAF8F5] rounded-xl p-4 border border-[#EFE7D8] flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-[#FAF0DC] text-[#8A6420]">
+                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-white border border-[#E8DFC9] text-[#6E5D43]">
                       {item.categories?.name || 'Curriculum'}
                     </span>
-                    <span className="text-xs font-mono text-dash-ink-soft uppercase font-bold">
+                    <span className="text-[11px] font-mono text-dash-ink-soft uppercase font-semibold">
                       {item.type}
                     </span>
                   </div>
                   <h5 className="font-bold text-sm text-dash-ink m-0 line-clamp-1">{item.title}</h5>
                 </div>
 
-                <div className="flex gap-2 mt-4 pt-3 border-t border-[#F2EBDE]">
+                <div className="flex gap-2 mt-4 pt-3 border-t border-[#ECE3D2]">
                   <button
                     onClick={() => decideApproval && decideApproval(item.id, 'approved')}
-                    className="flex-1 py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer transition-colors"
+                    className="flex-1 py-1.5 px-3 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs cursor-pointer transition-colors"
                   >
-                    ✓ Approve
+                    Approve
                   </button>
                   <button
                     onClick={() => decideApproval && decideApproval(item.id, 'rejected')}
-                    className="py-1.5 px-3 rounded-lg bg-[#FAF0EE] hover:bg-danger/20 text-danger font-bold text-xs cursor-pointer transition-colors"
+                    className="py-1.5 px-3 rounded-lg bg-white hover:bg-danger/10 text-danger border border-danger/20 font-bold text-xs cursor-pointer transition-colors"
                   >
-                    ✕ Reject
+                    Reject
                   </button>
                 </div>
               </div>
@@ -469,109 +442,111 @@ export default function AdminOverview({
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* 4. SUPER ADMIN COMMAND TOOLS (QUICK ACTIONS)              */}
-      {/* ========================================================= */}
+      {/* --------------------------------------------------------- */}
+      {/* 4. MANAGEMENT MODULE QUICK ACCESS                         */}
+      {/* --------------------------------------------------------- */}
       <div>
         <h3 className="font-fraunces text-base font-bold text-dash-ink mb-3 px-1">
-          ⚡ Quick Management Actions
+          Administration Modules
         </h3>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <div
             onClick={() => onTabChange('users')}
-            className="bg-white hover:bg-[#FFFDF7] p-4 rounded-2xl border border-card-border shadow-card hover:shadow-md transition-all text-center cursor-pointer group"
+            className="bg-white hover:bg-[#FAF7F0] p-4 rounded-xl border border-card-border shadow-xs transition-colors text-center cursor-pointer group"
           >
-            <div className="w-11 h-11 mx-auto rounded-2xl bg-[#FFF5DE] text-2xl flex items-center justify-center group-hover:scale-110 transition-transform mb-2">
-              👥
+            <div className="w-10 h-10 mx-auto rounded-lg bg-[#FAF3E6] text-[#8A6420] flex items-center justify-center mb-2.5">
+              <IconUsers className="w-5 h-5" />
             </div>
-            <div className="font-bold text-xs text-dash-ink">Manage Users</div>
-            <div className="text-[10px] text-dash-ink-soft mt-0.5">Edit & Passwords</div>
+            <div className="font-bold text-xs text-dash-ink">Users</div>
+            <div className="text-[11px] text-dash-ink-soft mt-0.5">Accounts & Roles</div>
           </div>
 
           <div
             onClick={() => onTabChange('teachers')}
-            className="bg-white hover:bg-[#FDFEFC] p-4 rounded-2xl border border-card-border shadow-card hover:shadow-md transition-all text-center cursor-pointer group"
+            className="bg-white hover:bg-[#FAF7F0] p-4 rounded-xl border border-card-border shadow-xs transition-colors text-center cursor-pointer group"
           >
-            <div className="w-11 h-11 mx-auto rounded-2xl bg-[#DCEBDD] text-2xl flex items-center justify-center group-hover:scale-110 transition-transform mb-2">
-              🍎
+            <div className="w-10 h-10 mx-auto rounded-lg bg-[#EDF6EE] text-[#2E6B39] flex items-center justify-center mb-2.5">
+              <IconTeachers className="w-5 h-5" />
             </div>
-            <div className="font-bold text-xs text-dash-ink">Teachers & CDCs</div>
-            <div className="text-[10px] text-dash-ink-soft mt-0.5">Accredited Workers</div>
+            <div className="font-bold text-xs text-dash-ink">Teachers</div>
+            <div className="text-[11px] text-dash-ink-soft mt-0.5">Centers & CDWs</div>
           </div>
 
           <div
             onClick={() => onTabChange('learners')}
-            className="bg-white hover:bg-[#FAFDFE] p-4 rounded-2xl border border-card-border shadow-card hover:shadow-md transition-all text-center cursor-pointer group"
+            className="bg-white hover:bg-[#FAF7F0] p-4 rounded-xl border border-card-border shadow-xs transition-colors text-center cursor-pointer group"
           >
-            <div className="w-11 h-11 mx-auto rounded-2xl bg-[#DCE8F2] text-2xl flex items-center justify-center group-hover:scale-110 transition-transform mb-2">
-              🧒
+            <div className="w-10 h-10 mx-auto rounded-lg bg-[#EBF4FA] text-[#2A5E85] flex items-center justify-center mb-2.5">
+              <IconLearners className="w-5 h-5" />
             </div>
-            <div className="font-bold text-xs text-dash-ink">Learners & Parents</div>
-            <div className="text-[10px] text-dash-ink-soft mt-0.5">Enrollment records</div>
+            <div className="font-bold text-xs text-dash-ink">Learners</div>
+            <div className="text-[11px] text-dash-ink-soft mt-0.5">Enrollment records</div>
           </div>
 
           <div
             onClick={() => onTabChange('categories')}
-            className="bg-white hover:bg-[#FFFDFB] p-4 rounded-2xl border border-card-border shadow-card hover:shadow-md transition-all text-center cursor-pointer group"
+            className="bg-white hover:bg-[#FAF7F0] p-4 rounded-xl border border-card-border shadow-xs transition-colors text-center cursor-pointer group"
           >
-            <div className="w-11 h-11 mx-auto rounded-2xl bg-[#FDEEE4] text-2xl flex items-center justify-center group-hover:scale-110 transition-transform mb-2">
-              🗂️
+            <div className="w-10 h-10 mx-auto rounded-lg bg-[#FAF0E8] text-accent flex items-center justify-center mb-2.5">
+              <IconCategories className="w-5 h-5" />
             </div>
             <div className="font-bold text-xs text-dash-ink">Categories</div>
-            <div className="text-[10px] text-dash-ink-soft mt-0.5">Subjects & Topics</div>
+            <div className="text-[11px] text-dash-ink-soft mt-0.5">Curriculum subjects</div>
           </div>
 
           <div
             onClick={() => onTabChange('materials')}
-            className="bg-white hover:bg-[#FFFDFB] p-4 rounded-2xl border border-card-border shadow-card hover:shadow-md transition-all text-center cursor-pointer group"
+            className="bg-white hover:bg-[#FAF7F0] p-4 rounded-xl border border-card-border shadow-xs transition-colors text-center cursor-pointer group"
           >
-            <div className="w-11 h-11 mx-auto rounded-2xl bg-[#F9DFD2] text-2xl flex items-center justify-center group-hover:scale-110 transition-transform mb-2">
-              📚
+            <div className="w-10 h-10 mx-auto rounded-lg bg-[#FAF0E8] text-accent flex items-center justify-center mb-2.5">
+              <IconMaterials className="w-5 h-5" />
             </div>
-            <div className="font-bold text-xs text-dash-ink">All Materials</div>
-            <div className="text-[10px] text-dash-ink-soft mt-0.5">Repository</div>
+            <div className="font-bold text-xs text-dash-ink">Materials</div>
+            <div className="text-[11px] text-dash-ink-soft mt-0.5">Content repository</div>
           </div>
 
           <div
             onClick={() => onTabChange('approvals')}
-            className="bg-white hover:bg-[#FFF9F9] p-4 rounded-2xl border border-card-border shadow-card hover:shadow-md transition-all text-center cursor-pointer group"
+            className="bg-white hover:bg-[#FAF7F0] p-4 rounded-xl border border-card-border shadow-xs transition-colors text-center cursor-pointer group"
           >
-            <div className="w-11 h-11 mx-auto rounded-2xl bg-[#FFE4E4] text-2xl flex items-center justify-center group-hover:scale-110 transition-transform mb-2">
-              ✅
+            <div className="w-10 h-10 mx-auto rounded-lg bg-[#F3EEFA] text-[#55369A] flex items-center justify-center mb-2.5">
+              <IconApprovals className="w-5 h-5" />
             </div>
-            <div className="font-bold text-xs text-dash-ink">Approvals Queue</div>
-            <div className="text-[10px] text-dash-ink-soft mt-0.5">
-              {pendingApprovalsCount > 0 ? `${pendingApprovalsCount} Waiting` : 'Verified'}
+            <div className="font-bold text-xs text-dash-ink">Approvals</div>
+            <div className="text-[11px] text-dash-ink-soft mt-0.5">
+              {pendingApprovalsCount > 0 ? `${pendingApprovalsCount} Pending` : 'Verified'}
             </div>
           </div>
         </div>
       </div>
 
-      {/* ========================================================= */}
-      {/* 5. TWO-COLUMN ANALYTICS & DISTRIBUTION HUB               */}
-      {/* ========================================================= */}
+      {/* --------------------------------------------------------- */}
+      {/* 5. TWO-COLUMN ANALYTICS HUB                               */}
+      {/* --------------------------------------------------------- */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* COLUMN 1: MANOLO FORTICH 22 BARANGAYS MATRIX */}
-        <div className="bg-white rounded-3xl p-6 border border-card-border shadow-card flex flex-col justify-between">
+        {/* Column 1: Municipal Barangay Distribution */}
+        <div className="bg-white rounded-2xl p-6 border border-card-border shadow-xs flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between pb-3 border-b border-card-border mb-3">
+            <div className="flex items-center justify-between pb-3 border-b border-[#F5EDE0] mb-3">
               <div>
                 <h4 className="font-fraunces text-base font-bold text-dash-ink m-0">
-                  📍 Manolo Fortich Barangay Coverage
+                  Municipal Barangay Distribution
                 </h4>
                 <p className="text-xs text-dash-ink-soft mt-0.5 m-0">
-                  {activeBarangayCount} of 22 Barangays currently connected ({coveragePercent}%)
+                  {activeBarangayCount} of 22 Barangays connected ({coveragePercent}%)
                 </p>
               </div>
 
-              <input
-                type="text"
-                placeholder="🔍 Find barangay..."
-                value={barangaySearch}
-                onChange={(e) => setBarangaySearch(e.target.value)}
-                className="px-2.5 py-1 rounded-xl border border-[#E5DCC9] font-nunito text-xs text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent w-36"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Filter barangay..."
+                  value={barangaySearch}
+                  onChange={(e) => setBarangaySearch(e.target.value)}
+                  className="px-2.5 py-1.5 rounded-lg border border-[#E5DCC9] font-nunito text-xs text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent w-40"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
@@ -583,17 +558,16 @@ export default function AdminOverview({
                   <div
                     key={b}
                     onClick={() => onTabChange('users')}
-                    className={`p-2.5 rounded-xl border text-xs transition-all cursor-pointer flex items-center justify-between ${
+                    className={`p-2.5 rounded-lg border text-xs transition-colors cursor-pointer flex items-center justify-between ${
                       isActive
-                        ? 'bg-[#F4F9F5] border-[#D4EAD7] text-[#2C5E35] font-bold hover:shadow-xs'
-                        : 'bg-[#FAF7F0] border-[#EFE7D8] text-dash-ink-soft hover:bg-white'
+                        ? 'bg-[#F4F8F4] border-[#D1E5D3] text-[#22572C] font-semibold'
+                        : 'bg-[#FAF8F5] border-[#EFE7D8] text-dash-ink-soft hover:bg-white'
                     }`}
-                    title={`${b}: ${count} registered users/learners`}
                   >
                     <span className="truncate mr-1 text-[11px]">{b}</span>
                     <span
                       className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold shrink-0 ${
-                        isActive ? 'bg-[#3D7048] text-white' : 'bg-[#E5DAC4] text-dash-ink'
+                        isActive ? 'bg-[#2E6B39] text-white' : 'bg-[#E5DAC4] text-dash-ink'
                       }`}
                     >
                       {count}
@@ -604,106 +578,112 @@ export default function AdminOverview({
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-card-border flex items-center justify-between text-xs text-dash-ink-soft">
-            <span>🟢 Green indicates active barangays with verified accounts</span>
+          <div className="mt-4 pt-3 border-t border-[#F5EDE0] flex items-center justify-between text-xs text-dash-ink-soft">
+            <span>Indicator shows accounts registered per barangay</span>
             <button
               onClick={() => onTabChange('users')}
-              className="text-accent font-bold hover:underline bg-transparent border-none cursor-pointer"
+              className="text-accent font-semibold hover:underline bg-transparent border-none cursor-pointer"
             >
-              Filter in Users Tab →
+              Manage Accounts →
             </button>
           </div>
         </div>
 
-        {/* COLUMN 2: MEDIA FORMATS & CURRICULUM CLOUD */}
-        <div className="bg-white rounded-3xl p-6 border border-card-border shadow-card flex flex-col justify-between">
+        {/* Column 2: Curriculum & Media Formats */}
+        <div className="bg-white rounded-2xl p-6 border border-card-border shadow-xs flex flex-col justify-between">
           <div>
-            <div className="pb-3 border-b border-card-border mb-3">
+            <div className="pb-3 border-b border-[#F5EDE0] mb-3">
               <h4 className="font-fraunces text-base font-bold text-dash-ink m-0">
-                📚 Curriculum & Media Formats
+                Curriculum Media Formats
               </h4>
               <p className="text-xs text-dash-ink-soft mt-0.5 m-0">
-                Distribution of educational resources accessible by parents and teachers
+                Resource format distribution across learning levels
               </p>
             </div>
 
-            {/* Media Formats Bar breakdown */}
-            <div className="space-y-2.5 mb-5">
+            {/* Media Formats Bar Breakdown */}
+            <div className="space-y-3 mb-5">
               <div>
-                <div className="flex justify-between text-xs font-bold text-dash-ink mb-1">
-                  <span className="flex items-center gap-1">🎬 Videos & Interactive Animations</span>
+                <div className="flex justify-between text-xs font-semibold text-dash-ink mb-1">
+                  <span className="flex items-center gap-1.5">
+                    <IconVideo className="w-3.5 h-3.5 text-coral" /> Videos & Animations
+                  </span>
                   <span>
                     {mediaCounts.video} ({Math.round((mediaCounts.video / totalMedia) * 100)}%)
                   </span>
                 </div>
                 <div className="w-full bg-[#F6F1E7] h-2 rounded-full overflow-hidden">
                   <div
-                    className="bg-coral h-full rounded-full transition-all"
+                    className="bg-coral h-full rounded-full"
                     style={{ width: `${(mediaCounts.video / totalMedia) * 100}%` }}
                   />
                 </div>
               </div>
 
               <div>
-                <div className="flex justify-between text-xs font-bold text-dash-ink mb-1">
-                  <span className="flex items-center gap-1">📖 Storybooks & PDF Worksheets</span>
+                <div className="flex justify-between text-xs font-semibold text-dash-ink mb-1">
+                  <span className="flex items-center gap-1.5">
+                    <IconBook className="w-3.5 h-3.5 text-accent" /> Storybooks & Worksheets
+                  </span>
                   <span>
                     {mediaCounts.pdf} ({Math.round((mediaCounts.pdf / totalMedia) * 100)}%)
                   </span>
                 </div>
                 <div className="w-full bg-[#F6F1E7] h-2 rounded-full overflow-hidden">
                   <div
-                    className="bg-accent h-full rounded-full transition-all"
+                    className="bg-accent h-full rounded-full"
                     style={{ width: `${(mediaCounts.pdf / totalMedia) * 100}%` }}
                   />
                 </div>
               </div>
 
               <div>
-                <div className="flex justify-between text-xs font-bold text-dash-ink mb-1">
-                  <span className="flex items-center gap-1">🗂️ Interactive Flashcards</span>
+                <div className="flex justify-between text-xs font-semibold text-dash-ink mb-1">
+                  <span className="flex items-center gap-1.5">
+                    <IconLayers className="w-3.5 h-3.5 text-gold" /> Flashcards & Activities
+                  </span>
                   <span>
-                    {mediaCounts.flashcard} (
-                    {Math.round((mediaCounts.flashcard / totalMedia) * 100)}%)
+                    {mediaCounts.flashcard} ({Math.round((mediaCounts.flashcard / totalMedia) * 100)}%)
                   </span>
                 </div>
                 <div className="w-full bg-[#F6F1E7] h-2 rounded-full overflow-hidden">
                   <div
-                    className="bg-gold h-full rounded-full transition-all"
+                    className="bg-gold h-full rounded-full"
                     style={{ width: `${(mediaCounts.flashcard / totalMedia) * 100}%` }}
                   />
                 </div>
               </div>
 
               <div>
-                <div className="flex justify-between text-xs font-bold text-dash-ink mb-1">
-                  <span className="flex items-center gap-1">🎵 Songs & Audio Stories</span>
+                <div className="flex justify-between text-xs font-semibold text-dash-ink mb-1">
+                  <span className="flex items-center gap-1.5">
+                    <IconMusic className="w-3.5 h-3.5 text-leaf" /> Nursery Songs & Audio
+                  </span>
                   <span>
                     {mediaCounts.audio} ({Math.round((mediaCounts.audio / totalMedia) * 100)}%)
                   </span>
                 </div>
                 <div className="w-full bg-[#F6F1E7] h-2 rounded-full overflow-hidden">
                   <div
-                    className="bg-leaf h-full rounded-full transition-all"
+                    className="bg-leaf h-full rounded-full"
                     style={{ width: `${(mediaCounts.audio / totalMedia) * 100}%` }}
                   />
                 </div>
               </div>
             </div>
 
-            {/* Curriculum Subject Badges */}
-            <div className="pt-2">
+            {/* Subject Categories */}
+            <div>
               <span className="text-[11px] font-bold text-dash-ink-soft uppercase tracking-wider block mb-2">
                 Active Learning Subjects ({categories.length})
               </span>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5">
                 {categories.map((c) => (
                   <button
                     key={c.id}
                     onClick={() => onTabChange('categories')}
-                    className="px-2.5 py-1 rounded-xl bg-[#FAF5EB] hover:bg-[#F2E7D3] border border-[#E8DEC9] text-xs font-bold text-dash-ink transition-colors flex items-center gap-1.5 cursor-pointer"
+                    className="px-2.5 py-1 rounded-lg bg-[#FAF5EB] hover:bg-[#F2E7D3] border border-[#E8DEC9] text-xs font-semibold text-dash-ink transition-colors flex items-center gap-1.5 cursor-pointer"
                   >
-                    <span>{c.icon || '📁'}</span>
                     <span>{c.name}</span>
                     <span className="text-[10px] bg-white px-1.5 py-0.2 rounded-full text-dash-ink-soft">
                       {categoryCounts[c.id] || 0}
@@ -714,39 +694,15 @@ export default function AdminOverview({
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-card-border flex items-center justify-between text-xs">
-            <span className="text-dash-ink-soft">Browse and manage content assets</span>
+          <div className="mt-4 pt-3 border-t border-[#F5EDE0] flex items-center justify-between text-xs text-dash-ink-soft">
+            <span>Manage content files and learning topics</span>
             <button
               onClick={() => onTabChange('materials')}
-              className="text-accent font-bold hover:underline bg-transparent border-none cursor-pointer"
+              className="text-accent font-semibold hover:underline bg-transparent border-none cursor-pointer"
             >
               Open Materials →
             </button>
           </div>
-        </div>
-      </div>
-
-      {/* ========================================================= */}
-      {/* 6. ECCD GUIDELINES & MUNICIPAL CARE BULLETIN              */}
-      {/* ========================================================= */}
-      <div className="bg-gradient-to-r from-[#FFFDF7] to-[#FAF4E6] rounded-2xl p-4 sm:p-5 border border-[#EDE1C7] flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="text-3xl">🌱</div>
-          <div>
-            <div className="font-fraunces font-bold text-sm text-dash-ink">
-              ECCD Early Childhood Care & Development Principle
-            </div>
-            <p className="text-xs text-dash-ink-soft m-0 mt-0.5 leading-relaxed">
-              "Children aged 3–4 learn best through responsive play, colorful visual storytelling,
-              and guided parent-teacher partnership."
-            </p>
-          </div>
-        </div>
-
-        <div className="text-right shrink-0">
-          <span className="text-[11px] font-bold text-[#8A6420] bg-sun/40 px-3 py-1 rounded-full border border-sun/60 inline-block">
-            EarlyLearn Hub • Manolo Fortich
-          </span>
         </div>
       </div>
     </div>
