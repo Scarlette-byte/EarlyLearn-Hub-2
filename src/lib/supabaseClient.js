@@ -41,3 +41,37 @@ export const barangays = [
   'Tankulan (Poblacion)',
   'Ticala',
 ];
+
+/**
+ * Normalizes an email or a Philippine mobile phone number into a format
+ * that works seamlessly with Supabase Auth for users without an email address.
+ * E.g., '09123456789' or '+639123456789' -> '09123456789@earlylearn.ph'
+ */
+export function normalizeAuthIdentifier(input) {
+  const trimmed = (input || '').trim();
+  if (!trimmed) return { authEmail: '', isPhone: false, display: '' };
+
+  if (trimmed.includes('@')) {
+    return {
+      authEmail: trimmed.toLowerCase(),
+      isPhone: false,
+      display: trimmed,
+    };
+  }
+
+  const digits = trimmed.replace(/\D/g, '');
+  let cleanMobile = digits;
+
+  if (cleanMobile.startsWith('63') && cleanMobile.length === 12) {
+    cleanMobile = '0' + cleanMobile.slice(2);
+  } else if (cleanMobile.length === 10 && cleanMobile.startsWith('9')) {
+    cleanMobile = '0' + cleanMobile;
+  }
+
+  return {
+    authEmail: `${cleanMobile}@earlylearn.ph`,
+    isPhone: true,
+    display: cleanMobile,
+    rawDigits: digits,
+  };
+}
