@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { initialTeacherModules } from '../lib/curriculumData.js';
 
 const PALETTES = [
   'bg-coral', // coral red
@@ -21,38 +20,12 @@ const TYPE_ICONS = {
 
 // Default ECCD categories matching the original student dashboard
 const DEFAULT_CATEGORIES = [
-  { id: 'cat-alphabet', name: 'Alphabet', icon: '🔤', tag: 'Alphabet' },
-  { id: 'cat-numbers', name: 'Numbers', icon: '🔢', tag: 'Numbers' },
-  { id: 'cat-colors', name: 'Colors', icon: '🎨', tag: 'Colors' },
-  { id: 'cat-shapes', name: 'Shapes', icon: '🔺', tag: 'Shapes' },
-  { id: 'cat-animals', name: 'Animals', icon: '🐶', tag: 'Animals' },
-  { id: 'cat-stories', name: 'Stories', icon: '📖', tag: 'Stories' },
-];
-
-// Baseline initial activities (matching Image 2: "What Letter Is This?" & "Find the Color")
-const BASELINE_ACTIVITIES = [
-  {
-    id: 'act-baseline-01',
-    title: 'What Letter Is This?',
-    category_id: 'cat-alphabet',
-    category_name: 'Alphabet',
-    type: 'activity',
-    icon: '🔤',
-    content_text: 'Sing the alphabet song with your parent and identify the first letter of your name! What letter is it?',
-    teacher_name: 'Teacher Lovey Tion',
-    created_at: '2026-10-01',
-  },
-  {
-    id: 'act-baseline-02',
-    title: 'Find the Color',
-    category_id: 'cat-colors',
-    category_name: 'Colors',
-    type: 'activity',
-    icon: '🎨',
-    content_text: 'Find something in your room that has the same color as the bright Bukidnon sun (Yellow)! What item did you find?',
-    teacher_name: 'Teacher Lovey Tion',
-    created_at: '2026-10-02',
-  },
+  { id: 'cat-alphabet', name: 'Alphabet', icon: '🔤' },
+  { id: 'cat-numbers', name: 'Numbers', icon: '🔢' },
+  { id: 'cat-colors', name: 'Colors', icon: '🎨' },
+  { id: 'cat-shapes', name: 'Shapes', icon: '🔺' },
+  { id: 'cat-animals', name: 'Animals', icon: '🐶' },
+  { id: 'cat-stories', name: 'Stories', icon: '📖' },
 ];
 
 export default function StudentDashboard({ profile }) {
@@ -73,7 +46,7 @@ export default function StudentDashboard({ profile }) {
   const [announcements, setAnnouncements] = useState([]);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
 
-  // Completed Activity IDs
+  // Completed teacher activity IDs
   const [completedIds, setCompletedIds] = useState(() => {
     try {
       const saved = localStorage.getItem(`earlylearn_done_${currentUserId}`);
@@ -88,19 +61,44 @@ export default function StudentDashboard({ profile }) {
   const [categoryMaterials, setCategoryMaterials] = useState([]);
   const [materialsLoading, setMaterialsLoading] = useState(false);
 
-  // Content view state
+  // Content view state (doing a teacher activity)
   const [currentMaterial, setCurrentMaterial] = useState(null);
   const [answer, setAnswer] = useState('');
   const [doneMsg, setDoneMsg] = useState({ text: '', error: false });
   const [submitted, setSubmitted] = useState(false);
 
+  // Activities sub-tab view: 'teacher' | 'student_uploads'
+  const [activityTab, setActivityTab] = useState('teacher');
+
+  // Student's own uploaded activities & artworks
+  const [studentUploads, setStudentUploads] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`earlylearn_student_uploads_${currentUserId}`);
+      if (saved) return JSON.parse(saved);
+      const general = localStorage.getItem('earlylearn_student_uploads');
+      return general ? JSON.parse(general) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Student upload modal state
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadCategory, setUploadCategory] = useState('Colors');
+  const [uploadNote, setUploadNote] = useState('');
+  const [uploadFilePreview, setUploadFilePreview] = useState(null);
+  const [uploadFileName, setUploadFileName] = useState('');
+  const [uploadMsg, setUploadMsg] = useState({ text: '', type: '' });
+  const [uploading, setUploading] = useState(false);
+
   // Teacher-uploaded modules from localStorage & Supabase
   const [teacherUploadedModules, setTeacherUploadedModules] = useState(() => {
     try {
       const saved = localStorage.getItem('earlylearn_teacher_modules');
-      return saved ? JSON.parse(saved) : initialTeacherModules;
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return initialTeacherModules;
+      return [];
     }
   });
 
@@ -127,7 +125,7 @@ export default function StudentDashboard({ profile }) {
     }
   }, []);
 
-  // --- Load Categories from Supabase (or fallback to DEFAULT_CATEGORIES) ---
+  // --- Load Categories from Supabase ---
   const loadCategories = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -160,7 +158,7 @@ export default function StudentDashboard({ profile }) {
     }
   }, []);
 
-  // Listen to teacher uploads
+  // Listen to teacher uploads in localStorage
   useEffect(() => {
     loadAnnouncements();
     loadCategories();
@@ -175,32 +173,45 @@ export default function StudentDashboard({ profile }) {
           // ignore
         }
       }
+      if (e.key === 'earlylearn_student_uploads' || e.key === `earlylearn_student_uploads_${currentUserId}`) {
+        try {
+          const updated = JSON.parse(e.newValue || '[]');
+          setStudentUploads(updated);
+        } catch {
+          // ignore
+        }
+      }
     }
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [loadAnnouncements, loadCategories, loadDbMaterials]);
+  }, [loadAnnouncements, loadCategories, loadDbMaterials, currentUserId]);
 
   // -------------------------------------------------------------------------
-  // "MY ACTIVITIES": Sourced directly from teacher-uploaded materials + baseline
+  // "MY ACTIVITIES": STRICTLY BASED ON WHAT THE TEACHER UPLOADS (NO CURRICULUM SEED)
   // -------------------------------------------------------------------------
-  const allActivities = useMemo(() => {
+  const teacherActivities = useMemo(() => {
     const list = [];
     const seenTitles = new Set();
 
-    // 1. Teacher modules uploaded by teacher as 'activity'
+    // 1. Materials explicitly uploaded by a teacher in TeacherDashboard
     (teacherUploadedModules || []).forEach((m) => {
+      // Filter ONLY actual teacher uploads marked as activities, excluding static curriculum guide baseline
+      const isActualTeacherUpload =
+        m.is_custom_teacher_upload === true ||
+        (m.id && m.id.startsWith('mod-') && !m.id.match(/^mod-0[1-9]/)) ||
+        (m.teacher_id && m.teacher_id !== 'system');
+
       const isActivity =
         m.module_type === 'activity' ||
         m.type === 'activity' ||
-        (m.module_type && m.module_type.toLowerCase().includes('activity')) ||
-        (m.file_type && m.file_type.toLowerCase().includes('activity'));
+        (m.module_type && m.module_type.toLowerCase().includes('activity'));
 
-      if (isActivity && !seenTitles.has(m.title.toLowerCase())) {
+      if (isActualTeacherUpload && isActivity && !seenTitles.has(m.title.toLowerCase())) {
         seenTitles.add(m.title.toLowerCase());
         list.push({
           id: m.id,
           title: m.title,
-          category_id: m.category_id || (m.theme?.toLowerCase().includes('alphabet') ? 'cat-alphabet' : 'cat-stories'),
+          category_id: m.category_id,
           category_name: m.sub_theme || m.theme || m.category_name || 'Class Activity',
           type: 'activity',
           icon: '✏️',
@@ -213,9 +224,9 @@ export default function StudentDashboard({ profile }) {
       }
     });
 
-    // 2. Supabase materials where type === 'activity'
+    // 2. Supabase materials uploaded by teachers (where created_by is present)
     (dbMaterials || []).forEach((m) => {
-      if (m.type === 'activity' && !seenTitles.has(m.title.toLowerCase())) {
+      if (m.type === 'activity' && m.created_by && !seenTitles.has(m.title.toLowerCase())) {
         seenTitles.add(m.title.toLowerCase());
         list.push({
           id: m.id,
@@ -224,35 +235,36 @@ export default function StudentDashboard({ profile }) {
           category_name: m.categories?.name || 'Class Activity',
           type: 'activity',
           icon: m.categories?.icon || '✏️',
-          content_text: m.content_text || 'Complete this lesson activity.',
+          content_text: m.content_text || 'Teacher-assigned learning activity.',
           content_url: m.content_url || null,
-          teacher_name: m.created_by ? 'Teacher' : 'CDC Teacher',
+          teacher_name: 'CDC Teacher',
           created_at: m.created_at,
         });
-      }
-    });
-
-    // 3. Baseline activities (so the student always starts with the familiar activities in Image 2)
-    BASELINE_ACTIVITIES.forEach((b) => {
-      if (!seenTitles.has(b.title.toLowerCase())) {
-        seenTitles.add(b.title.toLowerCase());
-        list.push(b);
       }
     });
 
     return list;
   }, [teacherUploadedModules, dbMaterials]);
 
-  // Pending (to-do) activities for the student
-  const pendingActivities = useMemo(() => {
-    return allActivities.filter((a) => !completedIds.has(a.id));
-  }, [allActivities, completedIds]);
+  // Pending teacher activities
+  const pendingTeacherActivities = useMemo(() => {
+    return teacherActivities.filter((a) => !completedIds.has(a.id));
+  }, [teacherActivities, completedIds]);
 
-  // Count pending activities per category for the badges (e.g. "1 new")
+  // Completed teacher activities
+  const completedTeacherActivities = useMemo(() => {
+    return teacherActivities.filter((a) => completedIds.has(a.id));
+  }, [teacherActivities, completedIds]);
+
+  // Progress metrics: combination of completed teacher activities + student uploaded works
+  const totalCompletedCount = completedTeacherActivities.length + studentUploads.length;
+  const totalTasksCount = Math.max(1, teacherActivities.length + studentUploads.length);
+  const progressPct = Math.min(100, Math.round((totalCompletedCount / totalTasksCount) * 100));
+
+  // Count pending activities per category for category badges
   const pendingByCategory = useMemo(() => {
     const map = {};
-    pendingActivities.forEach((a) => {
-      // match by category_id or by tag/name
+    pendingTeacherActivities.forEach((a) => {
       categories.forEach((cat) => {
         const matchesCat =
           a.category_id === cat.id ||
@@ -263,12 +275,7 @@ export default function StudentDashboard({ profile }) {
       });
     });
     return map;
-  }, [pendingActivities, categories]);
-
-  // Progress metrics
-  const totalActivitiesCount = allActivities.length || 2;
-  const completedCount = allActivities.filter((a) => completedIds.has(a.id)).length;
-  const progressPct = Math.min(100, Math.round((completedCount / totalActivitiesCount) * 100));
+  }, [pendingTeacherActivities, categories]);
 
   // --- Handlers ---
   function openCategory(cat) {
@@ -276,31 +283,25 @@ export default function StudentDashboard({ profile }) {
     setView('materials');
     setMaterialsLoading(true);
 
-    // Filter materials matching this category
     const catNameLower = cat.name.toLowerCase();
-    const matching = allActivities.filter(
-      (m) =>
-        m.category_id === cat.id ||
-        (m.category_name && m.category_name.toLowerCase().includes(catNameLower))
-    );
-
-    // Also include any other uploaded non-activity materials under this theme
-    (teacherUploadedModules || []).forEach((m) => {
-      const matchTheme =
-        (m.theme && m.theme.toLowerCase().includes(catNameLower)) ||
-        (m.sub_theme && m.sub_theme.toLowerCase().includes(catNameLower)) ||
-        (m.title && m.title.toLowerCase().includes(catNameLower));
-      if (matchTheme && !matching.some((item) => item.id === m.id)) {
-        matching.push({
-          id: m.id,
-          title: m.title,
-          type: m.module_type?.toLowerCase().includes('video') ? 'video' : m.module_type?.toLowerCase().includes('image') ? 'image' : 'text',
-          content_text: m.description || m.content_text,
-          content_url: m.content_url,
-          teacher_name: m.teacher_name,
-        });
-      }
-    });
+    // Only materials uploaded by teacher or student matching this category
+    const matching = [
+      ...teacherActivities.filter(
+        (m) =>
+          m.category_id === cat.id ||
+          (m.category_name && m.category_name.toLowerCase().includes(catNameLower))
+      ),
+      ...studentUploads
+        .filter((u) => u.category && u.category.toLowerCase().includes(catNameLower))
+        .map((u) => ({
+          id: u.id,
+          title: u.title,
+          type: 'image',
+          content_text: u.note,
+          content_url: u.mediaUrl,
+          teacher_name: `Uploaded by ${greetingName}`,
+        })),
+    ];
 
     setCategoryMaterials(matching);
     setMaterialsLoading(false);
@@ -318,11 +319,10 @@ export default function StudentDashboard({ profile }) {
   async function submitAnswer() {
     const trimmed = answer.trim();
     if (!trimmed) {
-      alert('Please write your answer or comment first.');
+      alert('Please write your answer or reflection first.');
       return;
     }
 
-    // Save to local completed set
     const updated = new Set(completedIds);
     updated.add(currentMaterial.id);
     setCompletedIds(updated);
@@ -332,12 +332,12 @@ export default function StudentDashboard({ profile }) {
       // ignore
     }
 
-    // Try saving to Supabase if authenticated
     try {
       await supabase.from('submissions').insert({
         material_id: currentMaterial.id,
         student_id: currentUserId,
         answer_text: trimmed,
+        status: 'submitted',
       });
     } catch {
       // ignore
@@ -347,10 +347,88 @@ export default function StudentDashboard({ profile }) {
     setSubmitted(true);
   }
 
+  // --- Handle Student Uploading Their Own Activity / Artwork ---
+  function handleFileChange(e) {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploadFileName(file.name);
+      const reader = new FileReader();
+      reader.onload = (uploadEvent) => {
+        setUploadFilePreview(uploadEvent.target?.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  async function handleStudentUploadSubmit(e) {
+    e.preventDefault();
+    if (!uploadTitle.trim()) {
+      setUploadMsg({ text: '⚠️ Please provide a title for your activity.', type: 'error' });
+      return;
+    }
+
+    setUploading(true);
+    setUploadMsg({ text: '', type: '' });
+
+    const newUpload = {
+      id: 'stu-up-' + Date.now(),
+      studentId: currentUserId,
+      studentName: greetingName,
+      title: uploadTitle.trim(),
+      category: uploadCategory,
+      note: uploadNote.trim(),
+      mediaUrl: uploadFilePreview || null,
+      fileName: uploadFileName || 'Activity_Photo.png',
+      uploadedAt: new Date().toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }),
+      status: 'Submitted to Teacher',
+    };
+
+    const updatedUploads = [newUpload, ...studentUploads];
+    setStudentUploads(updatedUploads);
+
+    try {
+      localStorage.setItem(
+        `earlylearn_student_uploads_${currentUserId}`,
+        JSON.stringify(updatedUploads)
+      );
+      localStorage.setItem('earlylearn_student_uploads', JSON.stringify(updatedUploads));
+    } catch {
+      // ignore
+    }
+
+    // Attempt saving to Supabase submissions
+    try {
+      await supabase.from('submissions').insert({
+        student_id: currentUserId,
+        answer_text: `[${uploadCategory}] ${uploadTitle.trim()}: ${uploadNote.trim()}`,
+        status: 'submitted',
+      });
+    } catch (err) {
+      console.warn('Note on Supabase submission insert:', err);
+    }
+
+    setUploading(false);
+    setUploadMsg({ text: '🎉 Activity uploaded successfully! Your teacher will review it.', type: 'ok' });
+
+    setTimeout(() => {
+      setIsUploadModalOpen(false);
+      setUploadTitle('');
+      setUploadNote('');
+      setUploadFilePreview(null);
+      setUploadFileName('');
+      setUploadMsg({ text: '', type: '' });
+      setActivityTab('student_uploads');
+    }, 1200);
+  }
+
   return (
     <div className="min-h-screen font-nunito text-[#3a3226] bg-[#FFF8EB] sm:bg-gradient-to-b sm:from-[#FFF6DA] sm:to-[#FFEFC2]">
       <div className="max-w-[620px] mx-auto px-4.5 sm:px-5 pt-6 pb-16 text-center">
-        {/* HEADER BAR (Exact match to Image 2) */}
+        {/* HEADER BAR */}
         <div className="flex justify-between items-center mb-4.5">
           <div className="text-left">
             <h1 className="font-baloo text-2xl sm:text-[26px] font-bold m-0 text-left text-[#3a3226] flex items-center gap-1.5">
@@ -390,66 +468,167 @@ export default function StudentDashboard({ profile }) {
             )}
 
             {/* -------------------------------------------------------- */}
-            {/* 📝 MY ACTIVITIES SECTION (Directly from Teacher Uploads) */}
+            {/* 📝 MY ACTIVITIES SECTION                                 */}
+            {/* (Only Teacher-Uploaded + Student Uploads)                */}
             {/* -------------------------------------------------------- */}
             <div className="mb-5.5">
-              <div className="text-xs font-extrabold text-[#6b5c42] text-left mb-2 flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs font-extrabold text-[#6b5c42] flex items-center gap-1.5">
                   <span>📝</span> My Activities
-                </span>
-                {pendingActivities.length > 0 && (
-                  <span className="text-[11px] font-bold text-[#8C6200] bg-[#FFF3D6] px-2 py-0.5 rounded-full">
-                    {pendingActivities.length} to do
-                  </span>
-                )}
+                  {pendingTeacherActivities.length > 0 && (
+                    <span className="text-[10.5px] font-bold text-[#8C6200] bg-[#FFF3D6] px-2 py-0.5 rounded-full ml-1">
+                      {pendingTeacherActivities.length} to do
+                    </span>
+                  )}
+                </div>
+
+                {/* Upload My Activity Button */}
+                <button
+                  onClick={() => setIsUploadModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl bg-coral hover:bg-coral-deep text-white text-xs font-extrabold flex items-center gap-1 shadow-bump active:translate-y-0.5 transition-all cursor-pointer"
+                >
+                  <span>📤</span>
+                  <span>+ Upload My Activity</span>
+                </button>
               </div>
 
-              {pendingActivities.length === 0 ? (
-                <div className="bg-white rounded-2xl p-5 text-center shadow-soft border border-[#F0E4CE]">
-                  <div className="text-2xl mb-1">🎉</div>
-                  <div className="font-baloo font-bold text-base text-[#3a3226]">
-                    All Activities Complete!
-                  </div>
-                  <div className="text-xs text-[#7a7a7a] mt-0.5">
-                    Great job! Check back later when your teacher uploads new activities.
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2.5">
-                  {pendingActivities.map((a) => (
-                    <div
-                      key={a.id}
-                      onClick={() => openMaterial(a, 'home')}
-                      className="bg-white rounded-2xl px-4 py-3.5 text-left shadow-soft flex items-center gap-3.5 cursor-pointer border-l-[5px] border-leaf hover:translate-x-0.5 transition-transform"
-                    >
-                      <div className="text-3xl flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-xl bg-[#E8F5E9] text-leaf">
-                        {a.icon || '✏️'}
+              {/* Sub-Tabs: Teacher's Uploads vs Student's Uploaded Works */}
+              <div className="flex items-center gap-1.5 p-1 bg-white/70 rounded-xl mb-3 border border-[#F0E4CE]">
+                <button
+                  onClick={() => setActivityTab('teacher')}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    activityTab === 'teacher'
+                      ? 'bg-white text-dash-ink shadow-xs'
+                      : 'text-dash-ink-soft hover:text-dash-ink'
+                  }`}
+                >
+                  Teacher's Uploads ({pendingTeacherActivities.length})
+                </button>
+                <button
+                  onClick={() => setActivityTab('student_uploads')}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    activityTab === 'student_uploads'
+                      ? 'bg-white text-dash-ink shadow-xs'
+                      : 'text-dash-ink-soft hover:text-dash-ink'
+                  }`}
+                >
+                  My Uploaded Works ({studentUploads.length})
+                </button>
+              </div>
+
+              {/* TAB 1: TEACHER ASSIGNED ACTIVITIES */}
+              {activityTab === 'teacher' && (
+                <div>
+                  {pendingTeacherActivities.length === 0 ? (
+                    <div className="bg-white rounded-2xl p-5 text-center shadow-soft border border-[#F0E4CE]">
+                      <div className="text-2xl mb-1">🎈</div>
+                      <div className="font-baloo font-bold text-base text-[#3a3226]">
+                        No Teacher Activities at the Moment
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-baloo font-bold text-[15.5px] text-[#3a3226] truncate">
-                          {a.title}
-                        </div>
-                        <div className="text-[11.5px] text-[#7a7a7a] font-bold flex items-center gap-1.5 mt-0.5">
-                          <span>{a.category_name}</span>
-                          {a.teacher_name && (
-                            <>
-                              <span>•</span>
-                              <span className="text-accent font-semibold">{a.teacher_name}</span>
-                            </>
-                          )}
-                        </div>
+                      <div className="text-xs text-[#7a7a7a] mt-1 max-w-sm mx-auto">
+                        Your teacher hasn't uploaded any new activities yet. You can upload your own drawing or artwork using the button above!
                       </div>
-                      <span className="text-xs font-bold text-leaf bg-emerald-50 px-2 py-1 rounded-lg shrink-0">
-                        Start →
-                      </span>
                     </div>
-                  ))}
+                  ) : (
+                    <div className="space-y-2.5">
+                      {pendingTeacherActivities.map((a) => (
+                        <div
+                          key={a.id}
+                          onClick={() => openMaterial(a, 'home')}
+                          className="bg-white rounded-2xl px-4 py-3.5 text-left shadow-soft flex items-center gap-3.5 cursor-pointer border-l-[5px] border-leaf hover:translate-x-0.5 transition-transform"
+                        >
+                          <div className="text-3xl flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-xl bg-[#E8F5E9] text-leaf">
+                            {a.icon || '✏️'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-baloo font-bold text-[15.5px] text-[#3a3226] truncate">
+                              {a.title}
+                            </div>
+                            <div className="text-[11.5px] text-[#7a7a7a] font-bold flex items-center gap-1.5 mt-0.5">
+                              <span>{a.category_name}</span>
+                              {a.teacher_name && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-accent font-semibold">{a.teacher_name}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <span className="text-xs font-bold text-leaf bg-emerald-50 px-2 py-1 rounded-lg shrink-0">
+                            Start →
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 2: STUDENT'S OWN UPLOADED WORKS */}
+              {activityTab === 'student_uploads' && (
+                <div>
+                  {studentUploads.length === 0 ? (
+                    <div className="bg-white rounded-2xl p-5 text-center shadow-soft border border-[#F0E4CE]">
+                      <div className="text-2xl mb-1">🎨</div>
+                      <div className="font-baloo font-bold text-base text-[#3a3226]">
+                        No Uploaded Activities Yet
+                      </div>
+                      <div className="text-xs text-[#7a7a7a] mt-1 mb-3">
+                        Take a photo of your drawing, coloring sheet, or homework and upload it directly to your teacher!
+                      </div>
+                      <button
+                        onClick={() => setIsUploadModalOpen(true)}
+                        className="px-4 py-2 rounded-xl bg-coral hover:bg-coral-deep text-white font-bold text-xs shadow-bump cursor-pointer"
+                      >
+                        📸 Upload Your First Artwork
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {studentUploads.map((u) => (
+                        <div
+                          key={u.id}
+                          className="bg-white rounded-2xl p-3.5 text-left shadow-soft flex items-start gap-3 border-l-[5px] border-[#FFB84D]"
+                        >
+                          {u.mediaUrl ? (
+                            <img
+                              src={u.mediaUrl}
+                              alt={u.title}
+                              className="w-14 h-14 rounded-xl object-cover shrink-0 border border-gray-200"
+                            />
+                          ) : (
+                            <div className="w-14 h-14 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center text-2xl shrink-0 font-bold">
+                              🖼️
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <h4 className="font-baloo font-bold text-[15px] text-[#3a3226] m-0 truncate">
+                                {u.title}
+                              </h4>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 shrink-0">
+                                {u.status || 'Submitted'}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-dash-ink-soft mt-0.5">
+                              Subject: <b className="text-[#3a3226]">{u.category}</b> • {u.uploadedAt}
+                            </div>
+                            {u.note && (
+                              <p className="text-xs text-[#5a4d38] mt-1 leading-snug line-clamp-2 m-0 bg-[#FFFDF8] p-1.5 rounded-lg border border-[#F0E4CE]">
+                                "{u.note}"
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
             {/* -------------------------------------------------------- */}
-            {/* 6 COLORFUL CATEGORY BUTTONS (Exact Match to Image 2)      */}
+            {/* 6 COLORFUL CATEGORY BUTTONS                              */}
             {/* -------------------------------------------------------- */}
             <div className="grid grid-cols-3 gap-3.5 my-5.5">
               {categories.map((c, i) => {
@@ -479,7 +658,7 @@ export default function StudentDashboard({ profile }) {
             </div>
 
             {/* -------------------------------------------------------- */}
-            {/* ⭐ MY PROGRESS SECTION (Exact Match to Image 2)           */}
+            {/* ⭐ MY PROGRESS SECTION                                    */}
             {/* -------------------------------------------------------- */}
             <div className="bg-white rounded-[20px] px-5.5 py-4 shadow-soft mt-3">
               <div className="text-xs text-[#6b5c42] font-extrabold mb-2 text-left">
@@ -495,7 +674,7 @@ export default function StudentDashboard({ profile }) {
                 />
               </div>
               <div className="mt-2 text-[15px] font-bold text-[#3a3226]">
-                🌟 {completedCount} of {totalActivitiesCount} activities done!
+                🌟 {totalCompletedCount} of {totalTasksCount} activit{totalTasksCount === 1 ? 'y' : 'ies'} completed!
               </div>
             </div>
           </div>
@@ -644,6 +823,143 @@ export default function StudentDashboard({ profile }) {
                   )}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* -------------------------------------------------------- */}
+        {/* MODAL: STUDENT UPLOAD ACTIVITY / ARTWORK                 */}
+        {/* -------------------------------------------------------- */}
+        {isUploadModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-xs">
+            <div className="bg-white w-full max-w-md rounded-3xl p-6 text-left shadow-2xl border border-[#F0E4CE] space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">📸</span>
+                  <div>
+                    <h3 className="font-baloo text-lg font-bold text-[#3a3226] m-0">
+                      Upload My Activity or Artwork
+                    </h3>
+                    <p className="text-xs text-[#7a7a7a] m-0">
+                      Share your drawing, coloring, or homework with Teacher!
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsUploadModalOpen(false)}
+                  className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-dash-ink font-bold text-xs"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleStudentUploadSubmit} className="space-y-3.5 text-xs">
+                <div>
+                  <label className="block font-bold text-[#3a3226] mb-1">
+                    Activity Title *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. My Family Drawing, Pineapple Coloring..."
+                    value={uploadTitle}
+                    onChange={(e) => setUploadTitle(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-[#3a3226] outline-none focus:border-coral text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#3a3226] mb-1">
+                    Subject / Category
+                  </label>
+                  <select
+                    value={uploadCategory}
+                    onChange={(e) => setUploadCategory(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold text-[#3a3226] outline-none focus:border-coral"
+                  >
+                    <option value="Colors">🎨 Colors</option>
+                    <option value="Alphabet">🔤 Alphabet</option>
+                    <option value="Numbers">🔢 Numbers</option>
+                    <option value="Shapes">🔺 Shapes</option>
+                    <option value="Animals">🐶 Animals</option>
+                    <option value="Stories">📖 Stories</option>
+                    <option value="General Artwork">🖍️ General Artwork / Craft</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#3a3226] mb-1">
+                    Take Photo / Attach Artwork (Image or Video)
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*,video/*"
+                    onChange={handleFileChange}
+                    className="w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-coral/10 file:text-coral-deep hover:file:bg-coral/20 cursor-pointer"
+                  />
+                  {uploadFilePreview && (
+                    <div className="mt-2.5 relative">
+                      <img
+                        src={uploadFilePreview}
+                        alt="Preview"
+                        className="w-full max-h-48 object-cover rounded-2xl border border-gray-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUploadFilePreview(null);
+                          setUploadFileName('');
+                        }}
+                        className="absolute top-2 right-2 px-2 py-1 bg-black/60 text-white rounded-lg text-[10px] font-bold"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#3a3226] mb-1">
+                    Learner's Note or Story (Optional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Tell Teacher what you learned or made..."
+                    value={uploadNote}
+                    onChange={(e) => setUploadNote(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs outline-none focus:border-coral"
+                  />
+                </div>
+
+                {uploadMsg.text && (
+                  <div
+                    className={`p-2.5 rounded-xl text-xs font-bold ${
+                      uploadMsg.type === 'error'
+                        ? 'bg-rose-50 text-rose-700'
+                        : 'bg-emerald-50 text-emerald-800'
+                    }`}
+                  >
+                    {uploadMsg.text}
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setIsUploadModalOpen(false)}
+                    className="px-4 py-2 rounded-xl border border-gray-300 hover:bg-gray-100 font-bold text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={uploading}
+                    className="px-5 py-2.5 rounded-xl bg-coral hover:bg-coral-deep text-white font-baloo font-bold text-sm shadow-bump cursor-pointer disabled:opacity-60 transition-all"
+                  >
+                    {uploading ? 'Uploading...' : 'Submit to Teacher 🚀'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

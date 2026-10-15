@@ -352,6 +352,8 @@ export default function TeacherDashboard({ profile }) {
       content_url: uploadUrl.trim() || null,
       content_text: uploadDescription.trim() || null,
       downloads_count: 0,
+      type: uploadType,
+      is_custom_teacher_upload: true,
     };
 
     const updated = [newMod, ...localTeacherModules];
@@ -421,15 +423,52 @@ export default function TeacherDashboard({ profile }) {
 
   // --- Submissions ---
   const loadSubmissions = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('submissions')
-      .select('id, answer_text, status, profiles(full_name), materials(title)')
-      .order('created_at', { ascending: false });
-    if (!error && data) setSubmissions(data);
+    let list = [];
+    try {
+      const { data, error } = await supabase
+        .from('submissions')
+        .select('id, answer_text, status, profiles(full_name), materials(title)')
+        .order('created_at', { ascending: false });
+      if (!error && data) list = [...data];
+    } catch {
+      // fallback
+    }
+
+    try {
+      const localStudentUploads = JSON.parse(localStorage.getItem('earlylearn_student_uploads') || '[]');
+      const localSubs = localStudentUploads.map((u) => ({
+        id: u.id,
+        answer_text: `[${u.category || 'Artwork'}] ${u.title}: ${u.note || ''}`,
+        status: u.status === 'Checked' ? 'checked' : 'submitted',
+        profiles: { full_name: u.studentName || 'Student Test' },
+        materials: { title: u.title },
+        mediaUrl: u.mediaUrl,
+        isStudentUpload: true,
+      }));
+      const existingIds = new Set(list.map((s) => s.id));
+      localSubs.forEach((s) => {
+        if (!existingIds.has(s.id)) list.push(s);
+      });
+    } catch {
+      // ignore
+    }
+
+    setSubmissions(list);
   }, []);
 
   async function markChecked(id) {
-    await supabase.from('submissions').update({ status: 'checked' }).eq('id', id);
+    try {
+      await supabase.from('submissions').update({ status: 'checked' }).eq('id', id);
+    } catch {
+      // ignore
+    }
+    try {
+      const localStudentUploads = JSON.parse(localStorage.getItem('earlylearn_student_uploads') || '[]');
+      const updated = localStudentUploads.map((u) => (u.id === id ? { ...u, status: 'Checked' } : u));
+      localStorage.setItem('earlylearn_student_uploads', JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
     loadSubmissions();
   }
 
