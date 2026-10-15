@@ -213,7 +213,7 @@ export default function StudentDashboard({ profile }) {
           <div className="bg-white/80 rounded-2xl p-3 text-left mb-3.5 border border-[#F0E4CE] shadow-sm flex items-center gap-2.5 text-xs text-[#6B5C42]">
             <span className="text-xl">🌟</span>
             <div>
-              <span className="font-extrabold text-[#943535]">Parent Guided Mode (Ages 3–4): </span>
+              <span className="font-extrabold text-[#943535]">Parent Guided Mode (Pre-K 1 &amp; Pre-K 2: 3.11 – 4.11 y/o): </span>
               <span>Tap on any story or activity below to guide your little learner through today's lesson!</span>
             </div>
           </div>

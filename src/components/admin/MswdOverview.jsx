@@ -85,7 +85,7 @@ export default function MswdOverview({
               Child Records Management
             </h4>
             <p className="text-xs text-dash-ink-soft leading-relaxed">
-              View, verify, and update children's profiles (ages 3–4), guardian details, enrollment status, and daycare center matching.
+              View, verify, and update children's profiles (Pre-K 1: 3.11 y/o &amp; Pre-K 2: 4.11 y/o), guardian details, enrollment status, and daycare center matching.
             </p>
             <div className="pt-2 flex items-center justify-between text-xs font-bold text-accent">
               <span>{learnersCount} Total Records ({pendingVerificationCount} Pending)</span>
