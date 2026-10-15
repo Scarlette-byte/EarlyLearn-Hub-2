@@ -44,14 +44,14 @@ export default function MswdOverview({
             </button>
           )}
           <button
-            onClick={() => onNavigateTab('children')}
-            className="px-4 py-2.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors"
+            onClick={() => onNavigateTab('enrollees')}
+            className="px-4 py-2.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
           >
-            Verify Child Records
+            View Enrollee Population
           </button>
           <button
             onClick={() => onNavigateTab('reports')}
-            className="px-4 py-2.5 rounded-xl bg-white border border-[#D5C7B0] hover:bg-[#FAF5EC] text-dash-ink font-bold text-xs shadow-xs transition-colors"
+            className="px-4 py-2.5 rounded-xl bg-white border border-[#D5C7B0] hover:bg-[#FAF5EC] text-dash-ink font-bold text-xs shadow-xs transition-colors cursor-pointer"
           >
             Generate Report
           </button>
@@ -70,25 +70,25 @@ export default function MswdOverview({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
           {/* Function 1 */}
           <div
-            onClick={() => onNavigateTab('children')}
+            onClick={() => onNavigateTab('enrollees')}
             className="bg-white p-5 rounded-2xl border border-card-border shadow-xs hover:border-accent hover:shadow-card transition-all cursor-pointer space-y-2 group"
           >
             <div className="flex items-center justify-between">
               <span className="w-10 h-10 rounded-xl bg-[#FFE4D6] text-accent flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
-                🧒
+                🏛️
               </span>
               <span className="text-[11px] font-bold text-accent bg-[#FFF5EE] px-2 py-0.5 rounded-full">
                 Core Function 1
               </span>
             </div>
             <h4 className="font-fraunces text-base font-bold text-dash-ink group-hover:text-accent transition-colors">
-              Child Records Management
+              Barangay Enrollee Population
             </h4>
             <p className="text-xs text-dash-ink-soft leading-relaxed">
-              View, verify, and update children's profiles (Pre-K 1: 3.11 y/o &amp; Pre-K 2: 4.11 y/o), guardian details, enrollment status, and daycare center matching.
+              Official municipal population census covering 3,091 enrollees across all 22 Barangays and 62 Child Development Centers (Pre-K 1: 1,001 • Pre-K 2: 1,646 • ITED: 439 • 5 Yrs: 5).
             </p>
             <div className="pt-2 flex items-center justify-between text-xs font-bold text-accent">
-              <span>{learnersCount} Total Records ({pendingVerificationCount} Pending)</span>
+              <span>3,091 Total Enrollees (62 CDCs)</span>
               <span>Open →</span>
             </div>
           </div>

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase, barangays } from '../lib/supabaseClient';
 import DashboardLayout from '../components/DashboardLayout.jsx';
 import MswdOverview from '../components/admin/MswdOverview.jsx';
-import ChildRecordsManagement from '../components/admin/ChildRecordsManagement.jsx';
+import EnrolleePopulation from '../components/admin/EnrolleePopulation.jsx';
 import DaycareCenterMonitoring from '../components/admin/DaycareCenterMonitoring.jsx';
 import ChildDevelopmentMonitoring from '../components/admin/ChildDevelopmentMonitoring.jsx';
 import ReportsGeneration from '../components/admin/ReportsGeneration.jsx';
@@ -45,7 +45,7 @@ import {
 
 const TABS = [
   { key: 'overview', label: 'MSWD Overview', icon: <IconOverview className="w-4 h-4" /> },
-  { key: 'children', label: '1. Child Records', icon: <IconLearners className="w-4 h-4" /> },
+  { key: 'enrollees', label: '1. Enrollee Population', icon: <IconLearners className="w-4 h-4" /> },
   { key: 'centers', label: '2. Daycare Centers', icon: <IconTeachers className="w-4 h-4" /> },
   { key: 'development', label: '3. Child Development', icon: <IconApprovals className="w-4 h-4" /> },
   { key: 'reports', label: '4. Reports Generation', icon: <IconMaterials className="w-4 h-4" /> },
@@ -396,10 +396,10 @@ export default function AdminDashboard({ profile }) {
       )}
 
       {/* ---------------------------------------------------- */}
-      {/* 1. CHILD RECORDS MANAGEMENT                          */}
+      {/* 1. POPULATION OF ENROLLEES IN EACH BARANGAY          */}
       {/* ---------------------------------------------------- */}
-      {activeTab === 'children' && (
-        <ChildRecordsManagement
+      {(activeTab === 'enrollees' || activeTab === 'children') && (
+        <EnrolleePopulation
           learners={learners}
           cdcs={cdcs}
           onAddLearner={handleAddLearner}

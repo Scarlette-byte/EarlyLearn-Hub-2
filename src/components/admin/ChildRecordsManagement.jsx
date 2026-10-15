@@ -521,7 +521,7 @@ export default function ChildRecordsManagement({
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Maria Angela Santos"
+                  placeholder="e.g. Hannah Mae Tion"
                   value={formData.full_name}
                   onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] font-bold text-dash-ink outline-none focus:border-accent"
