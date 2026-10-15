@@ -329,25 +329,51 @@ export const realTeachersList = [
   { id: 'tch-84', full_name: 'Lourdes Cayomoc Magdaleno', designation: 'Child Development Teacher (CDT)', barangay: 'Ticala', cdc_name: 'Upper Bunga Supervised Neighborhood Play', contact_number: '0922-763-8744', email: 'lourdes.magdaleno@earlylearn.ph' },
 ];
 
-// Baseline Initial Curriculum Assignments to Teachers
+// Baseline Initial Curriculum Assignments to Teachers with Quarter & Week Designations
 export const initialCurriculumAssignments = [
-  { id: 'asg-01', teacherId: 'tch-01', teacherName: 'Miche Tamayon Ladao', barangay: 'Agusan Canyon', cdcName: 'Balanban Child Development Center', level: 'Pre-K1', quarters: [1, 2], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
-  { id: 'asg-02', teacherId: 'tch-02', teacherName: 'Remedios Anora Soliva', barangay: 'Agusan Canyon', cdcName: 'Agusan Canyon Child Development Center', level: 'Pre-K1', quarters: [1, 2, 3, 4], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
-  { id: 'asg-03', teacherId: 'tch-03', teacherName: 'Dalia Daitan Aguilar', barangay: 'Agusan Canyon', cdcName: 'Agusan Canyon Child Development Center', level: 'Pre-K2', quarters: [1, 2, 3, 4], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
-  { id: 'asg-04', teacherId: 'tch-06', teacherName: 'Mary Lou Abobo Villegas (CDT)', barangay: 'Alae', cdcName: 'Alae Child Development Center', level: 'Pre-K1', quarters: [1, 2, 3], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
-  { id: 'asg-05', teacherId: 'tch-07', teacherName: 'Aika Tan Guinayao (CDT)', barangay: 'Alae', cdcName: 'Purok-8 Child Development Center', level: 'Pre-K2', quarters: [1, 2], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
-  { id: 'asg-06', teacherId: 'tch-12', teacherName: 'Maricris Pacanza Anasco (CDT)', barangay: 'Dahilayan', cdcName: 'Dahilayan Child Development Center', level: 'Pre-K1', quarters: [1, 2, 3, 4], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
-  { id: 'asg-07', teacherId: 'tch-17', teacherName: 'Juliet Paduhilag Pastrano', barangay: 'Dalirig', cdcName: 'Dalirig Child Development Center', level: 'Pre-K2', quarters: [1, 2, 3], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
-  { id: 'asg-08', teacherId: 'tch-21', teacherName: 'Rosalia Obaniana Anob (CDT)', barangay: 'Damilag', cdcName: 'Centro Damilag Child Development Center', level: 'Pre-K1', quarters: [1, 2, 3, 4], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
-  { id: 'asg-09', teacherId: 'tch-25', teacherName: 'Medal Grace Solon Sevilla (CDT)', barangay: 'Damilag', cdcName: 'PCH-1 Child Development Center', level: 'Pre-K2', quarters: [1, 2], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
-  { id: 'asg-10', teacherId: 'tch-28', teacherName: 'Jydelle Mae Barayuga Alinar (CDT)', barangay: 'Dicklum', cdcName: 'National Child Development Center', level: 'Pre-K1', quarters: [1, 2], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
-  { id: 'asg-11', teacherId: 'tch-31', teacherName: 'Ellyzen Dalunhay Logronio (CDT)', barangay: 'Guilang-Guilang', cdcName: 'Poblacion Guilang-Guilang Child Development Center', level: 'Pre-K1', quarters: [1, 2, 3], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
-  { id: 'asg-12', teacherId: 'tch-33', teacherName: 'Ma. Theresa Anlagan Campos (CDT)', barangay: 'Kalugmanan', cdcName: 'Kalugmanan Child Development Center', level: 'Pre-K2', quarters: [1, 2, 3, 4], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
-  { id: 'asg-13', teacherId: 'tch-43', teacherName: 'Ellmefe Estrada Dap-og (CDT)', barangay: 'Lingion', cdcName: 'Poblacion Lingion Child Development Center', level: 'Pre-K1', quarters: [1, 2], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
-  { id: 'asg-14', teacherId: 'tch-50', teacherName: 'Viegielou Cabrera Brobo (CDT)', barangay: 'Lunocan', cdcName: 'Lunocan Child Development Center', level: 'Pre-K2', quarters: [1, 2, 3], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
-  { id: 'asg-15', teacherId: 'tch-51', teacherName: 'Lovey Guinevere Angeles Tion', barangay: 'Maluko', cdcName: 'Maluko Child Development Center', level: 'Pre-K1', quarters: [1, 2, 3, 4], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
-  { id: 'asg-16', teacherId: 'tch-56', teacherName: 'Cris Ella Coquilla Bautista (CDT)', barangay: 'Mambatangan', cdcName: 'Purok 1 Mambatangan Child Development Center', level: 'Pre-K2', quarters: [1, 2], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
+  { id: 'asg-01', teacherId: 'tch-01', teacherName: 'Miche Tamayon Ladao', barangay: 'Agusan Canyon', cdcName: 'Balanban Child Development Center', level: 'Pre-K1', quarters: [1], weeks: ['Week 1'], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
+  { id: 'asg-02', teacherId: 'tch-02', teacherName: 'Remedios Anora Soliva', barangay: 'Agusan Canyon', cdcName: 'Agusan Canyon Child Development Center', level: 'Pre-K1', quarters: [1, 2, 3, 4], weeks: 'all', schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
+  { id: 'asg-03', teacherId: 'tch-03', teacherName: 'Dalia Daitan Aguilar', barangay: 'Agusan Canyon', cdcName: 'Agusan Canyon Child Development Center', level: 'Pre-K2', quarters: [1], weeks: ['Week 1 & 2', 'Week 3'], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
+  { id: 'asg-04', teacherId: 'tch-06', teacherName: 'Mary Lou Abobo Villegas (CDT)', barangay: 'Alae', cdcName: 'Alae Child Development Center', level: 'Pre-K1', quarters: [1], weeks: ['Week 4'], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
+  { id: 'asg-05', teacherId: 'tch-07', teacherName: 'Aika Tan Guinayao (CDT)', barangay: 'Alae', cdcName: 'Purok-8 Child Development Center', level: 'Pre-K2', quarters: [1], weeks: ['Week 3'], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
+  { id: 'asg-06', teacherId: 'tch-12', teacherName: 'Maricris Pacanza Anasco (CDT)', barangay: 'Dahilayan', cdcName: 'Dahilayan Child Development Center', level: 'Pre-K1', quarters: [1, 2], weeks: 'all', schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
+  { id: 'asg-07', teacherId: 'tch-17', teacherName: 'Juliet Paduhilag Pastrano', barangay: 'Dalirig', cdcName: 'Dalirig Child Development Center', level: 'Pre-K2', quarters: [2], weeks: ['Week 1 & 2'], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
+  { id: 'asg-08', teacherId: 'tch-21', teacherName: 'Rosalia Obaniana Anob (CDT)', barangay: 'Damilag', cdcName: 'Centro Damilag Child Development Center', level: 'Pre-K1', quarters: [1, 2, 3, 4], weeks: 'all', schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
+  { id: 'asg-09', teacherId: 'tch-25', teacherName: 'Medal Grace Solon Sevilla (CDT)', barangay: 'Damilag', cdcName: 'PCH-1 Child Development Center', level: 'Pre-K2', quarters: [2], weeks: ['Week 5 & 6'], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
+  { id: 'asg-10', teacherId: 'tch-28', teacherName: 'Jydelle Mae Barayuga Alinar (CDT)', barangay: 'Dicklum', cdcName: 'National Child Development Center', level: 'Pre-K1', quarters: [1], weeks: ['Week 6'], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
+  { id: 'asg-11', teacherId: 'tch-31', teacherName: 'Ellyzen Dalunhay Logronio (CDT)', barangay: 'Guilang-Guilang', cdcName: 'Poblacion Guilang-Guilang Child Development Center', level: 'Pre-K1', quarters: [1, 2, 3], weeks: 'all', schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
+  { id: 'asg-12', teacherId: 'tch-33', teacherName: 'Ma. Theresa Anlagan Campos (CDT)', barangay: 'Kalugmanan', cdcName: 'Kalugmanan Child Development Center', level: 'Pre-K2', quarters: [3], weeks: ['Week 1 & 2'], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
+  { id: 'asg-13', teacherId: 'tch-43', teacherName: 'Ellmefe Estrada Dap-og (CDT)', barangay: 'Lingion', cdcName: 'Poblacion Lingion Child Development Center', level: 'Pre-K1', quarters: [1], weeks: ['Week 1', 'Week 2 & 3'], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
+  { id: 'asg-14', teacherId: 'tch-50', teacherName: 'Viegielou Cabrera Brobo (CDT)', barangay: 'Lunocan', cdcName: 'Lunocan Child Development Center', level: 'Pre-K2', quarters: [1, 2, 3], weeks: 'all', schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
+  { id: 'asg-15', teacherId: 'tch-51', teacherName: 'Lovey Guinevere Angeles Tion', barangay: 'Maluko', cdcName: 'Maluko Child Development Center', level: 'Pre-K1', quarters: [1], weeks: ['Week 1', 'Week 2 & 3'], schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
+  { id: 'asg-16', teacherId: 'tch-56', teacherName: 'Cris Ella Coquilla Bautista (CDT)', barangay: 'Mambatangan', cdcName: 'Purok 1 Mambatangan Child Development Center', level: 'Pre-K2', quarters: [1, 2], weeks: 'all', schoolYear: '2026-2027', status: 'Active', assignedDate: '2026-08-01' },
 ];
+
+/**
+ * Formats assigned quarters and weeks into human-readable text
+ * e.g., "Q1 (Week 1)" or "Q1 (All Weeks)" or "Q1, Q2 (All Weeks)"
+ */
+export function formatAssignmentCoverage(asg) {
+  if (!asg) return '-';
+  const qList = (asg.quarters || []).sort((a, b) => a - b);
+  const qStr = qList.map((q) => `Q${q}`).join(', ');
+
+  const hasSpecificWeeks =
+    asg.weeks &&
+    asg.weeks !== 'all' &&
+    Array.isArray(asg.weeks) &&
+    asg.weeks.length > 0 &&
+    !asg.weeks.includes('all');
+
+  if (hasSpecificWeeks) {
+    return `${qStr} (${asg.weeks.join(', ')})`;
+  }
+
+  if (qList.length === 4) {
+    return 'Q1 – Q4 (Full Year / All Weeks)';
+  }
+  return `${qStr} (All Weeks)`;
+}
 
 // Baseline Modules Uploaded by Teachers for Activity Monitoring
 export const initialTeacherModules = [
@@ -560,5 +586,47 @@ export const initialTeacherModules = [
     verified_by_mswd: false,
     description: 'Gentle picture book teaching turn-taking on swings, sharing building blocks, and using polite words.',
     downloads_count: 9,
+  },
+  {
+    id: 'mod-11',
+    title: 'Pre-K1 Q1 W1: My Name Rainbow Writing & Hello Tag',
+    teacher_name: 'Lovey Guinevere Angeles Tion',
+    teacher_id: 'tch-51',
+    cdc_name: 'Maluko Child Development Center',
+    barangay: 'Maluko',
+    level: 'Pre-K1',
+    quarter: 1,
+    week: 'Week 1',
+    sub_theme: 'I HAVE A NAME',
+    theme: 'TELL ME ABOUT YOURSELF',
+    module_type: 'Activity Worksheet',
+    file_type: 'Interactive / Worksheet',
+    file_size: '2.5 MB',
+    upload_date: 'Oct 14, 2026',
+    status: 'Approved',
+    verified_by_mswd: true,
+    description: 'Trace your first name with your favorite crayon colors and introduce yourself to Teacher Lovey!',
+    downloads_count: 38,
+  },
+  {
+    id: 'mod-12',
+    title: 'Pre-K1 Q1 W2: Birthday Candle Finger Counting & Birthday Song',
+    teacher_name: 'Lovey Guinevere Angeles Tion',
+    teacher_id: 'tch-51',
+    cdc_name: 'Maluko Child Development Center',
+    barangay: 'Maluko',
+    level: 'Pre-K1',
+    quarter: 1,
+    week: 'Week 2 & 3',
+    sub_theme: 'I HAVE A BIRTHDAY',
+    theme: 'TELL ME ABOUT YOURSELF',
+    module_type: 'Interactive Video & Song',
+    file_type: 'Video / Activity',
+    file_size: '6.2 MB',
+    upload_date: 'Oct 15, 2026',
+    status: 'Approved',
+    verified_by_mswd: true,
+    description: 'Sing the Maluko Day Care birthday chant and count your age using fingers and candles!',
+    downloads_count: 22,
   },
 ];

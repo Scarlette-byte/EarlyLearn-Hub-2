@@ -6,6 +6,7 @@ import {
   realCdcsList,
   initialCurriculumAssignments,
   initialTeacherModules,
+  formatAssignmentCoverage,
 } from '../../lib/curriculumData.js';
 import { barangays } from '../../lib/supabaseClient';
 import {
@@ -57,6 +58,10 @@ export default function CurriculumGuides({
   const [selectedCdcForAssign, setSelectedCdcForAssign] = useState('');
   const [selectedLevelForAssign, setSelectedLevelForAssign] = useState('Pre-K1');
   const [selectedQuartersForAssign, setSelectedQuartersForAssign] = useState([1, 2]);
+  const [weekScopeMode, setWeekScopeMode] = useState('all'); // 'all' | 'specific'
+  const [selectedWeeksForAssign, setSelectedWeeksForAssign] = useState([]);
+  const [assignedWeekFilter, setAssignedWeekFilter] = useState('all');
+  const [assignedQuarterFilter, setAssignedQuarterFilter] = useState('all');
   const [schoolYear, setSchoolYear] = useState('2026-2027');
   const [assignSuccessMsg, setAssignSuccessMsg] = useState('');
 
@@ -103,8 +108,8 @@ export default function CurriculumGuides({
     ).length;
   };
 
-  // Open modal with pre-selected quarter if clicked from matrix
-  const handleOpenAssignModal = (quarterNum = null) => {
+  // Open modal with pre-selected quarter and optional specific week
+  const handleOpenAssignModal = (quarterNum = null, specificWeek = null) => {
     if (quarterNum) {
       setSelectedQuarterForModal(quarterNum);
       setSelectedQuartersForAssign([quarterNum]);
@@ -112,15 +117,40 @@ export default function CurriculumGuides({
       setSelectedQuarterForModal('all');
       setSelectedQuartersForAssign([1, 2, 3, 4]);
     }
+    if (specificWeek) {
+      setWeekScopeMode('specific');
+      setSelectedWeeksForAssign([specificWeek]);
+    } else {
+      setWeekScopeMode('all');
+      setSelectedWeeksForAssign([]);
+    }
     setSelectedLevelForAssign(selectedLevel === 'PRE-K1' ? 'Pre-K1' : 'Pre-K2');
     setAssignSuccessMsg('');
     setAssignModalOpen(true);
   };
 
+  // Available weeks in the modal based on selected quarters & level
+  const availableWeeksInModal = useMemo(() => {
+    const curr = selectedLevelForAssign === 'Pre-K1' ? preK1Curriculum : preK2Curriculum;
+    const qList = curr.filter((q) => selectedQuartersForAssign.includes(q.quarterNumber));
+    const weekItems = [];
+    const seen = new Set();
+    qList.forEach((q) => {
+      q.weeks.forEach((w) => {
+        if (!seen.has(w.week)) {
+          seen.add(w.week);
+          weekItems.push(w);
+        }
+      });
+    });
+    return weekItems;
+  }, [selectedLevelForAssign, selectedQuartersForAssign]);
+
   // Save new assignment
   const handleSaveAssignment = (e) => {
     e.preventDefault();
     let newAssignmentsList = [...assignments];
+    const targetWeeks = weekScopeMode === 'all' || selectedWeeksForAssign.length === 0 ? 'all' : selectedWeeksForAssign;
 
     if (targetType === 'all') {
       realTeachersList.forEach((teacher) => {
@@ -128,9 +158,15 @@ export default function CurriculumGuides({
           (a) => a.teacherId === teacher.id && a.level === selectedLevelForAssign
         );
         if (existingIdx >= 0) {
+          const prevWeeks = newAssignmentsList[existingIdx].weeks;
+          const mergedWeeks = targetWeeks === 'all' || prevWeeks === 'all'
+            ? 'all'
+            : Array.from(new Set([...(Array.isArray(prevWeeks) ? prevWeeks : []), ...(Array.isArray(targetWeeks) ? targetWeeks : [])]));
+
           newAssignmentsList[existingIdx] = {
             ...newAssignmentsList[existingIdx],
             quarters: Array.from(new Set([...newAssignmentsList[existingIdx].quarters, ...selectedQuartersForAssign])),
+            weeks: mergedWeeks,
             schoolYear,
           };
         } else {
@@ -142,6 +178,7 @@ export default function CurriculumGuides({
             cdcName: teacher.cdc_name,
             level: selectedLevelForAssign,
             quarters: selectedQuartersForAssign,
+            weeks: targetWeeks,
             schoolYear,
             status: 'Active',
             assignedDate: new Date().toISOString().split('T')[0],
@@ -168,15 +205,22 @@ export default function CurriculumGuides({
         cdcName: teacher.cdc_name,
         level: selectedLevelForAssign,
         quarters: selectedQuartersForAssign,
+        weeks: targetWeeks,
         schoolYear,
         status: 'Active',
         assignedDate: new Date().toISOString().split('T')[0],
       };
 
       if (existingIdx >= 0) {
+        const prevWeeks = newAssignmentsList[existingIdx].weeks;
+        const mergedWeeks = targetWeeks === 'all' || prevWeeks === 'all'
+          ? 'all'
+          : Array.from(new Set([...(Array.isArray(prevWeeks) ? prevWeeks : []), ...(Array.isArray(targetWeeks) ? targetWeeks : [])]));
+
         newAssignmentsList[existingIdx] = {
           ...newAssignmentsList[existingIdx],
           quarters: Array.from(new Set([...newAssignmentsList[existingIdx].quarters, ...selectedQuartersForAssign])),
+          weeks: mergedWeeks,
           schoolYear,
         };
       } else {
@@ -198,9 +242,15 @@ export default function CurriculumGuides({
           (a) => a.teacherId === teacher.id && a.level === selectedLevelForAssign
         );
         if (existingIdx >= 0) {
+          const prevWeeks = newAssignmentsList[existingIdx].weeks;
+          const mergedWeeks = targetWeeks === 'all' || prevWeeks === 'all'
+            ? 'all'
+            : Array.from(new Set([...(Array.isArray(prevWeeks) ? prevWeeks : []), ...(Array.isArray(targetWeeks) ? targetWeeks : [])]));
+
           newAssignmentsList[existingIdx] = {
             ...newAssignmentsList[existingIdx],
             quarters: Array.from(new Set([...newAssignmentsList[existingIdx].quarters, ...selectedQuartersForAssign])),
+            weeks: mergedWeeks,
           };
         } else {
           newAssignmentsList.push({
@@ -211,6 +261,7 @@ export default function CurriculumGuides({
             cdcName: teacher.cdc_name,
             level: selectedLevelForAssign,
             quarters: selectedQuartersForAssign,
+            weeks: targetWeeks,
             schoolYear,
             status: 'Active',
             assignedDate: new Date().toISOString().split('T')[0],
@@ -233,9 +284,15 @@ export default function CurriculumGuides({
           (a) => a.teacherId === teacher.id && a.level === selectedLevelForAssign
         );
         if (existingIdx >= 0) {
+          const prevWeeks = newAssignmentsList[existingIdx].weeks;
+          const mergedWeeks = targetWeeks === 'all' || prevWeeks === 'all'
+            ? 'all'
+            : Array.from(new Set([...(Array.isArray(prevWeeks) ? prevWeeks : []), ...(Array.isArray(targetWeeks) ? targetWeeks : [])]));
+
           newAssignmentsList[existingIdx] = {
             ...newAssignmentsList[existingIdx],
             quarters: Array.from(new Set([...newAssignmentsList[existingIdx].quarters, ...selectedQuartersForAssign])),
+            weeks: mergedWeeks,
           };
         } else {
           newAssignmentsList.push({
@@ -246,6 +303,7 @@ export default function CurriculumGuides({
             cdcName: teacher.cdc_name,
             level: selectedLevelForAssign,
             quarters: selectedQuartersForAssign,
+            weeks: targetWeeks,
             schoolYear,
             status: 'Active',
             assignedDate: new Date().toISOString().split('T')[0],
@@ -301,9 +359,16 @@ export default function CurriculumGuides({
         selectedBarangayFilter === 'all' || a.barangay.toLowerCase() === selectedBarangayFilter.toLowerCase();
       const matchesLevel =
         selectedLevel === 'all' || a.level.toLowerCase() === (selectedLevel === 'PRE-K1' ? 'pre-k1' : 'pre-k2');
-      return matchesSearch && matchesBrgy && matchesLevel;
+      const matchesQuarter =
+        assignedQuarterFilter === 'all' || a.quarters.includes(parseInt(assignedQuarterFilter, 10));
+      const matchesWeek =
+        assignedWeekFilter === 'all' ||
+        a.weeks === 'all' ||
+        (Array.isArray(a.weeks) &&
+          a.weeks.some((w) => w.toLowerCase().includes(assignedWeekFilter.toLowerCase())));
+      return matchesSearch && matchesBrgy && matchesLevel && matchesQuarter && matchesWeek;
     });
-  }, [assignments, searchQuery, selectedBarangayFilter, selectedLevel]);
+  }, [assignments, searchQuery, selectedBarangayFilter, selectedLevel, assignedQuarterFilter, assignedWeekFilter]);
 
   return (
     <div className="space-y-6">
@@ -561,9 +626,19 @@ export default function CurriculumGuides({
                           )}
 
                           <td className="px-4 py-3 font-semibold text-slate-800 border-r border-slate-200 whitespace-nowrap bg-white">
-                            <span className="inline-block bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-semibold">
-                              {w.week}
-                            </span>
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
+                              <span className="inline-block bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-semibold">
+                                {w.week}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAssignModal(q.quarterNumber, w.week)}
+                                className="text-[10px] font-semibold text-slate-700 hover:text-white bg-slate-100 hover:bg-slate-900 border border-slate-300 px-1.5 py-0.5 rounded cursor-pointer transition-colors shadow-2xs whitespace-nowrap"
+                                title={`Assign ${w.week} specifically to a teacher`}
+                              >
+                                + Assign Week
+                              </button>
+                            </div>
                           </td>
 
                           <td className="px-4 py-3 font-medium text-slate-800 border-r border-slate-200 bg-white">
@@ -634,7 +709,7 @@ export default function CurriculumGuides({
                 Curriculum Guide Teacher Assignments Roster
               </h3>
               <p className="text-xs text-dash-ink-soft mt-0.5">
-                Overview of all Child Development Teachers and the specific Curriculum Guides (Pre-K1 / Pre-K2) and Quarters assigned to their Child Development Centers.
+                Overview of Child Development Teachers and assigned Curriculum Guides (Pre-K1 / Pre-K2), Quarters, and specific Weeks across CDCs.
               </p>
             </div>
 
@@ -647,6 +722,69 @@ export default function CurriculumGuides({
             </button>
           </div>
 
+          {/* Filters Bar for Roster */}
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-wrap items-center gap-2.5 text-xs">
+            <span className="font-semibold text-slate-700">Filter By:</span>
+
+            {/* Quarter Filter */}
+            <select
+              value={assignedQuarterFilter}
+              onChange={(e) => setAssignedQuarterFilter(e.target.value)}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-700 outline-none"
+            >
+              <option value="all">All Quarters</option>
+              <option value="1">Quarter 1</option>
+              <option value="2">Quarter 2</option>
+              <option value="3">Quarter 3</option>
+              <option value="4">Quarter 4</option>
+            </select>
+
+            {/* Week Filter */}
+            <select
+              value={assignedWeekFilter}
+              onChange={(e) => setAssignedWeekFilter(e.target.value)}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-700 outline-none"
+            >
+              <option value="all">All Weeks</option>
+              <option value="Week 1">Week 1</option>
+              <option value="Week 2">Week 2</option>
+              <option value="Week 3">Week 3</option>
+              <option value="Week 4">Week 4</option>
+              <option value="Week 5">Week 5</option>
+              <option value="Week 6">Week 6</option>
+              <option value="Week 7">Week 7</option>
+              <option value="Week 8">Week 8</option>
+              <option value="Week 9">Week 9</option>
+              <option value="Week 10">Week 10</option>
+            </select>
+
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[200px]">
+              <input
+                type="text"
+                placeholder="Search teacher, CDC, or barangay..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs outline-none"
+              />
+              <IconSearch className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            </div>
+
+            {(assignedQuarterFilter !== 'all' || assignedWeekFilter !== 'all' || searchQuery) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAssignedQuarterFilter('all');
+                  setAssignedWeekFilter('all');
+                  setSearchQuery('');
+                }}
+                className="text-xs text-accent hover:underline font-semibold cursor-pointer"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+
           <div className="overflow-x-auto rounded-xl border border-card-border">
             <table className="w-full border-collapse text-left text-xs">
               <thead>
@@ -654,7 +792,7 @@ export default function CurriculumGuides({
                   <th className="px-4 py-3">Teacher / Child Development Worker</th>
                   <th className="px-4 py-3">Barangay &amp; Child Development Center</th>
                   <th className="px-4 py-3 text-center">Curriculum Level</th>
-                  <th className="px-4 py-3">Assigned Quarters</th>
+                  <th className="px-4 py-3">Assigned Coverage (Quarter &amp; Week)</th>
                   <th className="px-4 py-3 text-center">Uploaded Modules</th>
                   <th className="px-4 py-3 text-center">Status</th>
                   <th className="px-4 py-3 text-right">Actions</th>
@@ -699,13 +837,24 @@ export default function CurriculumGuides({
                       </td>
 
                       <td className="px-4 py-3.5">
-                        <div className="flex flex-wrap gap-1">
+                        <div className="font-bold text-slate-800 text-xs">
+                          {formatAssignmentCoverage(asg)}
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-1">
                           {asg.quarters.map((q) => (
                             <span
                               key={q}
                               className="px-2 py-0.5 bg-[#FAF3E8] border border-[#E8DFC9] rounded-md text-[10.5px] font-bold text-[#5C5036]"
                             >
                               Quarter {q}
+                            </span>
+                          ))}
+                          {asg.weeks && asg.weeks !== 'all' && Array.isArray(asg.weeks) && asg.weeks.map((w) => (
+                            <span
+                              key={w}
+                              className="px-2 py-0.5 bg-amber-50 border border-amber-300 text-amber-900 rounded-md text-[10.5px] font-bold"
+                            >
+                              {w}
                             </span>
                           ))}
                         </div>
@@ -965,6 +1114,113 @@ export default function CurriculumGuides({
                     );
                   })}
                 </div>
+              </div>
+
+              {/* Week Assignment Scope */}
+              <div className="space-y-2 pt-1 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-700 block">
+                    Week Scope <span className="text-slate-400 font-normal">(assign full quarter or specific weeks)</span>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWeekScopeMode('all');
+                      setSelectedWeeksForAssign([]);
+                    }}
+                    className={`py-2 px-3 rounded-lg text-xs font-semibold border transition-all cursor-pointer text-center ${
+                      weekScopeMode === 'all'
+                        ? 'border-slate-900 bg-slate-900 text-white'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    📅 All Weeks in Quarter
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWeekScopeMode('specific');
+                      if (selectedWeeksForAssign.length === 0 && availableWeeksInModal.length > 0) {
+                        setSelectedWeeksForAssign([availableWeeksInModal[0].week]);
+                      }
+                    }}
+                    className={`py-2 px-3 rounded-lg text-xs font-semibold border transition-all cursor-pointer text-center ${
+                      weekScopeMode === 'specific'
+                        ? 'border-slate-900 bg-slate-900 text-white'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    📌 Specific Week(s) Only
+                  </button>
+                </div>
+
+                {weekScopeMode === 'specific' && (
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+                    <div className="flex items-center justify-between text-[11px] text-slate-600 font-medium">
+                      <span>Click to select specific weeks:</span>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedWeeksForAssign(availableWeeksInModal.map((w) => w.week))}
+                          className="text-accent hover:underline font-bold"
+                        >
+                          Select All
+                        </button>
+                        <span>•</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedWeeksForAssign([])}
+                          className="text-slate-500 hover:underline"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                      {availableWeeksInModal.map((w) => {
+                        const isSelected = selectedWeeksForAssign.includes(w.week);
+                        return (
+                          <button
+                            type="button"
+                            key={w.week}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedWeeksForAssign(selectedWeeksForAssign.filter((x) => x !== w.week));
+                              } else {
+                                setSelectedWeeksForAssign([...selectedWeeksForAssign, w.week]);
+                              }
+                            }}
+                            className={`p-2 text-left rounded border transition-all cursor-pointer flex items-start gap-2 ${
+                              isSelected
+                                ? 'border-accent bg-amber-50/70 text-amber-950 font-semibold'
+                                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                            }`}
+                          >
+                            <span
+                              className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${
+                                isSelected ? 'bg-amber-200/80 text-amber-900' : 'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              {w.week}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-[11px] truncate leading-tight">{w.subTheme}</div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {selectedWeeksForAssign.length === 0 && (
+                      <p className="text-[11px] text-amber-700 italic m-0">
+                        ⚠️ Please click at least one week to assign, or choose "All Weeks in Quarter" above.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* School Year */}
