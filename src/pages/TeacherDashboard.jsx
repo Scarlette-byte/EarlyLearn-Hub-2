@@ -296,70 +296,66 @@ export default function TeacherDashboard({ profile }) {
       {activeTab === 'curriculum' && (
         <div className="space-y-6">
           {/* Header & Status Banner */}
-          <div className="bg-gradient-to-r from-cream-card to-[#fff8eb] border border-card-border p-5 rounded-2xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="bg-white p-5 sm:p-6 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-2xl">📖</span>
-                <h3 className="font-fraunces font-bold text-xl text-dash-ink">
-                  ECCD Curriculum Guides & Lesson Plans
-                </h3>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-gold/20 text-[#855e05] border border-gold/30">
-                  DepEd ECCD Official
-                </span>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-semibold">
+                Official DepEd ECCD • MSWDO Manolo Fortich
               </div>
-              <p className="text-xs text-dash-ink-soft mt-1">
-                Prescribed early childhood curriculum lessons assigned to your CDC center by MSWDO Manolo Fortich.
+              <h3 className="text-xl sm:text-2xl font-bold text-slate-900 m-0 mt-2 tracking-tight">
+                Curriculum Guides &amp; Weekly Lesson Plans
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                Official prescribed early childhood curriculum lessons assigned to your center by MSWDO Manolo Fortich.
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                Active for S.Y. 2026–2027
+              <span className="text-xs font-medium text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200 flex items-center gap-1.5">
+                School Year 2026–2027 Active
               </span>
             </div>
           </div>
 
           {/* Controls: Level Tabs, Quarter Filter, Search */}
           <div className={cardBox}>
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-card-border pb-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
               {/* Level Selector */}
-              <div className="flex bg-[#F3EFE6] p-1 rounded-xl">
+              <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
                 <button
                   type="button"
                   onClick={() => setCurriculumLevel('PRE-K1')}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                  className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
                     curriculumLevel === 'PRE-K1'
-                      ? 'bg-primary text-white shadow'
-                      : 'text-dash-ink hover:text-primary'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'text-slate-700 hover:text-slate-900'
                   }`}
                 >
-                  PRE-K 1 (Ages 3 – 3.11)
+                  PRE-K 1 (3.11 years old)
                 </button>
                 <button
                   type="button"
                   onClick={() => setCurriculumLevel('PRE-K2')}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                  className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
                     curriculumLevel === 'PRE-K2'
-                      ? 'bg-primary text-white shadow'
-                      : 'text-dash-ink hover:text-primary'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'text-slate-700 hover:text-slate-900'
                   }`}
                 >
-                  PRE-K 2 (Ages 4 – 4.11)
+                  PRE-K 2 (4.11 years old)
                 </button>
               </div>
 
               {/* Quarter Filter */}
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-xs font-semibold text-dash-ink-soft mr-1">Quarter:</span>
+                <span className="text-xs font-semibold text-slate-500 mr-1">Quarter:</span>
                 {['all', '1', '2', '3', '4'].map((q) => (
                   <button
                     key={q}
                     type="button"
                     onClick={() => setCurriculumQuarter(q)}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium border ${
+                    className={`px-3 py-1 rounded-md text-xs font-medium border ${
                       curriculumQuarter === q
-                        ? 'bg-primary text-white border-primary shadow-xs'
-                        : 'bg-white text-dash-ink border-card-border hover:bg-cream-soft'
+                        ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                     }`}
                   >
                     {q === 'all' ? 'All Quarters' : `Q${q}`}
@@ -383,19 +379,19 @@ export default function TeacherDashboard({ profile }) {
             <div className="overflow-x-auto mt-4">
               <table className={table}>
                 <thead>
-                  <tr>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
                     <th className={`${th} w-16 text-center`}>Qtr</th>
                     <th className={`${th} w-20 text-center`}>Week</th>
                     <th className={th}>Suggested Content / Lesson</th>
-                    <th className={`${th} bg-[#fef08a]/60 text-[#713f12]`}>
-                      Theme (Focus Area)
+                    <th className={`${th} bg-amber-50 text-amber-950 font-semibold border-l-2 border-amber-400`}>
+                      THEME (FOCUS AREA)
                     </th>
                     <th className={th}>Sub-Themes / Competencies</th>
                     <th className={`${th} w-24 text-center`}>Month</th>
                     <th className={`${th} w-36 text-center`}>Action</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100">
                   {(curriculumLevel === 'PRE-K1' ? preK1Curriculum : preK2Curriculum)
                     .filter((item) => {
                       const matchQuarter =
@@ -415,25 +411,25 @@ export default function TeacherDashboard({ profile }) {
                       return matchQuarter && matchSearch;
                     })
                     .map((item, idx) => (
-                      <tr key={idx} className="hover:bg-[#FFFBF0]/60 transition-colors">
-                        <td className={`${td} text-center font-bold text-xs text-dash-ink-soft`}>
+                      <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                        <td className={`${td} text-center font-bold text-xs text-slate-500`}>
                           Q{item.quarter}
                         </td>
                         <td className={`${td} text-center`}>
-                          <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-bold bg-[#efece4] text-[#4a4030]">
+                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                             Wk {item.week}
                           </span>
                         </td>
-                        <td className={`${td} font-medium text-dash-ink`}>
+                        <td className={`${td} font-medium text-slate-900`}>
                           {item.suggested_content}
                         </td>
-                        <td className={`${td} bg-[#fef9c3]/70 font-semibold text-[#854d0e]`}>
+                        <td className={`${td} bg-amber-50/80 font-semibold text-amber-950 border-l-2 border-amber-400`}>
                           {item.theme}
                         </td>
-                        <td className={`${td} text-xs text-dash-ink-soft leading-relaxed`}>
+                        <td className={`${td} text-xs text-slate-600 leading-relaxed`}>
                           {item.sub_themes}
                         </td>
-                        <td className={`${td} text-center text-xs text-dash-ink-soft font-medium`}>
+                        <td className={`${td} text-center text-xs text-slate-500 font-medium`}>
                           {item.month || '-'}
                         </td>
                         <td className={`${td} text-center`}>
@@ -441,10 +437,10 @@ export default function TeacherDashboard({ profile }) {
                             type="button"
                             onClick={() => {
                               setMatTitle(`[Q${item.quarter} W${item.week}] ${item.suggested_content}`);
-                              setMatAge(curriculumLevel === 'PRE-K1' ? '3-4' : '4-5');
+                              setMatAge(curriculumLevel === 'PRE-K1' ? '3.11' : '4.11');
                               setActiveTab('upload');
                             }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-primary bg-primary/10 hover:bg-primary hover:text-white rounded-lg transition-all"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-900 hover:text-white rounded-md transition-all shadow-2xs"
                             title="Upload module aligned with this lesson"
                           >
                             + Upload Module

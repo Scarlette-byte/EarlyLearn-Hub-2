@@ -339,38 +339,38 @@ export default function DaycareCenterMonitoring({
             </div>
 
             {/* Weekly Attendance Breakdown */}
-            <div className="p-4 rounded-2xl bg-[#FFFDF9] border border-card-border space-y-2">
-              <div className="font-bold text-xs text-dash-ink">
-                Weekly Attendance Patterns (Ages 3–4)
+            <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-2">
+              <div className="font-semibold text-xs text-slate-800">
+                Weekly Attendance Patterns (Pre-K 1 &amp; 2: 3.11 – 4.11 y/o)
               </div>
               <div className="grid grid-cols-5 gap-2 text-center text-[11px]">
-                <div className="p-2 rounded-lg bg-[#FAF5EC]">
-                  <span className="text-dash-ink-soft block">Mon</span>
-                  <b className="text-dash-ink">95%</b>
+                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200">
+                  <span className="text-slate-500 block">Mon</span>
+                  <b className="text-slate-800">95%</b>
                 </div>
-                <div className="p-2 rounded-lg bg-[#FAF5EC]">
-                  <span className="text-dash-ink-soft block">Tue</span>
-                  <b className="text-dash-ink">94%</b>
+                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200">
+                  <span className="text-slate-500 block">Tue</span>
+                  <b className="text-slate-800">94%</b>
                 </div>
-                <div className="p-2 rounded-lg bg-[#FAF5EC]">
-                  <span className="text-dash-ink-soft block">Wed</span>
-                  <b className="text-dash-ink">92%</b>
+                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200">
+                  <span className="text-slate-500 block">Wed</span>
+                  <b className="text-slate-800">92%</b>
                 </div>
-                <div className="p-2 rounded-lg bg-[#FAF5EC]">
-                  <span className="text-dash-ink-soft block">Thu</span>
-                  <b className="text-dash-ink">91%</b>
+                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200">
+                  <span className="text-slate-500 block">Thu</span>
+                  <b className="text-slate-800">91%</b>
                 </div>
-                <div className="p-2 rounded-lg bg-[#FAF5EC]">
-                  <span className="text-dash-ink-soft block">Fri</span>
-                  <b className="text-dash-ink">90%</b>
+                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200">
+                  <span className="text-slate-500 block">Fri</span>
+                  <b className="text-slate-800">90%</b>
                 </div>
               </div>
             </div>
 
             {/* Enrolled Children Roster for this CDC */}
             <div className="space-y-2">
-              <div className="font-bold text-xs text-dash-ink flex items-center justify-between">
-                <span>Enrolled Children Roster (Ages 3–4)</span>
+              <div className="font-semibold text-xs text-slate-800 flex items-center justify-between">
+                <span>Enrolled Children Roster (Pre-K 1 &amp; 2: 3.11 – 4.11 y/o)</span>
                 <span className="text-dash-ink-soft font-normal">
                   {learnersByCdc[inspectingCdc.name]?.length || 0} registered
                 </span>

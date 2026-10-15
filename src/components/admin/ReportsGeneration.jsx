@@ -200,7 +200,7 @@ export default function ReportsGeneration({
               <option value="curriculum">1. Curriculum Guide Teacher Assignments</option>
               <option value="modules">2. Teacher Uploaded Modules &amp; Activity Monitoring</option>
               <option value="teachers">3. Daycare Centers &amp; Teacher Staffing Roster</option>
-              <option value="enrollment">4. Child Enrollment &amp; Demographics (Ages 3–4)</option>
+              <option value="enrollment">4. Child Enrollment &amp; Demographics (Pre-K 1: 3.11 y/o &amp; Pre-K 2: 4.11 y/o)</option>
               <option value="attendance">5. Daycare Center Operations &amp; Attendance</option>
               <option value="development">6. ECCD Child Developmental Milestones</option>
             </select>
@@ -268,7 +268,7 @@ export default function ReportsGeneration({
               {reportType === 'curriculum' && 'OFFICIAL CURRICULUM GUIDE TEACHER ASSIGNMENT & DEPLOYMENT REPORT'}
               {reportType === 'modules' && 'TEACHER MODULE UPLOADS & ACTIVITY MONITORING REPORT'}
               {reportType === 'teachers' && 'CHILD DEVELOPMENT CENTERS & TEACHER STAFFING ROSTER REPORT'}
-              {reportType === 'enrollment' && 'OFFICIAL CHILD ENROLLMENT & DEMOGRAPHIC REPORT (AGES 3–4)'}
+              {reportType === 'enrollment' && 'OFFICIAL CHILD ENROLLMENT & DEMOGRAPHIC REPORT (PRE-K 1: 3.11 Y/O & PRE-K 2: 4.11 Y/O)'}
               {reportType === 'attendance' && 'DAYCARE CENTER OPERATIONS & ATTENDANCE SUMMARY REPORT'}
               {reportType === 'development' && 'ECCD CHILD DEVELOPMENTAL MILESTONE PROGRESS REPORT'}
             </div>

@@ -320,11 +320,11 @@ export default function ProgramMonitoring({
             <select
               value={selectedLevel}
               onChange={(e) => setSelectedLevel(e.target.value)}
-              className="w-full px-2.5 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] text-xs font-bold text-dash-ink outline-none focus:border-accent"
+              className="w-full px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
             >
               <option value="all">All Curriculum Levels</option>
-              <option value="pre-k1">Pre-K1 (Ages 3–4)</option>
-              <option value="pre-k2">Pre-K2 (Ages 4–5)</option>
+              <option value="pre-k1">Pre-K 1 (3.11 years old)</option>
+              <option value="pre-k2">Pre-K 2 (4.11 years old)</option>
             </select>
           </div>
 
@@ -681,8 +681,8 @@ export default function ProgramMonitoring({
                     onChange={(e) => setNewLevel(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] font-bold text-dash-ink outline-none focus:border-accent"
                   >
-                    <option value="Pre-K1">Pre-K1 (Ages 3–4)</option>
-                    <option value="Pre-K2">Pre-K2 (Ages 4–5)</option>
+                    <option value="Pre-K1">Pre-K 1 (3.11 years old)</option>
+                    <option value="Pre-K2">Pre-K 2 (4.11 years old)</option>
                   </select>
                 </div>
 

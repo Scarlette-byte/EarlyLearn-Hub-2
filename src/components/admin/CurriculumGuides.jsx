@@ -308,21 +308,21 @@ export default function CurriculumGuides({
   return (
     <div className="space-y-6">
       {/* Top Banner / Header Card */}
-      <div className="bg-gradient-to-r from-[#FAF5EC] via-[#FFFDF8] to-[#FFF9F0] p-6 rounded-3xl border border-card-border shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
-        <div className="space-y-1.5 max-w-3xl">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FFE4D6] text-accent text-xs font-bold">
-            <IconMaterials className="w-3.5 h-3.5" />
-            <span>Official MSWD ECCD Curriculum Guides • Municipality of Manolo Fortich</span>
+      <div className="bg-white p-5 sm:p-6 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="space-y-1 max-w-3xl">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-semibold">
+            <IconMaterials className="w-3.5 h-3.5 text-slate-500" />
+            <span>Official ECCD Curriculum Guidelines • MSWDO Manolo Fortich</span>
           </div>
-          <h2 className="font-fraunces text-2xl sm:text-3xl font-bold text-dash-ink m-0">
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 m-0 tracking-tight">
             Curriculum Guides & Teacher Assignments
           </h2>
-          <p className="text-xs sm:text-sm text-dash-ink-soft leading-relaxed m-0">
-            Official DepEd / ECCD Early Childhood Care curriculum guidelines. Manage weekly themes, sub-themes, and assign specific curriculum quarters to Child Development Teachers across all 46 Daycare Centers.
+          <p className="text-xs sm:text-sm text-slate-500 leading-relaxed m-0">
+            Official prescribed ECCD early childhood lesson plans for Pre-K 1 (3.11 years old) and Pre-K 2 (4.11 years old). Assign quarterly curriculum competencies to Child Development Teachers across all 64 centers.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button
             onClick={() => {
               setTargetType('all');
@@ -331,83 +331,81 @@ export default function CurriculumGuides({
               setAssignSuccessMsg('');
               setAssignModalOpen(true);
             }}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#2E6B38] hover:bg-[#23572C] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer"
           >
-            <span>🌟</span>
+            <IconCheck className="w-3.5 h-3.5" />
             <span>Assign to All Teachers</span>
           </button>
 
           <button
             onClick={() => handleOpenAssignModal()}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer"
           >
             <IconPlus className="w-3.5 h-3.5" />
-            <span>Assign to Specific Teacher/CDC</span>
+            <span>Assign Specific Teacher/CDC</span>
           </button>
         </div>
       </div>
 
       {/* Primary Navigation Bar (Tabs & View Controls) */}
-      <div className="bg-white p-4 rounded-2xl border border-card-border shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        {/* Pre-K Level Excel-style Tabs */}
-        <div className="flex items-center gap-2 border-b lg:border-b-0 pb-2 lg:pb-0 border-[#F0E6D2]">
-          <span className="text-xs font-bold text-[#8A7F66] uppercase tracking-wider mr-1">
-            Curriculum Level:
+      <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        {/* Pre-K Level Government-style Tabs */}
+        <div className="flex items-center gap-2 border-b lg:border-b-0 pb-2 lg:pb-0 border-slate-200">
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">
+            Level:
           </span>
           <button
             onClick={() => setSelectedLevel('PRE-K1')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${
               selectedLevel === 'PRE-K1'
-                ? 'bg-[#2E6B38] text-white shadow-xs scale-102'
-                : 'bg-[#F2F8F3] text-[#2E6B38] hover:bg-[#E3EFE4]'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
-            <span>🌱</span>
-            <span>PRE-K1 (Ages 3–4)</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${selectedLevel === 'PRE-K1' ? 'bg-white/25 text-white' : 'bg-[#DCEBDD] text-[#2E6B38]'}`}>
-              4 Quarters
+            <span>PRE-K 1 (3.11 years old)</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded ${selectedLevel === 'PRE-K1' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+              Q1 – Q4
             </span>
           </button>
 
           <button
             onClick={() => setSelectedLevel('PRE-K2')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${
               selectedLevel === 'PRE-K2'
-                ? 'bg-[#1E5B94] text-white shadow-xs scale-102'
-                : 'bg-[#F0F7FF] text-[#1E5B94] hover:bg-[#E0EFFE]'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
-            <span>🌿</span>
-            <span>PRE-K2 (Ages 4–5)</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${selectedLevel === 'PRE-K2' ? 'bg-white/25 text-white' : 'bg-[#E0EFFE] text-[#1E5B94]'}`}>
-              4 Quarters
+            <span>PRE-K 2 (4.11 years old)</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded ${selectedLevel === 'PRE-K2' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+              Q1 – Q4
             </span>
           </button>
         </div>
 
         {/* View Toggle: Matrix vs Teacher Assignments */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-xl bg-[#FAF5EC] p-1 border border-card-border">
+          <div className="inline-flex rounded-lg bg-slate-100 p-1 border border-slate-200">
             <button
               onClick={() => setActiveView('matrix')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                 activeView === 'matrix'
-                  ? 'bg-white text-dash-ink shadow-xs'
-                  : 'text-dash-ink-soft hover:text-dash-ink'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              📋 Curriculum Matrix
+              Curriculum Matrix
             </button>
             <button
               onClick={() => setActiveView('assignments')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeView === 'assignments'
-                  ? 'bg-white text-dash-ink shadow-xs'
-                  : 'text-dash-ink-soft hover:text-dash-ink'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <span>👩‍🏫 Assigned Teachers</span>
-              <span className="bg-accent text-white text-[10px] px-1.5 py-0.2 rounded-full">
+              <span>Assigned Teachers</span>
+              <span className="bg-slate-800 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
                 {assignments.length}
               </span>
             </button>
@@ -482,101 +480,101 @@ export default function CurriculumGuides({
             return (
               <div
                 key={q.quarter}
-                className="bg-white rounded-2xl border border-card-border shadow-card overflow-hidden"
+                className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden"
               >
-                {/* Quarter Header Banner (Authentic Excel Peach Tint) */}
-                <div className="bg-[#F8D7BE] px-5 py-3.5 border-b border-[#ECC4A7] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                {/* Quarter Header Banner */}
+                <div className="bg-slate-100 px-5 py-3 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <span className="font-fraunces font-black text-sm uppercase tracking-wider text-[#5A2C14] bg-white/70 px-3 py-1 rounded-lg border border-[#E4B595]">
+                    <span className="font-bold text-xs uppercase tracking-wider text-white bg-slate-900 px-2.5 py-1 rounded">
                       {q.quarter}
                     </span>
-                    <span className="font-fraunces font-bold text-base text-[#4A200B]">
-                      {q.suggestedContent} • <span className="font-semibold text-xs text-[#6B371B]">({q.month})</span>
+                    <span className="font-bold text-sm text-slate-800">
+                      {q.suggestedContent} • <span className="font-normal text-xs text-slate-500">({q.month})</span>
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#5A2C14] bg-white/60 px-3 py-1 rounded-lg">
-                      <IconTeachers className="w-3.5 h-3.5 text-accent" />
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 px-2.5 py-1 rounded">
+                      <IconTeachers className="w-3.5 h-3.5 text-slate-500" />
                       <span>{assignedTeachersForQ.length} Teachers Assigned</span>
                     </div>
 
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#2E6B38] bg-white/60 px-3 py-1 rounded-lg">
-                      <IconMaterials className="w-3.5 h-3.5 text-[#2E6B38]" />
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded">
+                      <IconMaterials className="w-3.5 h-3.5 text-emerald-700" />
                       <span>{uploadedModulesForQ} Modules Uploaded</span>
                     </div>
 
                     <button
                       onClick={() => handleOpenAssignModal(q.quarterNumber)}
-                      className="px-3 py-1 rounded-lg bg-accent hover:bg-[#B5673C] text-white font-bold text-xs transition-colors cursor-pointer"
+                      className="px-3 py-1 rounded bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs transition-colors cursor-pointer"
                     >
                       + Assign Q{q.quarterNumber}
                     </button>
                   </div>
                 </div>
 
-                {/* Excel-Exact Table */}
+                {/* ECCD Matrix Table */}
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-left text-xs">
                     <thead>
-                      <tr className="bg-[#FAF5EC] border-b border-[#E8DFC9] text-[11px] font-bold text-[#6D634C] uppercase">
-                        <th className="px-4 py-3 border-r border-[#E8DFC9] w-[180px]">
-                          Quarter/Term &amp; Suggested Content
+                      <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
+                        <th className="px-4 py-3 border-r border-slate-200 w-[180px]">
+                          Quarter &amp; Suggested Content
                         </th>
-                        <th className="px-4 py-3 border-r border-[#E8DFC9] w-[210px] bg-[#FFF2B2] text-[#634900]">
-                          THEME
+                        <th className="px-4 py-3 border-r border-slate-200 w-[210px] bg-amber-50 text-amber-900">
+                          THEME (FOCUS AREA)
                         </th>
-                        <th className="px-4 py-3 border-r border-[#E8DFC9] w-[130px]">WEEK</th>
-                        <th className="px-4 py-3 border-r border-[#E8DFC9]">SUB-THEMES</th>
-                        <th className="px-4 py-3 border-r border-[#E8DFC9] w-[140px]">MONTH</th>
-                        <th className="px-4 py-3 text-center w-[120px]">SUGGESTED ACTIVITY</th>
+                        <th className="px-4 py-3 border-r border-slate-200 w-[110px]">WEEK</th>
+                        <th className="px-4 py-3 border-r border-slate-200">SUB-THEMES / COMPETENCIES</th>
+                        <th className="px-4 py-3 border-r border-slate-200 w-[130px]">MONTH</th>
+                        <th className="px-4 py-3 text-center w-[130px]">DEPED ECCD ACTIVITY</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#EFE7D8]">
+                    <tbody className="divide-y divide-slate-100">
                       {q.filteredWeeks.map((w, wIdx) => (
-                        <tr key={w.week + wIdx} className="hover:bg-[#FFFDF9] transition-colors">
+                        <tr key={w.week + wIdx} className="hover:bg-slate-50/70 transition-colors">
                           {/* Span Content across the first row of each Quarter */}
                           {wIdx === 0 && (
                             <td
                               rowSpan={q.filteredWeeks.length}
-                              className="px-4 py-4 font-bold text-dash-ink align-middle border-r border-[#E8DFC9] bg-[#FCF9F3]"
+                              className="px-4 py-4 font-semibold text-slate-900 align-middle border-r border-slate-200 bg-slate-50/50"
                             >
-                              <div className="text-sm font-fraunces text-accent font-bold mb-1">
+                              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
                                 {q.quarter}
                               </div>
-                              <div className="text-xs text-dash-ink font-semibold leading-relaxed">
+                              <div className="text-xs text-slate-800 font-semibold leading-relaxed">
                                 {q.suggestedContent}
                               </div>
                             </td>
                           )}
 
-                          {/* Yellow Theme Column matching user Excel sheet */}
+                          {/* Soft Amber Theme Column matching administrative highlight */}
                           {wIdx === 0 && (
                             <td
                               rowSpan={q.filteredWeeks.length}
-                              className="px-4 py-4 align-middle border-r border-[#E8DFC9] bg-[#FFF9CC] text-[#4A3B00]"
+                              className="px-4 py-4 align-middle border-r border-slate-200 bg-amber-50/80 text-amber-950 border-l-2 border-l-amber-400"
                             >
-                              <div className="font-fraunces font-extrabold text-xs tracking-wider uppercase leading-snug">
+                              <div className="font-bold text-xs uppercase leading-snug tracking-wide">
                                 {q.theme}
                               </div>
                             </td>
                           )}
 
-                          <td className="px-4 py-3 font-bold text-dash-ink border-r border-[#E8DFC9] whitespace-nowrap bg-white">
-                            <span className="inline-block bg-[#F4EDE0] text-[#5C523D] px-2 py-0.5 rounded-md text-[11px] font-bold">
+                          <td className="px-4 py-3 font-semibold text-slate-800 border-r border-slate-200 whitespace-nowrap bg-white">
+                            <span className="inline-block bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-semibold">
                               {w.week}
                             </span>
                           </td>
 
-                          <td className="px-4 py-3 font-bold text-[#2A2315] border-r border-[#E8DFC9] bg-white">
-                            <div className="text-xs tracking-wide">{w.subTheme}</div>
+                          <td className="px-4 py-3 font-medium text-slate-800 border-r border-slate-200 bg-white">
+                            <div className="text-xs tracking-wide leading-relaxed">{w.subTheme}</div>
                           </td>
 
-                          <td className="px-4 py-3 text-[#6B614E] border-r border-[#E8DFC9] whitespace-nowrap bg-white text-[11.5px]">
+                          <td className="px-4 py-3 text-slate-600 border-r border-slate-200 whitespace-nowrap bg-white text-[11px]">
                             {q.month}
                           </td>
 
-                          <td className="px-4 py-3 bg-white text-dash-ink-soft text-[11px] leading-relaxed">
+                          <td className="px-4 py-3 bg-white text-slate-500 text-[11px] leading-relaxed">
                             {w.suggestedActivities}
                           </td>
                         </tr>
@@ -586,19 +584,19 @@ export default function CurriculumGuides({
                 </div>
 
                 {/* Assigned Teachers Bar for this Quarter */}
-                <div className="p-3.5 bg-[#FAF6EE] border-t border-[#EFE7D8] flex flex-wrap items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-dash-ink">Assigned Teachers for {q.quarter}:</span>
+                <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-slate-700">Assigned Teachers for {q.quarter}:</span>
                     {assignedTeachersForQ.length === 0 ? (
-                      <span className="text-dash-ink-soft italic">No teachers assigned yet.</span>
+                      <span className="text-slate-400 italic">No teachers assigned yet.</span>
                     ) : (
                       <div className="flex flex-wrap gap-1.5">
                         {assignedTeachersForQ.slice(0, 4).map((t) => (
                           <span
                             key={t.id}
-                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white border border-[#E5DCC9] text-[11px] font-bold text-dash-ink"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white border border-slate-200 text-[11px] font-medium text-slate-800"
                           >
-                            <span>👩‍🏫</span>
+                            <IconTeachers className="w-3 h-3 text-slate-400" />
                             <span>{t.teacherName}</span>
                             <span className="text-[10px] text-dash-ink-soft">({t.barangay})</span>
                           </span>
@@ -889,13 +887,13 @@ export default function CurriculumGuides({
 
               {/* Curriculum Level */}
               <div className="space-y-1.5">
-                <label className="font-bold text-dash-ink block">Curriculum Level</label>
+                <label className="text-xs font-semibold text-slate-700 block">Curriculum Level</label>
                 <div className="grid grid-cols-2 gap-3">
                   <label
-                    className={`flex items-center gap-2 p-3 rounded-xl border cursor-pointer ${
+                    className={`flex items-center gap-2.5 p-3 rounded-lg border cursor-pointer transition-colors ${
                       selectedLevelForAssign === 'Pre-K1'
-                        ? 'border-[#2E6B38] bg-[#F2F8F3] text-[#2E6B38] font-bold'
-                        : 'border-[#E5DCC9] bg-white'
+                        ? 'border-slate-900 bg-slate-50 text-slate-900 font-semibold'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                     }`}
                   >
                     <input
@@ -904,19 +902,19 @@ export default function CurriculumGuides({
                       value="Pre-K1"
                       checked={selectedLevelForAssign === 'Pre-K1'}
                       onChange={() => setSelectedLevelForAssign('Pre-K1')}
-                      className="accent-[#2E6B38]"
+                      className="accent-slate-900"
                     />
                     <div>
-                      <div className="font-bold">PRE-K1</div>
-                      <div className="text-[11px] text-dash-ink-soft">Ages 3 to 4 Years Old</div>
+                      <div className="text-xs font-bold text-slate-900">PRE-K 1</div>
+                      <div className="text-[11px] text-slate-500">3.11 years old (3 – 3.11)</div>
                     </div>
                   </label>
 
                   <label
-                    className={`flex items-center gap-2 p-3 rounded-xl border cursor-pointer ${
+                    className={`flex items-center gap-2.5 p-3 rounded-lg border cursor-pointer transition-colors ${
                       selectedLevelForAssign === 'Pre-K2'
-                        ? 'border-[#1E5B94] bg-[#F0F7FF] text-[#1E5B94] font-bold'
-                        : 'border-[#E5DCC9] bg-white'
+                        ? 'border-slate-900 bg-slate-50 text-slate-900 font-semibold'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                     }`}
                   >
                     <input
@@ -925,11 +923,11 @@ export default function CurriculumGuides({
                       value="Pre-K2"
                       checked={selectedLevelForAssign === 'Pre-K2'}
                       onChange={() => setSelectedLevelForAssign('Pre-K2')}
-                      className="accent-[#1E5B94]"
+                      className="accent-slate-900"
                     />
                     <div>
-                      <div className="font-bold">PRE-K2</div>
-                      <div className="text-[11px] text-dash-ink-soft">Ages 4 to 5 Years Old</div>
+                      <div className="text-xs font-bold text-slate-900">PRE-K 2</div>
+                      <div className="text-[11px] text-slate-500">4.11 years old (4 – 4.11)</div>
                     </div>
                   </label>
                 </div>

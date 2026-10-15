@@ -372,7 +372,7 @@ export default function AdminDashboard({ profile }) {
       roleBadge={isSuperAdmin ? 'Municipal Superadmin' : 'MSWD Administrator'}
       isSuperAdmin={isSuperAdmin}
       stats={[
-        { label: 'Registered Children (3–4)', value: learners.length },
+        { label: 'Registered Children (3.11 – 4.11 y/o)', value: learners.length },
         { label: 'Daycare Centers (CDCs)', value: cdcs.length },
         { label: 'Child Dev Workers / Teachers', value: teachers.length },
         { label: 'ECCD Attendance Avg', value: '92.8%' },

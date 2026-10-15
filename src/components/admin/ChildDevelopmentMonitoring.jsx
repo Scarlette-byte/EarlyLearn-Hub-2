@@ -81,7 +81,7 @@ export default function ChildDevelopmentMonitoring({
           <div className="font-fraunces text-2xl font-bold text-dash-ink mt-1">
             {total}
           </div>
-          <div className="text-[11px] text-dash-ink-soft mt-0.5">Ages 3–4 Toddlers</div>
+          <div className="text-[11px] text-dash-ink-soft mt-0.5">Pre-K 1 &amp; 2 (3.11 – 4.11 y/o)</div>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-card-border shadow-xs">
@@ -285,8 +285,8 @@ export default function ChildDevelopmentMonitoring({
           <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-xl border border-card-border space-y-4 animate-pop max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between border-b border-card-border pb-3.5">
               <div>
-                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-[#FAF5EC] text-accent tracking-wider">
-                  DepEd ECCD Assessment Result (Ages 3–4)
+                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-700 tracking-wider">
+                  DepEd ECCD Assessment Result (Pre-K 1 &amp; 2: 3.11 – 4.11 y/o)
                 </span>
                 <h3 className="font-fraunces text-xl font-bold text-dash-ink mt-1">
                   {activeAssessment.child_name}
