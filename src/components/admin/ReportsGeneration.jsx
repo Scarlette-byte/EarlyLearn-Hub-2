@@ -82,7 +82,7 @@ export default function ReportsGeneration({
 
     if (reportType === 'curriculum') {
       csvContent += 'MUNICIPALITY OF MANOLO FORTICH - MSWD CURRICULUM TEACHER ASSIGNMENT REPORT\n';
-      csvContent += `Period: ${period}, Barangay Scope: ${scopeBarangay || 'All 13 Barangays'}\n\n`;
+      csvContent += `Period: ${period}, Barangay Scope: ${scopeBarangay || 'All 22 Barangays'}\n\n`;
       csvContent += 'Teacher Name,Barangay,Child Development Center (CDC),Curriculum Level,Assigned Quarters,Academic Year,Status\n';
 
       filteredAssignments.forEach((a) => {
@@ -90,7 +90,7 @@ export default function ReportsGeneration({
       });
     } else if (reportType === 'modules') {
       csvContent += 'MUNICIPALITY OF MANOLO FORTICH - MSWD TEACHER MODULE UPLOADS & ACTIVITY MONITORING\n';
-      csvContent += `Period: ${period}, Scope: ${scopeBarangay || 'All 13 Barangays'}\n\n`;
+      csvContent += `Period: ${period}, Scope: ${scopeBarangay || 'All 22 Barangays'}\n\n`;
       csvContent += 'Module Title,Teacher Name,CDC,Barangay,Curriculum Level,Quarter,Week & Sub-Theme,Type,Upload Date,Verification Status\n';
 
       filteredModules.forEach((m) => {
@@ -98,7 +98,7 @@ export default function ReportsGeneration({
       });
     } else if (reportType === 'teachers') {
       csvContent += 'MUNICIPALITY OF MANOLO FORTICH - MSWD CDC TEACHER & STAFFING ROSTER\n';
-      csvContent += `Period: ${period}, Scope: ${scopeBarangay || 'All 13 Barangays'}\n\n`;
+      csvContent += `Period: ${period}, Scope: ${scopeBarangay || 'All 22 Barangays'}\n\n`;
       csvContent += 'No.,Barangay,Name of CDC,Name of Child Development Worker / Teacher,Designation,Contact Number,Email\n';
 
       filteredTeachers.forEach((t, idx) => {
@@ -106,20 +106,20 @@ export default function ReportsGeneration({
         csvContent += `"${idx + 1}","${t.barangay}","${cdc}","${t.full_name}","${t.designation || 'CDT'}","${t.contact_number || '-'}","${t.email || '-'}"\n`;
       });
     } else if (reportType === 'enrollment') {
-      csvContent += 'MUNICIPALITY OF MANOLO FORTICH - MSWD CHILD ENROLLMENT REPORT\n';
-      csvContent += `Period: ${period}, Barangay Scope: ${scopeBarangay || 'All 13 Barangays'}\n\n`;
-      csvContent += 'Child Name,Age,Gender,Barangay,Daycare Center,Guardian,Contact,Status\n';
+      csvContent += 'MUNICIPALITY OF MANOLO FORTICH - MSWD ENROLLEE POPULATION & ENROLLMENT CENSUS\n';
+      csvContent += `Period: ${period}, Scope: ${scopeBarangay || 'All 22 Barangays'}\n\n`;
+      csvContent += 'Child Name,Age,Gender,Level,Barangay,Daycare Center,Guardian,Contact,Status\n';
 
       filteredLearners.forEach((l) => {
-        csvContent += `"${l.full_name}","${l.age || 3}","${l.gender || 'F'}","${l.barangay}","${
-          l.cdcs?.name || l.cdc_name || 'CDC'
+        csvContent += `"${l.full_name}","${l.age || 3}","${l.gender || 'Female'}","${l.level || 'PRE-K 1'}","${l.barangay}","${
+          l.cdcs?.name || l.cdc_name || 'Maluko Child Development Center'
         }","${l.parent_name || 'N/A'}","${l.parent_contact || 'N/A'}","${
           l.enrollment_status || 'Enrolled'
         }"\n`;
       });
     } else if (reportType === 'attendance') {
       csvContent += 'MUNICIPALITY OF MANOLO FORTICH - MSWD DAYCARE ATTENDANCE & OPERATIONS\n';
-      csvContent += `Period: ${period}, Scope: ${scopeBarangay || 'All 13 Barangays'}\n\n`;
+      csvContent += `Period: ${period}, Scope: ${scopeBarangay || 'All 22 Barangays'}\n\n`;
       csvContent += 'Daycare Center,Barangay,Enrolled (3-4 y/o),Capacity,Capacity %,Monthly Attendance %\n';
 
       filteredCdcs.forEach((c) => {
@@ -132,7 +132,7 @@ export default function ReportsGeneration({
       });
     } else {
       csvContent += 'MUNICIPALITY OF MANOLO FORTICH - MSWD ECCD DEVELOPMENT PROGRESS REPORT\n';
-      csvContent += `Period: ${period}, Scope: ${scopeBarangay || 'All 13 Barangays'}\n\n`;
+      csvContent += `Period: ${period}, Scope: ${scopeBarangay || 'All 22 Barangays'}\n\n`;
       csvContent += 'Child Name,Age,Barangay,Center,Cognitive,Physical,Social-Emotional,Language,Overall Status\n';
 
       filteredAssessments.forEach((a) => {
@@ -232,7 +232,7 @@ export default function ReportsGeneration({
               onChange={(e) => setScopeBarangay(e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] text-xs font-bold text-dash-ink outline-none focus:border-accent"
             >
-              <option value="">All 13 Barangays (Municipality-Wide)</option>
+              <option value="">All 22 Barangays (Municipality-Wide)</option>
               {barangays.map((b) => (
                 <option key={b} value={b}>
                   {b}
@@ -273,7 +273,7 @@ export default function ReportsGeneration({
               {reportType === 'development' && 'ECCD CHILD DEVELOPMENTAL MILESTONE PROGRESS REPORT'}
             </div>
             <div className="text-dash-ink-soft mt-0.5">
-              Coverage: {scopeBarangay ? `Barangay ${scopeBarangay}` : 'All 13 Barangays of Manolo Fortich'} •
+              Coverage: {scopeBarangay ? `Barangay ${scopeBarangay}` : 'All 22 Barangays of Manolo Fortich'} •
               Period: {period}
             </div>
           </div>

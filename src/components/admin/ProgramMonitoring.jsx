@@ -307,7 +307,7 @@ export default function ProgramMonitoring({
               onChange={(e) => setSelectedBarangay(e.target.value)}
               className="w-full px-2.5 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] text-xs font-bold text-dash-ink outline-none focus:border-accent"
             >
-              <option value="">All 13 Barangays</option>
+              <option value="">All 22 Barangays</option>
               {barangays.map((b) => (
                 <option key={b} value={b}>
                   {b}
