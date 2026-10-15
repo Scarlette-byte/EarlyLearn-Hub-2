@@ -178,9 +178,27 @@ export const realCdcsList = [
   { id: 'cdc-44', barangay: 'Mambatangan', name: 'Purok 3 Mambatangan Child Development Center', capacity: 24, enrolledCount: 21, attendanceRate: 92 },
   { id: 'cdc-45', barangay: 'Mambatangan', name: 'Purok 4 Mambatangan Child Development Center', capacity: 22, enrolledCount: 19, attendanceRate: 89 },
   { id: 'cdc-46', barangay: 'Mambatangan', name: 'Purok 5 Mambatangan Child Development Center', capacity: 22, enrolledCount: 18, attendanceRate: 90 },
+  { id: 'cdc-47', barangay: 'Mambatangan', name: 'Purok 7 Mambatangan Child Development Center', capacity: 22, enrolledCount: 19, attendanceRate: 91 },
+  { id: 'cdc-48', barangay: 'Mampayag', name: 'Mampayag Child Development Center', capacity: 28, enrolledCount: 25, attendanceRate: 93 },
+  { id: 'cdc-49', barangay: 'Mantibugao', name: 'Zone 3 Mantibugao Child Development Center', capacity: 24, enrolledCount: 21, attendanceRate: 90 },
+  { id: 'cdc-50', barangay: 'Mantibugao', name: 'Zone 5 Mantibugao Child Development Center', capacity: 24, enrolledCount: 22, attendanceRate: 92 },
+  { id: 'cdc-51', barangay: 'Minsuro', name: 'Minsuro Child Development Center', capacity: 25, enrolledCount: 22, attendanceRate: 89 },
+  { id: 'cdc-52', barangay: 'San Miguel', name: 'San Miguel Child Development', capacity: 28, enrolledCount: 26, attendanceRate: 94 },
+  { id: 'cdc-53', barangay: 'San Miguel', name: 'PCH-2 San Miguel Child Development Center', capacity: 24, enrolledCount: 21, attendanceRate: 91 },
+  { id: 'cdc-54', barangay: 'Sankanan', name: 'Gauron Child Development Center', capacity: 22, enrolledCount: 18, attendanceRate: 90 },
+  { id: 'cdc-55', barangay: 'Sankanan', name: 'New Sankanan Child Development Center', capacity: 25, enrolledCount: 22, attendanceRate: 93 },
+  { id: 'cdc-56', barangay: 'Sankanan', name: 'Sankanan Child Development Center', capacity: 26, enrolledCount: 24, attendanceRate: 92 },
+  { id: 'cdc-57', barangay: 'Santiago', name: 'Catablaran Child Development Center', capacity: 22, enrolledCount: 19, attendanceRate: 90 },
+  { id: 'cdc-58', barangay: 'Santiago', name: 'Santiago Child Development Center', capacity: 28, enrolledCount: 26, attendanceRate: 94 },
+  { id: 'cdc-59', barangay: 'Sto. Niño', name: 'Sto Nino Child Development Center', capacity: 30, enrolledCount: 27, attendanceRate: 95 },
+  { id: 'cdc-60', barangay: 'Sto. Niño', name: 'Aurora Child Development Center', capacity: 24, enrolledCount: 20, attendanceRate: 91 },
+  { id: 'cdc-61', barangay: 'Tankulan (Poblacion)', name: 'St. Joseph Child Development Center', capacity: 32, enrolledCount: 29, attendanceRate: 94 },
+  { id: 'cdc-62', barangay: 'Tankulan (Poblacion)', name: 'Pol-oton Child Development Center', capacity: 25, enrolledCount: 22, attendanceRate: 92 },
+  { id: 'cdc-63', barangay: 'Ticala', name: 'Ticala Child Development Center', capacity: 22, enrolledCount: 18, attendanceRate: 89 },
+  { id: 'cdc-64', barangay: 'Ticala', name: 'Upper Bunga Supervised Neighborhood Play', capacity: 20, enrolledCount: 17, attendanceRate: 90 },
 ];
 
-// Complete Real Teachers List across 46 CDCs from the MSWDO Records
+// Complete Real Teachers List across all 64 CDCs from the MSWDO Records
 export const realTeachersList = [
   // 1. Agusan Canyon
   { id: 'tch-01', full_name: 'Miche Tamayon Ladao', designation: 'Child Development Teacher (CDT)', barangay: 'Agusan Canyon', cdc_name: 'Balanban Child Development Center', contact_number: '0917-210-4411', email: 'miche.ladao@earlylearn.ph' },
@@ -267,6 +285,48 @@ export const realTeachersList = [
   { id: 'tch-58', full_name: 'Sheala Marie Paulo Pasiol (CDT)', designation: 'Child Development Teacher (CDT)', barangay: 'Mambatangan', cdc_name: 'Purok 3 Mambatangan Child Development Center', contact_number: '0908-097-2188', email: 'shealamarie.pasiol@earlylearn.ph' },
   { id: 'tch-59', full_name: 'Jocelyn Betinol Dampal', designation: 'Child Development Teacher (CDT)', barangay: 'Mambatangan', cdc_name: 'Purok 4 Mambatangan Child Development Center', contact_number: '0919-108-3299', email: 'jocelyn.dampal@earlylearn.ph' },
   { id: 'tch-60', full_name: 'Fe Taña Cellar', designation: 'Child Development Teacher (CDT)', barangay: 'Mambatangan', cdc_name: 'Purok 5 Mambatangan Child Development Center', contact_number: '0922-219-4300', email: 'fe.cellar@earlylearn.ph' },
+  { id: 'tch-61', full_name: 'Gladys Mae Chavez (CDT)', designation: 'Child Development Teacher (CDT)', barangay: 'Mambatangan', cdc_name: 'Purok 7 Mambatangan Child Development Center', contact_number: '0917-330-4411', email: 'gladys.chavez@earlylearn.ph' },
+
+  // 14. Mampayag
+  { id: 'tch-62', full_name: 'Merriamae Cenia Abao (Aide)', designation: 'Child Development Worker Aide', barangay: 'Mampayag', cdc_name: 'Mampayag Child Development Center', contact_number: '0928-441-5522', email: 'merriamae.abao@earlylearn.ph' },
+  { id: 'tch-63', full_name: 'Gaudia May Pagutayao Sajol (CDT)', designation: 'Child Development Teacher (CDT)', barangay: 'Mampayag', cdc_name: 'Mampayag Child Development Center', contact_number: '0939-552-6633', email: 'gaudia.sajol@earlylearn.ph' },
+
+  // 15. Mantibugao
+  { id: 'tch-64', full_name: 'Jessele Monsanto Domingo (CDT)', designation: 'Child Development Teacher (CDT)', barangay: 'Mantibugao', cdc_name: 'Zone 3 Mantibugao Child Development Center', contact_number: '0908-663-7744', email: 'jessele.domingo@earlylearn.ph' },
+  { id: 'tch-65', full_name: 'Rojemer Jean Banaag Jayme (CDT)', designation: 'Child Development Teacher (CDT)', barangay: 'Mantibugao', cdc_name: 'Zone 5 Mantibugao Child Development Center', contact_number: '0919-774-8855', email: 'rojemer.jayme@earlylearn.ph' },
+
+  // 16. Minsuro
+  { id: 'tch-66', full_name: 'Gretel Jean Bagasbas Roble (CDT)', designation: 'Child Development Teacher (CDT)', barangay: 'Minsuro', cdc_name: 'Minsuro Child Development Center', contact_number: '0922-885-9966', email: 'gretel.roble@earlylearn.ph' },
+  { id: 'tch-67', full_name: 'Jocelyn Ocero Ocero', designation: 'Child Development Teacher (CDT)', barangay: 'Minsuro', cdc_name: 'Minsuro Child Development Center', contact_number: '0915-996-1077', email: 'jocelyn.ocero@earlylearn.ph' },
+
+  // 17. San Miguel
+  { id: 'tch-68', full_name: 'Darren Galindo Clementer (Aide)', designation: 'Child Development Worker Aide', barangay: 'San Miguel', cdc_name: 'San Miguel Child Development', contact_number: '0932-107-2188', email: 'darren.clementer@earlylearn.ph' },
+  { id: 'tch-69', full_name: 'Elenita Dalimo-os Bare', designation: 'Child Development Teacher (CDT)', barangay: 'San Miguel', cdc_name: 'San Miguel Child Development', contact_number: '0918-218-3299', email: 'elenita.bare@earlylearn.ph' },
+  { id: 'tch-70', full_name: 'Lara Marie Daigon Bacol (CDT)', designation: 'Child Development Teacher (CDT)', barangay: 'San Miguel', cdc_name: 'PCH-2 San Miguel Child Development Center', contact_number: '0927-329-4300', email: 'laramarie.bacol@earlylearn.ph' },
+
+  // 18. Sankanan
+  { id: 'tch-71', full_name: 'Jeralou Amolat Abaton (CDT)', designation: 'Child Development Teacher (CDT)', barangay: 'Sankanan', cdc_name: 'Gauron Child Development Center', contact_number: '0938-430-5411', email: 'jeralou.abaton@earlylearn.ph' },
+  { id: 'tch-72', full_name: 'Proserfina Magdura Gabitano', designation: 'Child Development Teacher (CDT)', barangay: 'Sankanan', cdc_name: 'New Sankanan Child Development Center', contact_number: '0949-541-6522', email: 'proserfina.gabitano@earlylearn.ph' },
+  { id: 'tch-73', full_name: 'Emelyn Tunayan Suello', designation: 'Child Development Teacher (CDT)', barangay: 'Sankanan', cdc_name: 'Sankanan Child Development Center', contact_number: '0907-652-7633', email: 'emelyn.suello@earlylearn.ph' },
+
+  // 19. Santiago
+  { id: 'tch-74', full_name: 'Jasmin Dalunhay Lenonia', designation: 'Child Development Teacher (CDT)', barangay: 'Santiago', cdc_name: 'Catablaran Child Development Center', contact_number: '0916-763-8744', email: 'jasmin.lenonia@earlylearn.ph' },
+  { id: 'tch-75', full_name: 'Grace Polonio Salahag (Aide)', designation: 'Child Development Worker Aide', barangay: 'Santiago', cdc_name: 'Santiago Child Development Center', contact_number: '0929-874-9855', email: 'grace.salahag@earlylearn.ph' },
+  { id: 'tch-76', full_name: 'Mary Ann Limoan Linonia', designation: 'Child Development Teacher (CDT)', barangay: 'Santiago', cdc_name: 'Santiago Child Development Center', contact_number: '0930-985-0966', email: 'maryann.linonia@earlylearn.ph' },
+
+  // 20. Sto. Niño
+  { id: 'tch-77', full_name: 'Kith Caradine Pelaje Rautraut (CDT)', designation: 'Child Development Teacher (CDT)', barangay: 'Sto. Niño', cdc_name: 'Sto Nino Child Development Center', contact_number: '0945-096-1077', email: 'kith.rautraut@earlylearn.ph' },
+  { id: 'tch-78', full_name: 'Cleofe Ventic Tongco (CDW Aide)', designation: 'Child Development Worker Aide', barangay: 'Sto. Niño', cdc_name: 'Sto Nino Child Development Center', contact_number: '0956-107-2188', email: 'cleofe.tongco@earlylearn.ph' },
+  { id: 'tch-79', full_name: 'Elajen Ganzan (CDT)', designation: 'Child Development Teacher (CDT)', barangay: 'Sto. Niño', cdc_name: 'Aurora Child Development Center', contact_number: '0917-218-3299', email: 'elajen.ganzan@earlylearn.ph' },
+
+  // 21. Tankulan
+  { id: 'tch-80', full_name: 'Jovy Cabugas Bustamante (Aide)', designation: 'Child Development Worker Aide', barangay: 'Tankulan (Poblacion)', cdc_name: 'St. Joseph Child Development Center', contact_number: '0928-329-4300', email: 'jovy.bustamante@earlylearn.ph' },
+  { id: 'tch-81', full_name: 'Andresa Panlaan Alloso', designation: 'Child Development Teacher (CDT)', barangay: 'Tankulan (Poblacion)', cdc_name: 'St. Joseph Child Development Center', contact_number: '0939-430-5411', email: 'andresa.alloso@earlylearn.ph' },
+  { id: 'tch-82', full_name: 'Ann Rocel Pagutayao Magsalay', designation: 'Child Development Teacher (CDT)', barangay: 'Tankulan (Poblacion)', cdc_name: 'Pol-oton Child Development Center', contact_number: '0908-541-6522', email: 'annrocel.magsalay@earlylearn.ph' },
+
+  // 22. Ticala
+  { id: 'tch-83', full_name: 'Thelma Paca Ramo', designation: 'Child Development Teacher (CDT)', barangay: 'Ticala', cdc_name: 'Ticala Child Development Center', contact_number: '0919-652-7633', email: 'thelma.ramo@earlylearn.ph' },
+  { id: 'tch-84', full_name: 'Lourdes Cayomoc Magdaleno', designation: 'Child Development Teacher (CDT)', barangay: 'Ticala', cdc_name: 'Upper Bunga Supervised Neighborhood Play', contact_number: '0922-763-8744', email: 'lourdes.magdaleno@earlylearn.ph' },
 ];
 
 // Baseline Initial Curriculum Assignments to Teachers

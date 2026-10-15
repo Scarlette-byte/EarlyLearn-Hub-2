@@ -122,7 +122,33 @@ export default function CurriculumGuides({
     e.preventDefault();
     let newAssignmentsList = [...assignments];
 
-    if (targetType === 'teacher') {
+    if (targetType === 'all') {
+      realTeachersList.forEach((teacher) => {
+        const existingIdx = newAssignmentsList.findIndex(
+          (a) => a.teacherId === teacher.id && a.level === selectedLevelForAssign
+        );
+        if (existingIdx >= 0) {
+          newAssignmentsList[existingIdx] = {
+            ...newAssignmentsList[existingIdx],
+            quarters: Array.from(new Set([...newAssignmentsList[existingIdx].quarters, ...selectedQuartersForAssign])),
+            schoolYear,
+          };
+        } else {
+          newAssignmentsList.push({
+            id: 'asg-' + Date.now() + '-' + teacher.id,
+            teacherId: teacher.id,
+            teacherName: teacher.full_name,
+            barangay: teacher.barangay,
+            cdcName: teacher.cdc_name,
+            level: selectedLevelForAssign,
+            quarters: selectedQuartersForAssign,
+            schoolYear,
+            status: 'Active',
+            assignedDate: new Date().toISOString().split('T')[0],
+          });
+        }
+      });
+    } else if (targetType === 'teacher') {
       const teacher = realTeachersList.find((t) => t.id === selectedTeacherId);
       if (!teacher) {
         alert('Please select a teacher.');
@@ -298,11 +324,25 @@ export default function CurriculumGuides({
 
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           <button
+            onClick={() => {
+              setTargetType('all');
+              setSelectedLevelForAssign(selectedLevel === 'PRE-K1' ? 'Pre-K1' : 'Pre-K2');
+              setSelectedQuartersForAssign([1, 2, 3, 4]);
+              setAssignSuccessMsg('');
+              setAssignModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#2E6B38] hover:bg-[#23572C] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+          >
+            <span>🌟</span>
+            <span>Assign to All Teachers</span>
+          </button>
+
+          <button
             onClick={() => handleOpenAssignModal()}
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
           >
             <IconPlus className="w-3.5 h-3.5" />
-            <span>Assign Guide to Teachers</span>
+            <span>Assign to Specific Teacher/CDC</span>
           </button>
         </div>
       </div>
@@ -735,22 +775,33 @@ export default function CurriculumGuides({
               {/* Assignment Scope / Target Type */}
               <div className="space-y-1.5">
                 <label className="font-bold text-dash-ink block">Assignment Target Scope</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTargetType('all')}
+                    className={`py-2 px-2.5 rounded-xl font-bold border transition-all cursor-pointer text-center ${
+                      targetType === 'all'
+                        ? 'border-[#2E6B38] bg-[#F2F8F3] text-[#2E6B38]'
+                        : 'border-[#E5DCC9] bg-white text-dash-ink-soft'
+                    }`}
+                  >
+                    🌟 All Teachers
+                  </button>
                   <button
                     type="button"
                     onClick={() => setTargetType('teacher')}
-                    className={`py-2 px-3 rounded-xl font-bold border transition-all cursor-pointer ${
+                    className={`py-2 px-2.5 rounded-xl font-bold border transition-all cursor-pointer text-center ${
                       targetType === 'teacher'
                         ? 'border-accent bg-[#FFF5EE] text-accent'
                         : 'border-[#E5DCC9] bg-white text-dash-ink-soft'
                     }`}
                   >
-                    👩‍🏫 Individual Teacher
+                    👩‍🏫 Single Teacher
                   </button>
                   <button
                     type="button"
                     onClick={() => setTargetType('barangay')}
-                    className={`py-2 px-3 rounded-xl font-bold border transition-all cursor-pointer ${
+                    className={`py-2 px-2.5 rounded-xl font-bold border transition-all cursor-pointer text-center ${
                       targetType === 'barangay'
                         ? 'border-accent bg-[#FFF5EE] text-accent'
                         : 'border-[#E5DCC9] bg-white text-dash-ink-soft'
@@ -761,7 +812,7 @@ export default function CurriculumGuides({
                   <button
                     type="button"
                     onClick={() => setTargetType('cdc')}
-                    className={`py-2 px-3 rounded-xl font-bold border transition-all cursor-pointer ${
+                    className={`py-2 px-2.5 rounded-xl font-bold border transition-all cursor-pointer text-center ${
                       targetType === 'cdc'
                         ? 'border-accent bg-[#FFF5EE] text-accent'
                         : 'border-[#E5DCC9] bg-white text-dash-ink-soft'
@@ -771,6 +822,12 @@ export default function CurriculumGuides({
                   </button>
                 </div>
               </div>
+
+              {targetType === 'all' && (
+                <div className="p-3 bg-[#F2F8F3] border border-[#CDE5D1] rounded-xl text-xs text-[#25572D] font-semibold leading-relaxed">
+                  📢 <b>Deploy to All Teachers:</b> This will assign the selected <b>{selectedLevelForAssign}</b> curriculum guide and chosen quarters to <b>all 84 Child Development Teachers across 64 Daycare Centers</b> in Manolo Fortich.
+                </div>
+              )}
 
               {/* Target Selector */}
               {targetType === 'teacher' && (
