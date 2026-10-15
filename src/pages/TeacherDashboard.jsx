@@ -1,6 +1,11 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase, barangays } from '../lib/supabaseClient';
 import DashboardLayout from '../components/DashboardLayout.jsx';
+import {
+  preK1Curriculum,
+  preK2Curriculum,
+  initialCurriculumAssignments,
+} from '../lib/curriculumData.js';
 import {
   cardBox,
   cardBoxTitle,
@@ -14,12 +19,14 @@ import {
   label,
   btnPrimary,
   btnSmall,
+  btnAdd,
   delBtn,
   ageTag,
 } from '../lib/ui.js';
 
 const TABS = [
   { key: 'overview', label: 'Overview', icon: '📊' },
+  { key: 'curriculum', label: 'Curriculum Guide', icon: '📖' },
   { key: 'mylearners', label: 'My Learners', icon: '🧒' },
   { key: 'upload', label: 'Upload Materials', icon: '⬆️' },
   { key: 'announcements', label: 'Announcements', icon: '📢' },
@@ -31,6 +38,11 @@ const TABS = [
 export default function TeacherDashboard({ profile }) {
   const currentUserId = profile.id;
   const [activeTab, setActiveTab] = useState('overview');
+
+  // Curriculum Guide Tab state
+  const [curriculumLevel, setCurriculumLevel] = useState('PRE-K1');
+  const [curriculumQuarter, setCurriculumQuarter] = useState('all');
+  const [curriculumSearch, setCurriculumSearch] = useState('');
 
   // Upload tab
   const [categoryOptions, setCategoryOptions] = useState([]);
@@ -277,6 +289,173 @@ export default function TeacherDashboard({ profile }) {
             Use the menu on the left to upload materials/activities, post announcements, and
             check student submissions.
           </p>
+        </div>
+      )}
+
+      {/* CURRICULUM GUIDE (PRE-K1 & PRE-K2 ASSIGNED BY MSWD) */}
+      {activeTab === 'curriculum' && (
+        <div className="space-y-6">
+          {/* Header & Status Banner */}
+          <div className="bg-gradient-to-r from-cream-card to-[#fff8eb] border border-card-border p-5 rounded-2xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">📖</span>
+                <h3 className="font-fraunces font-bold text-xl text-dash-ink">
+                  ECCD Curriculum Guides & Lesson Plans
+                </h3>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-gold/20 text-[#855e05] border border-gold/30">
+                  DepEd ECCD Official
+                </span>
+              </div>
+              <p className="text-xs text-dash-ink-soft mt-1">
+                Prescribed early childhood curriculum lessons assigned to your CDC center by MSWDO Manolo Fortich.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                Active for S.Y. 2026–2027
+              </span>
+            </div>
+          </div>
+
+          {/* Controls: Level Tabs, Quarter Filter, Search */}
+          <div className={cardBox}>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-card-border pb-4">
+              {/* Level Selector */}
+              <div className="flex bg-[#F3EFE6] p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setCurriculumLevel('PRE-K1')}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                    curriculumLevel === 'PRE-K1'
+                      ? 'bg-primary text-white shadow'
+                      : 'text-dash-ink hover:text-primary'
+                  }`}
+                >
+                  PRE-K 1 (Ages 3 – 3.11)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurriculumLevel('PRE-K2')}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                    curriculumLevel === 'PRE-K2'
+                      ? 'bg-primary text-white shadow'
+                      : 'text-dash-ink hover:text-primary'
+                  }`}
+                >
+                  PRE-K 2 (Ages 4 – 4.11)
+                </button>
+              </div>
+
+              {/* Quarter Filter */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs font-semibold text-dash-ink-soft mr-1">Quarter:</span>
+                {['all', '1', '2', '3', '4'].map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => setCurriculumQuarter(q)}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium border ${
+                      curriculumQuarter === q
+                        ? 'bg-primary text-white border-primary shadow-xs'
+                        : 'bg-white text-dash-ink border-card-border hover:bg-cream-soft'
+                    }`}
+                  >
+                    {q === 'all' ? 'All Quarters' : `Q${q}`}
+                  </button>
+                ))}
+              </div>
+
+              {/* Search */}
+              <div className="relative min-w-[200px]">
+                <input
+                  type="text"
+                  placeholder="Search theme or lesson..."
+                  value={curriculumSearch}
+                  onChange={(e) => setCurriculumSearch(e.target.value)}
+                  className={`${input} py-1.5 text-xs`}
+                />
+              </div>
+            </div>
+
+            {/* Curriculum Table */}
+            <div className="overflow-x-auto mt-4">
+              <table className={table}>
+                <thead>
+                  <tr>
+                    <th className={`${th} w-16 text-center`}>Qtr</th>
+                    <th className={`${th} w-20 text-center`}>Week</th>
+                    <th className={th}>Suggested Content / Lesson</th>
+                    <th className={`${th} bg-[#fef08a]/60 text-[#713f12]`}>
+                      Theme (Focus Area)
+                    </th>
+                    <th className={th}>Sub-Themes / Competencies</th>
+                    <th className={`${th} w-24 text-center`}>Month</th>
+                    <th className={`${th} w-36 text-center`}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(curriculumLevel === 'PRE-K1' ? preK1Curriculum : preK2Curriculum)
+                    .filter((item) => {
+                      const matchQuarter =
+                        curriculumQuarter === 'all' ||
+                        String(item.quarter) === String(curriculumQuarter);
+                      const matchSearch =
+                        !curriculumSearch.trim() ||
+                        (item.suggested_content || '')
+                          .toLowerCase()
+                          .includes(curriculumSearch.toLowerCase()) ||
+                        (item.theme || '')
+                          .toLowerCase()
+                          .includes(curriculumSearch.toLowerCase()) ||
+                        (item.sub_themes || '')
+                          .toLowerCase()
+                          .includes(curriculumSearch.toLowerCase());
+                      return matchQuarter && matchSearch;
+                    })
+                    .map((item, idx) => (
+                      <tr key={idx} className="hover:bg-[#FFFBF0]/60 transition-colors">
+                        <td className={`${td} text-center font-bold text-xs text-dash-ink-soft`}>
+                          Q{item.quarter}
+                        </td>
+                        <td className={`${td} text-center`}>
+                          <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-bold bg-[#efece4] text-[#4a4030]">
+                            Wk {item.week}
+                          </span>
+                        </td>
+                        <td className={`${td} font-medium text-dash-ink`}>
+                          {item.suggested_content}
+                        </td>
+                        <td className={`${td} bg-[#fef9c3]/70 font-semibold text-[#854d0e]`}>
+                          {item.theme}
+                        </td>
+                        <td className={`${td} text-xs text-dash-ink-soft leading-relaxed`}>
+                          {item.sub_themes}
+                        </td>
+                        <td className={`${td} text-center text-xs text-dash-ink-soft font-medium`}>
+                          {item.month || '-'}
+                        </td>
+                        <td className={`${td} text-center`}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMatTitle(`[Q${item.quarter} W${item.week}] ${item.suggested_content}`);
+                              setMatAge(curriculumLevel === 'PRE-K1' ? '3-4' : '4-5');
+                              setActiveTab('upload');
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-primary bg-primary/10 hover:bg-primary hover:text-white rounded-lg transition-all"
+                            title="Upload module aligned with this lesson"
+                          >
+                            + Upload Module
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 

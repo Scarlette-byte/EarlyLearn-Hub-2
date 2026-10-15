@@ -84,19 +84,19 @@ export default function AdminDashboard({ profile }) {
   // Approvals tab
   const [approvals, setApprovals] = useState([]);
 
-  // --- Load CDCs from Supabase, merging with baseline ---
+  // --- Load CDCs from Supabase, merging with realCdcsList ---
   const loadCdcs = useCallback(async () => {
     try {
       const { data, error } = await supabase.from('cdcs').select('*').order('barangay, name');
       if (!error && data && data.length > 0) {
-        const existingNames = new Set(data.map((c) => c.name));
-        const filteredBaseline = baselineCdcs.filter((b) => !existingNames.has(b.name));
+        const existingNames = new Set(data.map((c) => (c.name || '').toLowerCase()));
+        const filteredBaseline = realCdcsList.filter((b) => !existingNames.has((b.name || '').toLowerCase()));
         setCdcs([...data, ...filteredBaseline]);
       } else {
-        setCdcs(baselineCdcs);
+        setCdcs(realCdcsList);
       }
     } catch {
-      setCdcs(baselineCdcs);
+      setCdcs(realCdcsList);
     }
   }, []);
 
@@ -126,16 +126,24 @@ export default function AdminDashboard({ profile }) {
     }
   }, []);
 
-  // --- Load Teachers / CDWs ---
+  // --- Load Teachers / CDWs merging with realTeachersList ---
   const loadTeachers = useCallback(async () => {
     try {
       const { data } = await supabase
         .from('teachers')
         .select('id, full_name, barangay, contact_number, email, cdc_id, cdcs(name)')
         .order('full_name');
-      setTeachers(data || []);
+      if (data && data.length > 0) {
+        const existingNames = new Set(data.map((t) => (t.full_name || '').toLowerCase()));
+        const nonDuplicateBaseline = realTeachersList.filter(
+          (b) => !existingNames.has((b.full_name || '').toLowerCase())
+        );
+        setTeachers([...data, ...nonDuplicateBaseline]);
+      } else {
+        setTeachers(realTeachersList);
+      }
     } catch {
-      setTeachers([]);
+      setTeachers(realTeachersList);
     }
   }, []);
 
@@ -366,7 +374,7 @@ export default function AdminDashboard({ profile }) {
       stats={[
         { label: 'Registered Children (3–4)', value: learners.length },
         { label: 'Daycare Centers (CDCs)', value: cdcs.length },
-        { label: 'Daycare Workers (CDWs)', value: teachers.length || 24 },
+        { label: 'Child Dev Workers / Teachers', value: teachers.length },
         { label: 'ECCD Attendance Avg', value: '92.8%' },
       ]}
       activeTab={activeTab}
@@ -380,7 +388,7 @@ export default function AdminDashboard({ profile }) {
           profile={profile}
           learnersCount={learners.length}
           cdcsCount={cdcs.length}
-          teachersCount={teachers.length || 24}
+          teachersCount={teachers.length}
           pendingVerificationCount={pendingVerificationCount}
           assessmentsCount={assessments.length}
           onNavigateTab={setActiveTab}
@@ -446,14 +454,18 @@ export default function AdminDashboard({ profile }) {
       )}
 
       {/* ---------------------------------------------------- */}
-      {/* DAYCARE WORKERS (TEACHERS)                           */}
+      {/* CURRICULUM GUIDES (PRE-K1 & PRE-K2 + ASSIGNMENTS)   */}
       {/* ---------------------------------------------------- */}
-      {activeTab === 'teachers' && <ManageTeachers />}
+      {activeTab === 'curriculum' && (
+        <CurriculumGuides
+          onNavigateToActivityMonitoring={() => setActiveTab('programs')}
+        />
+      )}
 
       {/* ---------------------------------------------------- */}
-      {/* USER MANAGEMENT (SUPER ADMIN)                        */}
+      {/* MANAGE TEACHERS (BARANGAY, CDC, CREDENTIALS)         */}
       {/* ---------------------------------------------------- */}
-      {activeTab === 'users' && <ManageUsers currentUser={profile} />}
+      {activeTab === 'teachers' && <ManageTeachers />}
 
       {/* ---------------------------------------------------- */}
       {/* CATEGORIES MANAGEMENT                                */}
@@ -543,102 +555,6 @@ export default function AdminDashboard({ profile }) {
             </div>
           )}
         </>
-      )}
-
-      {/* ---------------------------------------------------- */}
-      {/* MATERIALS & CONTENT MONITORING                       */}
-      {/* ---------------------------------------------------- */}
-      {activeTab === 'materials' && (
-        <div className={cardBox}>
-          <h3 className={cardBoxTitle}>All Uploaded Learning Materials</h3>
-          <p className="text-xs text-dash-ink-soft -mt-2.5 mb-4">
-            Overview of learning materials uploaded by daycare workers for 3 to 4-year-old learners.
-          </p>
-          <div className="overflow-x-auto">
-            <table className={table}>
-              <thead>
-                <tr>
-                  <th className={th}>Title</th>
-                  <th className={th}>Category</th>
-                  <th className={th}>Type</th>
-                  <th className={th}>Age</th>
-                  <th className={th}>Status</th>
-                  <th className={th}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {materials.map((m) => (
-                  <tr key={m.id}>
-                    <td className={td}>{m.title}</td>
-                    <td className={td}>{m.categories?.name || '-'}</td>
-                    <td className={td}>{m.type}</td>
-                    <td className={td}>
-                      <span className={ageTag}>{m.age_range || '-'}</span>
-                    </td>
-                    <td className={td}>
-                      <span className={pillClass(statusPillKind(m.status))}>
-                        {m.status || 'approved'}
-                      </span>
-                    </td>
-                    <td className={td}>
-                      <button onClick={() => deleteMaterial(m.id)} className={delBtn}>
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {materials.length === 0 && (
-            <p className="text-[13px] mt-3 text-dash-ink-soft">
-              No materials yet. Teachers will upload these from their dashboard.
-            </p>
-          )}
-
-          {approvals.length > 0 && (
-            <div className="mt-6 pt-4 border-t border-card-border">
-              <h4 className="font-fraunces font-bold text-sm text-dash-ink mb-2">
-                Pending Approval Queue ({approvals.length})
-              </h4>
-              <div className="overflow-x-auto">
-                <table className={table}>
-                  <thead>
-                    <tr>
-                      <th className={th}>Title</th>
-                      <th className={th}>Category</th>
-                      <th className={th}>Type</th>
-                      <th className={th}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {approvals.map((m) => (
-                      <tr key={m.id}>
-                        <td className={td}>{m.title}</td>
-                        <td className={td}>{m.categories?.name || '-'}</td>
-                        <td className={td}>{m.type}</td>
-                        <td className={td}>
-                          <button
-                            onClick={() => decideApproval(m.id, 'approved')}
-                            className={`${btnAdd} px-3 py-[5px] text-[11.5px] mr-1.5`}
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => decideApproval(m.id, 'rejected')}
-                            className={`${btnAdd} px-3 py-[5px] text-[11.5px] bg-danger`}
-                          >
-                            Reject
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
       )}
     </DashboardLayout>
   );
