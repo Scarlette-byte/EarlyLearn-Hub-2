@@ -17,7 +17,7 @@ export default function App() {
       <Route
         path="/admin-dashboard"
         element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute allowedRoles={['admin', 'superadmin']}>
             {(profile) => <AdminDashboard profile={profile} />}
           </ProtectedRoute>
         }
@@ -26,7 +26,7 @@ export default function App() {
       <Route
         path="/teacher-dashboard"
         element={
-          <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+          <ProtectedRoute allowedRoles={['teacher', 'admin', 'superadmin']}>
             {(profile) => <TeacherDashboard profile={profile} />}
           </ProtectedRoute>
         }
@@ -35,7 +35,7 @@ export default function App() {
       <Route
         path="/student-dashboard"
         element={
-          <ProtectedRoute allowedRoles={['student', 'parent']}>
+          <ProtectedRoute allowedRoles={['student', 'parent', 'admin', 'superadmin']}>
             {(profile) => <StudentDashboard profile={profile} />}
           </ProtectedRoute>
         }

@@ -1,4 +1,5 @@
 export default function MswdOverview({
+  profile,
   learnersCount = 0,
   cdcsCount = 0,
   teachersCount = 0,
@@ -6,6 +7,8 @@ export default function MswdOverview({
   assessmentsCount = 0,
   onNavigateTab,
 }) {
+  const isSuperAdmin = profile?.role === 'superadmin' || profile?.isSuperAdmin;
+
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
@@ -13,17 +16,33 @@ export default function MswdOverview({
         <div className="space-y-1.5 max-w-2xl">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FFE4D6] text-accent text-xs font-bold">
             <span>🏛️</span>
-            <span>Municipal Social Welfare and Development Office • Manolo Fortich, Bukidnon</span>
+            <span>
+              {isSuperAdmin
+                ? 'Municipal System Administration & Governance • Manolo Fortich, Bukidnon'
+                : 'Municipal Social Welfare and Development Office • Manolo Fortich, Bukidnon'}
+            </span>
           </div>
           <h2 className="font-fraunces text-2xl sm:text-3xl font-bold text-dash-ink m-0">
-            Welcome, MSWD ECCD Administrator
+            {isSuperAdmin
+              ? `Welcome, ${profile?.full_name || 'Municipal Super Administrator'}`
+              : `Welcome, ${profile?.full_name || 'MSWD ECCD Administrator'}`}
           </h2>
           <p className="text-xs sm:text-sm text-dash-ink-soft leading-relaxed m-0">
-            Managing early childhood care, daycare center operations, and developmental milestones for children aged 3 to 4 years old across all 22 barangays of our municipality.
+            {isSuperAdmin
+              ? 'Comprehensive governance authority over Early Childhood Care & Development (ECCD), Daycare Center monitoring, educator accreditation, and municipal user access control.'
+              : 'Managing early childhood care, daycare center operations, and developmental milestones for children aged 3 to 4 years old across all 22 barangays of our municipality.'}
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2 shrink-0">
+          {isSuperAdmin && (
+            <button
+              onClick={() => onNavigateTab('users')}
+              className="px-4 py-2.5 rounded-xl bg-[#5A2E9E] hover:bg-[#472280] text-white font-bold text-xs shadow-xs transition-colors"
+            >
+              Manage Users
+            </button>
+          )}
           <button
             onClick={() => onNavigateTab('children')}
             className="px-4 py-2.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors"

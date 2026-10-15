@@ -348,13 +348,21 @@ export default function AdminDashboard({ profile }) {
   const statusPillKind = (s) =>
     ({ approved: 'teacher', pending: 'admin', rejected: 'student' }[s] || 'teacher');
 
+  const isSuperAdmin = profile?.role === 'superadmin' || profile?.isSuperAdmin;
+
   return (
     <DashboardLayout
-      logoSubtitle="MSWD Admin"
+      logoSubtitle={isSuperAdmin ? 'Superadmin' : 'MSWD Admin'}
       tabs={TABS}
-      title="MSWD Admin Dashboard"
-      subtitle="Municipal Social Welfare and Development Office • Manolo Fortich, Bukidnon"
-      avatar={profile?.full_name ? profile.full_name.slice(0, 2).toUpperCase() : '🏛️'}
+      title={isSuperAdmin ? 'Municipal Superadmin Governance' : 'MSWD Admin Dashboard'}
+      subtitle={
+        isSuperAdmin
+          ? 'Supreme Municipal System Administration, User Control & ECCD Oversight • Manolo Fortich'
+          : 'Municipal Social Welfare and Development Office • Manolo Fortich, Bukidnon'
+      }
+      avatar={profile?.full_name ? profile.full_name.slice(0, 2).toUpperCase() : (isSuperAdmin ? 'SA' : 'AD')}
+      roleBadge={isSuperAdmin ? 'Municipal Superadmin' : 'MSWD Administrator'}
+      isSuperAdmin={isSuperAdmin}
       stats={[
         { label: 'Registered Children (3–4)', value: learners.length },
         { label: 'Daycare Centers (CDCs)', value: cdcs.length },
@@ -369,6 +377,7 @@ export default function AdminDashboard({ profile }) {
       {/* ---------------------------------------------------- */}
       {activeTab === 'overview' && (
         <MswdOverview
+          profile={profile}
           learnersCount={learners.length}
           cdcsCount={cdcs.length}
           teachersCount={teachers.length || 24}
