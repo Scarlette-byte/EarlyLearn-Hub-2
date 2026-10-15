@@ -163,38 +163,63 @@ export default function MswdOverview({
               </span>
             </div>
             <h4 className="font-fraunces text-base font-bold text-dash-ink group-hover:text-[#553C9A] transition-colors">
-              Program Monitoring
+              Activity &amp; Module Monitoring
             </h4>
             <p className="text-xs text-dash-ink-soft leading-relaxed">
-              Monitor early childhood learning program implementation, review submitted activity reports, and track center compliance.
+              Monitor learning modules uploaded by Child Development Teachers, verify weekly curriculum activity submissions, and review CDC compliance.
             </p>
             <div className="pt-2 flex items-center justify-between text-xs font-bold text-[#553C9A]">
-              <span>92% Municipal Compliance</span>
+              <span>Active Teacher Uploads</span>
               <span>Open →</span>
             </div>
           </div>
 
-          {/* Teacher & Staff Roster Quick Link */}
+          {/* Curriculum Guides Quick Link */}
+          <div
+            onClick={() => onNavigateTab('curriculum')}
+            className="bg-white p-5 rounded-2xl border border-card-border shadow-xs hover:border-accent hover:shadow-card transition-all cursor-pointer space-y-2 group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="w-10 h-10 rounded-xl bg-[#FFF9CC] text-[#8C6200] flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
+                🌱
+              </span>
+              <span className="text-[11px] font-bold text-[#8C6200] bg-[#FFFBF0] px-2 py-0.5 rounded-full">
+                Curriculum
+              </span>
+            </div>
+            <h4 className="font-fraunces text-base font-bold text-dash-ink group-hover:text-accent transition-colors">
+              Curriculum Guides
+            </h4>
+            <p className="text-xs text-dash-ink-soft leading-relaxed">
+              Official DepEd/ECCD Pre-K1 &amp; Pre-K2 themes and sub-themes that can be assigned directly to teachers across CDCs.
+            </p>
+            <div className="pt-2 flex items-center justify-between text-xs font-bold text-accent">
+              <span>Pre-K1 &amp; Pre-K2 Matrices</span>
+              <span>Open →</span>
+            </div>
+          </div>
+
+          {/* Teacher Roster Quick Link */}
           <div
             onClick={() => onNavigateTab('teachers')}
             className="bg-white p-5 rounded-2xl border border-card-border shadow-xs hover:border-accent hover:shadow-card transition-all cursor-pointer space-y-2 group"
           >
             <div className="flex items-center justify-between">
               <span className="w-10 h-10 rounded-xl bg-[#FAF5EC] text-dash-ink flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
-                🍎
+                👩‍🏫
               </span>
               <span className="text-[11px] font-bold text-dash-ink bg-[#FAF5EC] px-2 py-0.5 rounded-full">
                 Personnel
               </span>
             </div>
             <h4 className="font-fraunces text-base font-bold text-dash-ink group-hover:text-accent transition-colors">
-              Daycare Workers & Accounts
+              Manage Teachers
             </h4>
             <p className="text-xs text-dash-ink-soft leading-relaxed">
-              Manage Child Development Workers (CDWs), teacher assignments by barangay, and system access accounts.
+              Manage Child Development Teachers (CDTs and Aides), view their assigned Barangay and CDC center, and manage credentials.
             </p>
             <div className="pt-2 flex items-center justify-between text-xs font-bold text-accent">
-              <span>{teachersCount} Registered CDWs</span>
+              <span>{teachersCount} Registered Teachers</span>
               <span>Open →</span>
             </div>
           </div>

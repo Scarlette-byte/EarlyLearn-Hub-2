@@ -7,14 +7,18 @@ import DaycareCenterMonitoring from '../components/admin/DaycareCenterMonitoring
 import ChildDevelopmentMonitoring from '../components/admin/ChildDevelopmentMonitoring.jsx';
 import ReportsGeneration from '../components/admin/ReportsGeneration.jsx';
 import ProgramMonitoring from '../components/admin/ProgramMonitoring.jsx';
+import CurriculumGuides from '../components/admin/CurriculumGuides.jsx';
 import ManageTeachers from './ManageTeachers.jsx';
-import ManageUsers from './ManageUsers.jsx';
 import {
   baselineCdcs,
   baselineLearners,
   baselineAssessments,
   baselineActivityReports,
 } from '../lib/mswdData.js';
+import {
+  realTeachersList,
+  realCdcsList,
+} from '../lib/curriculumData.js';
 import {
   cardBox,
   cardBoxTitle,
@@ -45,20 +49,19 @@ const TABS = [
   { key: 'centers', label: '2. Daycare Centers', icon: <IconTeachers className="w-4 h-4" /> },
   { key: 'development', label: '3. Child Development', icon: <IconApprovals className="w-4 h-4" /> },
   { key: 'reports', label: '4. Reports Generation', icon: <IconMaterials className="w-4 h-4" /> },
-  { key: 'programs', label: '5. Program Monitoring', icon: <IconOverview className="w-4 h-4" /> },
-  { key: 'teachers', label: 'Daycare Workers', icon: <IconTeachers className="w-4 h-4" /> },
-  { key: 'users', label: 'Manage Users', icon: <IconUsers className="w-4 h-4" /> },
+  { key: 'programs', label: '5. Activity Monitoring', icon: <IconOverview className="w-4 h-4" /> },
+  { key: 'curriculum', label: 'Curriculum Guides', icon: <IconMaterials className="w-4 h-4" /> },
+  { key: 'teachers', label: 'Manage Teachers', icon: <IconTeachers className="w-4 h-4" /> },
   { key: 'categories', label: 'Categories', icon: <IconCategories className="w-4 h-4" /> },
-  { key: 'materials', label: 'Learning Content', icon: <IconMaterials className="w-4 h-4" /> },
 ];
 
 export default function AdminDashboard({ profile }) {
   const [activeTab, setActiveTab] = useState('overview');
 
-  // Core MSWD Datasets
-  const [cdcs, setCdcs] = useState(baselineCdcs);
+  // Core MSWD Datasets (Real Data from MSWDO Manolo Fortich)
+  const [cdcs, setCdcs] = useState(realCdcsList);
   const [learners, setLearners] = useState(baselineLearners);
-  const [teachers, setTeachers] = useState([]);
+  const [teachers, setTeachers] = useState(realTeachersList);
   const [assessments, setAssessments] = useState(baselineAssessments);
   const [activityReports, setActivityReports] = useState(baselineActivityReports);
 

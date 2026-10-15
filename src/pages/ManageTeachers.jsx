@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase, barangays, normalizeAuthIdentifier } from '../lib/supabaseClient';
+import { realTeachersList, realCdcsList } from '../lib/curriculumData.js';
 import {
   cardBox,
   table,
@@ -23,9 +24,9 @@ import {
 } from '../components/Icons.jsx';
 
 export default function ManageTeachers() {
-  const [teachers, setTeachers] = useState([]);
-  const [cdcs, setCdcs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [teachers, setTeachers] = useState(realTeachersList);
+  const [cdcs, setCdcs] = useState(realCdcsList);
+  const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState({ text: '', type: '' });
 
   // Filters & Search
@@ -69,22 +70,43 @@ export default function ManageTeachers() {
   // Load teachers and CDCs
   const loadTeachers = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('teachers')
-      .select('id, full_name, barangay, contact_number, email, cdc_id, cdcs(id, name, barangay)')
-      .order('full_name');
+    try {
+      const { data, error } = await supabase
+        .from('teachers')
+        .select('id, full_name, barangay, contact_number, email, cdc_id, cdcs(id, name, barangay)')
+        .order('full_name');
 
-    if (error) {
-      setMsg({ text: 'Failed to load teachers: ' + error.message, type: 'error' });
-    } else {
-      setTeachers(data || []);
+      if (!error && data && data.length > 0) {
+        // Merge Supabase teachers with realTeachersList baseline
+        const existingNames = new Set(data.map((t) => (t.full_name || '').toLowerCase()));
+        const nonDuplicateBaseline = realTeachersList.filter(
+          (b) => !existingNames.has((b.full_name || '').toLowerCase())
+        );
+        setTeachers([...data, ...nonDuplicateBaseline]);
+      } else {
+        setTeachers(realTeachersList);
+      }
+    } catch {
+      setTeachers(realTeachersList);
     }
     setLoading(false);
   }, []);
 
   const loadCdcs = useCallback(async () => {
-    const { data } = await supabase.from('cdcs').select('*').order('barangay, name');
-    setCdcs(data || []);
+    try {
+      const { data, error } = await supabase.from('cdcs').select('*').order('barangay, name');
+      if (!error && data && data.length > 0) {
+        const existingNames = new Set(data.map((c) => (c.name || '').toLowerCase()));
+        const nonDuplicateBaseline = realCdcsList.filter(
+          (b) => !existingNames.has((b.name || '').toLowerCase())
+        );
+        setCdcs([...data, ...nonDuplicateBaseline]);
+      } else {
+        setCdcs(realCdcsList);
+      }
+    } catch {
+      setCdcs(realCdcsList);
+    }
   }, []);
 
   useEffect(() => {
@@ -94,11 +116,12 @@ export default function ManageTeachers() {
 
   // Filtered teachers list
   const filteredTeachers = teachers.filter((t) => {
+    const cdcName = t.cdcs?.name || t.cdc_name || '';
     const matchesSearch =
       (t.full_name || '').toLowerCase().includes(search.toLowerCase()) ||
       (t.email || '').toLowerCase().includes(search.toLowerCase()) ||
       (t.contact_number || '').includes(search) ||
-      (t.cdcs?.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      cdcName.toLowerCase().includes(search.toLowerCase()) ||
       (t.barangay || '').toLowerCase().includes(search.toLowerCase());
 
     const matchesBarangay =
@@ -106,16 +129,16 @@ export default function ManageTeachers() {
 
     const matchesAssignment =
       assignmentFilter === 'all' ||
-      (assignmentFilter === 'assigned' && (t.cdc_id || t.cdcs?.name)) ||
-      (assignmentFilter === 'unassigned' && !t.cdc_id && !t.cdcs?.name);
+      (assignmentFilter === 'assigned' && (t.cdc_id || cdcName)) ||
+      (assignmentFilter === 'unassigned' && !t.cdc_id && !cdcName);
 
     return matchesSearch && matchesBarangay && matchesAssignment;
   });
 
   // KPI Calculations
   const totalTeachers = teachers.length;
-  const assignedTeachers = teachers.filter((t) => t.cdc_id || t.cdcs?.name).length;
-  const unassignedTeachers = teachers.filter((t) => !t.cdc_id && !t.cdcs?.name).length;
+  const assignedTeachers = teachers.filter((t) => t.cdc_id || t.cdcs?.name || t.cdc_name).length;
+  const unassignedTeachers = teachers.filter((t) => !t.cdc_id && !t.cdcs?.name && !t.cdc_name).length;
   const barangaysCovered = new Set(teachers.map((t) => t.barangay).filter(Boolean)).size;
   const totalCdcs = cdcs.length;
 
@@ -606,10 +629,10 @@ export default function ManageTeachers() {
 
                   {/* Assigned Center (CDC) */}
                   <td className={td}>
-                    {t.cdcs?.name ? (
+                    {t.cdcs?.name || t.cdc_name ? (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#EDF6EE] border border-[#D1E5D3] text-[#22572C] text-xs font-semibold">
                         <IconBuilding className="w-3.5 h-3.5" />
-                        <span>{t.cdcs.name}</span>
+                        <span>{t.cdcs?.name || t.cdc_name}</span>
                       </span>
                     ) : (
                       <span className="text-xs text-dash-ink-soft italic">No center assigned</span>

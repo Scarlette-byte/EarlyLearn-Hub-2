@@ -1,5 +1,11 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { barangays } from '../../lib/supabaseClient';
+import {
+  realTeachersList,
+  realCdcsList,
+  initialCurriculumAssignments,
+  initialTeacherModules,
+} from '../../lib/curriculumData.js';
 
 export default function ReportsGeneration({
   learners = [],
@@ -7,7 +13,7 @@ export default function ReportsGeneration({
   teachers = [],
   assessments = [],
 }) {
-  const [reportType, setReportType] = useState('enrollment');
+  const [reportType, setReportType] = useState('curriculum');
   const [period, setPeriod] = useState('October 2026');
   const [scopeBarangay, setScopeBarangay] = useState('');
   const [generatedDate] = useState(
@@ -18,26 +24,90 @@ export default function ReportsGeneration({
     })
   );
 
-  // Grouped datasets
-  const filteredLearners = learners.filter(
-    (l) => !scopeBarangay || l.barangay === scopeBarangay
-  );
+  // Real data sources with fallbacks
+  const activeCdcs = useMemo(() => {
+    return cdcs.length > 0 ? cdcs : realCdcsList;
+  }, [cdcs]);
 
-  const filteredCdcs = cdcs.filter(
-    (c) => !scopeBarangay || c.barangay === scopeBarangay
-  );
+  const activeTeachers = useMemo(() => {
+    return teachers.length > 0 ? teachers : realTeachersList;
+  }, [teachers]);
 
-  const filteredAssessments = assessments.filter(
-    (a) => !scopeBarangay || a.barangay === scopeBarangay
-  );
+  const activeAssignments = useMemo(() => {
+    try {
+      const saved = localStorage.getItem('earlylearn_curriculum_assignments');
+      return saved ? JSON.parse(saved) : initialCurriculumAssignments;
+    } catch {
+      return initialCurriculumAssignments;
+    }
+  }, []);
 
-  // CSV Exporter
+  const activeModules = useMemo(() => {
+    try {
+      const saved = localStorage.getItem('earlylearn_teacher_modules');
+      return saved ? JSON.parse(saved) : initialTeacherModules;
+    } catch {
+      return initialTeacherModules;
+    }
+  }, []);
+
+  // Filtered datasets based on Barangay Scope
+  const filteredLearners = useMemo(() => {
+    return learners.filter((l) => !scopeBarangay || l.barangay === scopeBarangay);
+  }, [learners, scopeBarangay]);
+
+  const filteredCdcs = useMemo(() => {
+    return activeCdcs.filter((c) => !scopeBarangay || c.barangay === scopeBarangay);
+  }, [activeCdcs, scopeBarangay]);
+
+  const filteredTeachers = useMemo(() => {
+    return activeTeachers.filter((t) => !scopeBarangay || t.barangay === scopeBarangay);
+  }, [activeTeachers, scopeBarangay]);
+
+  const filteredAssignments = useMemo(() => {
+    return activeAssignments.filter((a) => !scopeBarangay || a.barangay === scopeBarangay);
+  }, [activeAssignments, scopeBarangay]);
+
+  const filteredModules = useMemo(() => {
+    return activeModules.filter((m) => !scopeBarangay || m.barangay === scopeBarangay);
+  }, [activeModules, scopeBarangay]);
+
+  const filteredAssessments = useMemo(() => {
+    return assessments.filter((a) => !scopeBarangay || a.barangay === scopeBarangay);
+  }, [assessments, scopeBarangay]);
+
+  // CSV Exporter using real data
   function downloadCsv() {
     let csvContent = 'data:text/csv;charset=utf-8,';
 
-    if (reportType === 'enrollment') {
+    if (reportType === 'curriculum') {
+      csvContent += 'MUNICIPALITY OF MANOLO FORTICH - MSWD CURRICULUM TEACHER ASSIGNMENT REPORT\n';
+      csvContent += `Period: ${period}, Barangay Scope: ${scopeBarangay || 'All 13 Barangays'}\n\n`;
+      csvContent += 'Teacher Name,Barangay,Child Development Center (CDC),Curriculum Level,Assigned Quarters,Academic Year,Status\n';
+
+      filteredAssignments.forEach((a) => {
+        csvContent += `"${a.teacherName}","${a.barangay}","${a.cdcName}","${a.level}","Q${a.quarters.join('; Q')}","${a.schoolYear}","${a.status}"\n`;
+      });
+    } else if (reportType === 'modules') {
+      csvContent += 'MUNICIPALITY OF MANOLO FORTICH - MSWD TEACHER MODULE UPLOADS & ACTIVITY MONITORING\n';
+      csvContent += `Period: ${period}, Scope: ${scopeBarangay || 'All 13 Barangays'}\n\n`;
+      csvContent += 'Module Title,Teacher Name,CDC,Barangay,Curriculum Level,Quarter,Week & Sub-Theme,Type,Upload Date,Verification Status\n';
+
+      filteredModules.forEach((m) => {
+        csvContent += `"${m.title}","${m.teacher_name}","${m.cdc_name}","${m.barangay}","${m.level}","Q${m.quarter}","${m.week}: ${m.sub_theme}","${m.module_type}","${m.upload_date}","${m.status}"\n`;
+      });
+    } else if (reportType === 'teachers') {
+      csvContent += 'MUNICIPALITY OF MANOLO FORTICH - MSWD CDC TEACHER & STAFFING ROSTER\n';
+      csvContent += `Period: ${period}, Scope: ${scopeBarangay || 'All 13 Barangays'}\n\n`;
+      csvContent += 'No.,Barangay,Name of CDC,Name of Child Development Worker / Teacher,Designation,Contact Number,Email\n';
+
+      filteredTeachers.forEach((t, idx) => {
+        const cdc = t.cdcs?.name || t.cdc_name || 'CDC';
+        csvContent += `"${idx + 1}","${t.barangay}","${cdc}","${t.full_name}","${t.designation || 'CDT'}","${t.contact_number || '-'}","${t.email || '-'}"\n`;
+      });
+    } else if (reportType === 'enrollment') {
       csvContent += 'MUNICIPALITY OF MANOLO FORTICH - MSWD CHILD ENROLLMENT REPORT\n';
-      csvContent += `Period: ${period}, Barangay Scope: ${scopeBarangay || 'All 22 Barangays'}\n\n`;
+      csvContent += `Period: ${period}, Barangay Scope: ${scopeBarangay || 'All 13 Barangays'}\n\n`;
       csvContent += 'Child Name,Age,Gender,Barangay,Daycare Center,Guardian,Contact,Status\n';
 
       filteredLearners.forEach((l) => {
@@ -49,7 +119,7 @@ export default function ReportsGeneration({
       });
     } else if (reportType === 'attendance') {
       csvContent += 'MUNICIPALITY OF MANOLO FORTICH - MSWD DAYCARE ATTENDANCE & OPERATIONS\n';
-      csvContent += `Period: ${period}, Scope: ${scopeBarangay || 'All 22 Barangays'}\n\n`;
+      csvContent += `Period: ${period}, Scope: ${scopeBarangay || 'All 13 Barangays'}\n\n`;
       csvContent += 'Daycare Center,Barangay,Enrolled (3-4 y/o),Capacity,Capacity %,Monthly Attendance %\n';
 
       filteredCdcs.forEach((c) => {
@@ -60,23 +130,14 @@ export default function ReportsGeneration({
           c.attendanceRate || 92
         }%"\n`;
       });
-    } else if (reportType === 'development') {
+    } else {
       csvContent += 'MUNICIPALITY OF MANOLO FORTICH - MSWD ECCD DEVELOPMENT PROGRESS REPORT\n';
-      csvContent += `Period: ${period}, Scope: ${scopeBarangay || 'All 22 Barangays'}\n\n`;
+      csvContent += `Period: ${period}, Scope: ${scopeBarangay || 'All 13 Barangays'}\n\n`;
       csvContent += 'Child Name,Age,Barangay,Center,Cognitive,Physical,Social-Emotional,Language,Overall Status\n';
 
       filteredAssessments.forEach((a) => {
         csvContent += `"${a.child_name}","${a.age}","${a.barangay}","${a.cdc_name}","${a.cognitive_status}","${a.physical_status}","${a.social_status}","${a.language_status}","${a.overall_status}"\n`;
       });
-    } else {
-      csvContent += 'MUNICIPALITY OF MANOLO FORTICH - MSWD ANNUAL EARLY EDUCATION PERFORMANCE\n';
-      csvContent += `Year: 2026, Scope: ${scopeBarangay || 'All 22 Barangays'}\n\n`;
-      csvContent += 'Metric,Value\n';
-      csvContent += `"Total Monitored Barangays","22"\n`;
-      csvContent += `"Total Registered Daycare Centers","${cdcs.length}"\n`;
-      csvContent += `"Total 3-4 y/o Enrolled Children","${learners.length}"\n`;
-      csvContent += `"Average Monthly Attendance","92%"\n`;
-      csvContent += `"ECCD Development Normal Ratio","88%"\n`;
     }
 
     const encodedUri = encodeURI(csvContent);
@@ -102,23 +163,23 @@ export default function ReportsGeneration({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="font-fraunces text-lg font-bold text-dash-ink m-0">
-              MSWD Reports Generation
+              MSWD Official Reports Generation
             </h3>
             <p className="text-xs text-dash-ink-soft mt-0.5">
-              Generate and download official municipal reports on child enrollment, attendance, developmental progress, and center performance.
+              Generate and download verified reports populated with real data from Manolo Fortich's 46 Daycare Centers, assigned teachers, curriculum guides, and uploaded modules.
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={downloadCsv}
-              className="px-4 py-2 rounded-xl bg-[#2E6B38] hover:bg-[#25572D] text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors"
+              className="px-4 py-2 rounded-xl bg-[#2E6B38] hover:bg-[#25572D] text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
             >
               <span>📥 Download CSV</span>
             </button>
             <button
               onClick={handlePrint}
-              className="px-4 py-2 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors"
+              className="px-4 py-2 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
             >
               <span>🖨️ Print / Save PDF</span>
             </button>
@@ -129,17 +190,19 @@ export default function ReportsGeneration({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
           <div>
             <label className="block text-[11px] font-bold text-dash-ink uppercase mb-1">
-              Report Category
+              Select Official Report Type
             </label>
             <select
               value={reportType}
               onChange={(e) => setReportType(e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] text-xs font-bold text-dash-ink outline-none focus:border-accent"
             >
-              <option value="enrollment">1. Child Enrollment & Demographics (Ages 3–4)</option>
-              <option value="attendance">2. Daycare Operations & Attendance</option>
-              <option value="development">3. ECCD Child Developmental Progress</option>
-              <option value="annual">4. Annual Municipal EarlyLearn Performance</option>
+              <option value="curriculum">1. Curriculum Guide Teacher Assignments</option>
+              <option value="modules">2. Teacher Uploaded Modules &amp; Activity Monitoring</option>
+              <option value="teachers">3. Daycare Centers &amp; Teacher Staffing Roster</option>
+              <option value="enrollment">4. Child Enrollment &amp; Demographics (Ages 3–4)</option>
+              <option value="attendance">5. Daycare Center Operations &amp; Attendance</option>
+              <option value="development">6. ECCD Child Developmental Milestones</option>
             </select>
           </div>
 
@@ -154,9 +217,9 @@ export default function ReportsGeneration({
             >
               <option value="October 2026">October 2026 (Monthly)</option>
               <option value="September 2026">September 2026 (Monthly)</option>
-              <option value="Q3 2026 (Jul–Sep)">3rd Quarter 2026</option>
-              <option value="Q4 2026 (Oct–Dec)">4th Quarter 2026</option>
-              <option value="School Year 2025–2026">School Year 2025–2026 (Annual)</option>
+              <option value="Q1 School Year 2026-2027">1st Quarter (Aug - Oct 2026)</option>
+              <option value="Q2 School Year 2026-2027">2nd Quarter (Oct - Dec 2026)</option>
+              <option value="School Year 2026-2027">School Year 2026-2027 (Annual)</option>
             </select>
           </div>
 
@@ -169,7 +232,7 @@ export default function ReportsGeneration({
               onChange={(e) => setScopeBarangay(e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] text-xs font-bold text-dash-ink outline-none focus:border-accent"
             >
-              <option value="">All 22 Barangays (Municipality-Wide)</option>
+              <option value="">All 13 Barangays (Municipality-Wide)</option>
               {barangays.map((b) => (
                 <option key={b} value={b}>
                   {b}
@@ -201,14 +264,16 @@ export default function ReportsGeneration({
         {/* Report Meta Info */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs gap-2 pb-2">
           <div>
-            <div className="font-fraunces text-base font-bold text-dash-ink">
+            <div className="font-fraunces text-base font-bold text-dash-ink uppercase">
+              {reportType === 'curriculum' && 'OFFICIAL CURRICULUM GUIDE TEACHER ASSIGNMENT & DEPLOYMENT REPORT'}
+              {reportType === 'modules' && 'TEACHER MODULE UPLOADS & ACTIVITY MONITORING REPORT'}
+              {reportType === 'teachers' && 'CHILD DEVELOPMENT CENTERS & TEACHER STAFFING ROSTER REPORT'}
               {reportType === 'enrollment' && 'OFFICIAL CHILD ENROLLMENT & DEMOGRAPHIC REPORT (AGES 3–4)'}
               {reportType === 'attendance' && 'DAYCARE CENTER OPERATIONS & ATTENDANCE SUMMARY REPORT'}
               {reportType === 'development' && 'ECCD CHILD DEVELOPMENTAL MILESTONE PROGRESS REPORT'}
-              {reportType === 'annual' && 'ANNUAL MUNICIPAL EARLY CHILDHOOD LEARNING PERFORMANCE REPORT'}
             </div>
             <div className="text-dash-ink-soft mt-0.5">
-              Coverage: {scopeBarangay ? `Barangay ${scopeBarangay}` : 'All 22 Barangays of Manolo Fortich'} •
+              Coverage: {scopeBarangay ? `Barangay ${scopeBarangay}` : 'All 13 Barangays of Manolo Fortich'} •
               Period: {period}
             </div>
           </div>
@@ -222,31 +287,152 @@ export default function ReportsGeneration({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#FAF5EC] p-4 rounded-2xl border border-card-border text-center">
           <div>
             <span className="text-[10px] uppercase font-bold text-dash-ink-soft block">
-              Enrolled Children (3–4 y/o)
+              Active Daycare Centers
             </span>
-            <b className="font-fraunces text-xl text-dash-ink">{filteredLearners.length}</b>
+            <b className="font-fraunces text-xl text-accent">{filteredCdcs.length} Centers</b>
           </div>
           <div>
             <span className="text-[10px] uppercase font-bold text-dash-ink-soft block">
-              Daycare Centers Active
+              Assigned Teachers
             </span>
-            <b className="font-fraunces text-xl text-accent">{filteredCdcs.length}</b>
+            <b className="font-fraunces text-xl text-dash-ink">{filteredTeachers.length} Teachers</b>
           </div>
           <div>
             <span className="text-[10px] uppercase font-bold text-dash-ink-soft block">
-              Avg. Monthly Attendance
+              Teacher Modules Uploaded
             </span>
-            <b className="font-fraunces text-xl text-[#2E6B38]">92.8%</b>
+            <b className="font-fraunces text-xl text-[#2E6B38]">{filteredModules.length} Modules</b>
           </div>
           <div>
             <span className="text-[10px] uppercase font-bold text-dash-ink-soft block">
-              ECCD Developing Expected
+              Curriculum Assignments
             </span>
-            <b className="font-fraunces text-xl text-[#1E5B94]">87.4%</b>
+            <b className="font-fraunces text-xl text-[#1E5B94]">{filteredAssignments.length} Active</b>
           </div>
         </div>
 
-        {/* REPORT SPECIFIC TABLE CONTENT */}
+        {/* ======================================================== */}
+        {/* REPORT SPECIFIC TABLES (REAL DATA POPULATED)             */}
+        {/* ======================================================== */}
+
+        {/* 1. CURRICULUM ASSIGNMENTS REPORT */}
+        {reportType === 'curriculum' && (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left text-xs">
+              <thead>
+                <tr className="bg-[#FAF5EC] border-b border-card-border text-[11px] font-bold text-dash-ink uppercase">
+                  <th className="p-2.5">Teacher Name</th>
+                  <th className="p-2.5">Barangay</th>
+                  <th className="p-2.5">Child Development Center</th>
+                  <th className="p-2.5 text-center">Curriculum Level</th>
+                  <th className="p-2.5">Assigned Quarters</th>
+                  <th className="p-2.5 text-center">School Year</th>
+                  <th className="p-2.5 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#F6F1E7]">
+                {filteredAssignments.map((a) => (
+                  <tr key={a.id} className="hover:bg-[#FFFDF9]">
+                    <td className="p-2.5 font-bold text-dash-ink">{a.teacherName}</td>
+                    <td className="p-2.5">{a.barangay}</td>
+                    <td className="p-2.5 font-semibold text-[#423722]">{a.cdcName}</td>
+                    <td className="p-2.5 text-center">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10.5px] font-bold ${
+                        a.level === 'Pre-K1' ? 'bg-[#DCEBDD] text-[#2E6B38]' : 'bg-[#E0EFFE] text-[#1E5B94]'
+                      }`}>
+                        {a.level}
+                      </span>
+                    </td>
+                    <td className="p-2.5 font-mono">
+                      Q{a.quarters.join(', Q')}
+                    </td>
+                    <td className="p-2.5 text-center text-dash-ink-soft">{a.schoolYear}</td>
+                    <td className="p-2.5 text-center font-bold text-[#2E6B38]">{a.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* 2. TEACHER MODULE UPLOADS & ACTIVITY MONITORING REPORT */}
+        {reportType === 'modules' && (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left text-xs">
+              <thead>
+                <tr className="bg-[#FAF5EC] border-b border-card-border text-[11px] font-bold text-dash-ink uppercase">
+                  <th className="p-2.5">Module Title</th>
+                  <th className="p-2.5">Teacher &amp; Barangay</th>
+                  <th className="p-2.5">CDC Center</th>
+                  <th className="p-2.5">Curriculum Week &amp; Theme</th>
+                  <th className="p-2.5">Type &amp; File</th>
+                  <th className="p-2.5 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#F6F1E7]">
+                {filteredModules.map((m) => (
+                  <tr key={m.id} className="hover:bg-[#FFFDF9]">
+                    <td className="p-2.5 font-bold text-dash-ink">
+                      <div>{m.title}</div>
+                      <div className="text-[10px] text-dash-ink-soft">Uploaded: {m.upload_date}</div>
+                    </td>
+                    <td className="p-2.5">
+                      <div className="font-semibold text-dash-ink">{m.teacher_name}</div>
+                      <div className="text-[11px] text-dash-ink-soft">Brgy. {m.barangay}</div>
+                    </td>
+                    <td className="p-2.5 text-[#423722]">{m.cdc_name}</td>
+                    <td className="p-2.5">
+                      <div className="font-bold text-accent">{m.level} • Q{m.quarter} • {m.week}</div>
+                      <div className="text-[11px] text-dash-ink-soft">{m.sub_theme}</div>
+                    </td>
+                    <td className="p-2.5 text-dash-ink-soft">
+                      {m.module_type} ({m.file_type})
+                    </td>
+                    <td className="p-2.5 text-center font-bold text-[#2E6B38]">
+                      {m.status}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* 3. TEACHER & CDC STAFFING ROSTER REPORT */}
+        {reportType === 'teachers' && (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left text-xs">
+              <thead>
+                <tr className="bg-[#FAF5EC] border-b border-card-border text-[11px] font-bold text-dash-ink uppercase">
+                  <th className="p-2.5 text-center w-10">No.</th>
+                  <th className="p-2.5">Barangay</th>
+                  <th className="p-2.5">Name of CDC</th>
+                  <th className="p-2.5">Name of Child Development Worker / Teacher</th>
+                  <th className="p-2.5">Designation</th>
+                  <th className="p-2.5">Contact Number</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#F6F1E7]">
+                {filteredTeachers.map((t, idx) => (
+                  <tr key={t.id} className="hover:bg-[#FFFDF9]">
+                    <td className="p-2.5 text-center font-mono text-dash-ink-soft">{idx + 1}</td>
+                    <td className="p-2.5 font-bold text-dash-ink">{t.barangay}</td>
+                    <td className="p-2.5 font-semibold text-[#423722]">{t.cdcs?.name || t.cdc_name}</td>
+                    <td className="p-2.5 font-bold text-dash-ink">{t.full_name}</td>
+                    <td className="p-2.5 text-[11px]">
+                      <span className="px-2 py-0.5 rounded bg-[#FAF5EC] border border-[#E8DFC9] font-medium">
+                        {t.designation || 'Child Development Teacher (CDT)'}
+                      </span>
+                    </td>
+                    <td className="p-2.5 font-mono text-dash-ink-soft">{t.contact_number || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* 4. ENROLLMENT REPORT */}
         {reportType === 'enrollment' && (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left text-xs">
@@ -280,6 +466,7 @@ export default function ReportsGeneration({
           </div>
         )}
 
+        {/* 5. ATTENDANCE & CDC OPERATIONS */}
         {reportType === 'attendance' && (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left text-xs">
@@ -316,6 +503,7 @@ export default function ReportsGeneration({
           </div>
         )}
 
+        {/* 6. ECCD DEVELOPMENT MILESTONES */}
         {reportType === 'development' && (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left text-xs">
@@ -326,7 +514,7 @@ export default function ReportsGeneration({
                   <th className="p-2.5">Barangay</th>
                   <th className="p-2.5">Cognitive</th>
                   <th className="p-2.5">Physical</th>
-                  <th className="p-2.5">Social-Emot</th>
+                  <th className="p-2.5">Social-Emotional</th>
                   <th className="p-2.5">Language</th>
                   <th className="p-2.5 text-center">Overall Result</th>
                 </tr>
@@ -348,39 +536,6 @@ export default function ReportsGeneration({
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
-
-        {reportType === 'annual' && (
-          <div className="space-y-4 text-xs">
-            <div className="p-4 rounded-2xl bg-[#FFFDF9] border border-card-border leading-relaxed">
-              <h4 className="font-fraunces font-bold text-sm text-dash-ink mb-1.5">
-                Executive Narrative Summary (Manolo Fortich ECCD Implementation)
-              </h4>
-              <p className="text-dash-ink-soft m-0">
-                During the covered implementation cycle in Manolo Fortich, early childhood care and development
-                services specifically reached toddlers aged 3 to 4 years old across all 22 barangays. Center operations
-                maintained an overall capacity fill of 85.6% with strong family participation and an average 92.8% attendance
-                turnout. 87.4% of assessed learners met age-expected developmental benchmarks across the 4 DepEd ECCD domains.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-3 bg-[#FAF5EC] rounded-xl">
-                <b className="block text-dash-ink font-bold mb-1">Key Strengths Identified:</b>
-                <ul className="list-disc pl-4 space-y-1 text-dash-ink-soft">
-                  <li>Active mother tongue sound recognition and storytelling</li>
-                  <li>100% submission compliance on quarterly feeding check-ins</li>
-                  <li>Consistent child development worker engagement</li>
-                </ul>
-              </div>
-              <div className="p-3 bg-[#FAF5EC] rounded-xl">
-                <b className="block text-dash-ink font-bold mb-1">Target Areas for Next Cycle:</b>
-                <ul className="list-disc pl-4 space-y-1 text-dash-ink-soft">
-                  <li>Expand fine motor manipulatives in highland barangay CDCs</li>
-                  <li>Strengthen referral pathway for children with speech delays</li>
-                </ul>
-              </div>
-            </div>
           </div>
         )}
 
