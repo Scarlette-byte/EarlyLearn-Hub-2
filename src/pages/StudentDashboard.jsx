@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import { BILINGUAL_CATEGORIES, playAudioWord } from '../lib/studentLearningData.js';
+import { CategoryBadge } from '../components/Category3DBadges.jsx';
 
 const PALETTES = [
   'bg-coral', // coral red
@@ -11,28 +13,11 @@ const PALETTES = [
   'bg-orange', // warm orange
 ];
 
-const TYPE_ICONS = {
-  video: '🎬',
-  image: '🖼️',
-  text: '📖',
-  activity: '✏️',
-};
-
-// Default ECCD categories matching the original student dashboard
-const DEFAULT_CATEGORIES = [
-  { id: 'cat-alphabet', name: 'Alphabet', icon: '🔤' },
-  { id: 'cat-numbers', name: 'Numbers', icon: '🔢' },
-  { id: 'cat-colors', name: 'Colors', icon: '🎨' },
-  { id: 'cat-shapes', name: 'Shapes', icon: '🔺' },
-  { id: 'cat-animals', name: 'Animals', icon: '🐶' },
-  { id: 'cat-stories', name: 'Stories', icon: '📖' },
-];
-
 export default function StudentDashboard({ profile }) {
   const navigate = useNavigate();
   const currentUserId = profile?.id || 'demo-student';
 
-  const [view, setView] = useState('home'); // home | materials | content
+  const [view, setView] = useState('home'); // home | category_detail | content
   const [backTarget, setBackTarget] = useState('home');
 
   const greetingName = useMemo(() => {
@@ -44,7 +29,7 @@ export default function StudentDashboard({ profile }) {
   }, [profile?.full_name]);
 
   const [announcements, setAnnouncements] = useState([]);
-  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [categories] = useState(BILINGUAL_CATEGORIES);
 
   // Completed teacher activity IDs
   const [completedIds, setCompletedIds] = useState(() => {
@@ -56,10 +41,11 @@ export default function StudentDashboard({ profile }) {
     }
   });
 
-  // Category view state
+  // Selected Category Detail state
   const [currentCategory, setCurrentCategory] = useState(null);
-  const [categoryMaterials, setCategoryMaterials] = useState([]);
-  const [materialsLoading, setMaterialsLoading] = useState(false);
+  const [selectedStory, setSelectedStory] = useState(null);
+  const [activeFlashcardIndex, setActiveFlashcardIndex] = useState(null);
+  const [storyLanguageTab, setStoryLanguageTab] = useState('both'); // 'both' | 'en' | 'bis'
 
   // Content view state (doing a teacher activity)
   const [currentMaterial, setCurrentMaterial] = useState(null);
@@ -85,7 +71,7 @@ export default function StudentDashboard({ profile }) {
   // Student upload modal state
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [uploadTitle, setUploadTitle] = useState('');
-  const [uploadCategory, setUploadCategory] = useState('Colors');
+  const [uploadCategory, setUploadCategory] = useState('Colors / Mga Kolor');
   const [uploadNote, setUploadNote] = useState('');
   const [uploadFilePreview, setUploadFilePreview] = useState(null);
   const [uploadFileName, setUploadFileName] = useState('');
@@ -125,23 +111,6 @@ export default function StudentDashboard({ profile }) {
     }
   }, []);
 
-  // --- Load Categories from Supabase ---
-  const loadCategories = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .order('created_at');
-      if (!error && data && data.length > 0) {
-        setCategories(data);
-      } else {
-        setCategories(DEFAULT_CATEGORIES);
-      }
-    } catch {
-      setCategories(DEFAULT_CATEGORIES);
-    }
-  }, []);
-
   // --- Load Supabase Materials ---
   const loadDbMaterials = useCallback(async () => {
     try {
@@ -161,7 +130,6 @@ export default function StudentDashboard({ profile }) {
   // Listen to teacher uploads in localStorage
   useEffect(() => {
     loadAnnouncements();
-    loadCategories();
     loadDbMaterials();
 
     function handleStorageChange(e) {
@@ -173,7 +141,10 @@ export default function StudentDashboard({ profile }) {
           // ignore
         }
       }
-      if (e.key === 'earlylearn_student_uploads' || e.key === `earlylearn_student_uploads_${currentUserId}`) {
+      if (
+        e.key === 'earlylearn_student_uploads' ||
+        e.key === `earlylearn_student_uploads_${currentUserId}`
+      ) {
         try {
           const updated = JSON.parse(e.newValue || '[]');
           setStudentUploads(updated);
@@ -184,18 +155,16 @@ export default function StudentDashboard({ profile }) {
     }
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [loadAnnouncements, loadCategories, loadDbMaterials, currentUserId]);
+  }, [loadAnnouncements, loadDbMaterials, currentUserId]);
 
   // -------------------------------------------------------------------------
-  // "MY ACTIVITIES": STRICTLY BASED ON WHAT THE TEACHER UPLOADS (NO CURRICULUM SEED)
+  // "MY ACTIVITIES": STRICTLY BASED ON WHAT THE TEACHER UPLOADS
   // -------------------------------------------------------------------------
   const teacherActivities = useMemo(() => {
     const list = [];
     const seenTitles = new Set();
 
-    // 1. Materials explicitly uploaded by a teacher in TeacherDashboard
     (teacherUploadedModules || []).forEach((m) => {
-      // Filter ONLY actual teacher uploads marked as activities, excluding static curriculum guide baseline
       const isActualTeacherUpload =
         m.is_custom_teacher_upload === true ||
         (m.id && m.id.startsWith('mod-') && !m.id.match(/^mod-0[1-9]/)) ||
@@ -224,7 +193,6 @@ export default function StudentDashboard({ profile }) {
       }
     });
 
-    // 2. Supabase materials uploaded by teachers (where created_by is present)
     (dbMaterials || []).forEach((m) => {
       if (m.type === 'activity' && m.created_by && !seenTitles.has(m.title.toLowerCase())) {
         seenTitles.add(m.title.toLowerCase());
@@ -246,65 +214,25 @@ export default function StudentDashboard({ profile }) {
     return list;
   }, [teacherUploadedModules, dbMaterials]);
 
-  // Pending teacher activities
   const pendingTeacherActivities = useMemo(() => {
     return teacherActivities.filter((a) => !completedIds.has(a.id));
   }, [teacherActivities, completedIds]);
 
-  // Completed teacher activities
   const completedTeacherActivities = useMemo(() => {
     return teacherActivities.filter((a) => completedIds.has(a.id));
   }, [teacherActivities, completedIds]);
 
-  // Progress metrics: combination of completed teacher activities + student uploaded works
   const totalCompletedCount = completedTeacherActivities.length + studentUploads.length;
   const totalTasksCount = Math.max(1, teacherActivities.length + studentUploads.length);
   const progressPct = Math.min(100, Math.round((totalCompletedCount / totalTasksCount) * 100));
 
-  // Count pending activities per category for category badges
-  const pendingByCategory = useMemo(() => {
-    const map = {};
-    pendingTeacherActivities.forEach((a) => {
-      categories.forEach((cat) => {
-        const matchesCat =
-          a.category_id === cat.id ||
-          (a.category_name && a.category_name.toLowerCase().includes(cat.name.toLowerCase()));
-        if (matchesCat) {
-          map[cat.id] = (map[cat.id] || 0) + 1;
-        }
-      });
-    });
-    return map;
-  }, [pendingTeacherActivities, categories]);
-
-  // --- Handlers ---
+  // --- Category Card Click ---
   function openCategory(cat) {
     setCurrentCategory(cat);
-    setView('materials');
-    setMaterialsLoading(true);
-
-    const catNameLower = cat.name.toLowerCase();
-    // Only materials uploaded by teacher or student matching this category
-    const matching = [
-      ...teacherActivities.filter(
-        (m) =>
-          m.category_id === cat.id ||
-          (m.category_name && m.category_name.toLowerCase().includes(catNameLower))
-      ),
-      ...studentUploads
-        .filter((u) => u.category && u.category.toLowerCase().includes(catNameLower))
-        .map((u) => ({
-          id: u.id,
-          title: u.title,
-          type: 'image',
-          content_text: u.note,
-          content_url: u.mediaUrl,
-          teacher_name: `Uploaded by ${greetingName}`,
-        })),
-    ];
-
-    setCategoryMaterials(matching);
-    setMaterialsLoading(false);
+    setSelectedStory(null);
+    setActiveFlashcardIndex(null);
+    setStoryLanguageTab('both');
+    setView('category_detail');
   }
 
   function openMaterial(m, from) {
@@ -347,7 +275,7 @@ export default function StudentDashboard({ profile }) {
     setSubmitted(true);
   }
 
-  // --- Handle Student Uploading Their Own Activity / Artwork ---
+  // --- Student Upload Submission ---
   function handleFileChange(e) {
     const file = e.target.files?.[0];
     if (file) {
@@ -400,7 +328,6 @@ export default function StudentDashboard({ profile }) {
       // ignore
     }
 
-    // Attempt saving to Supabase submissions
     try {
       await supabase.from('submissions').insert({
         student_id: currentUserId,
@@ -446,7 +373,9 @@ export default function StudentDashboard({ profile }) {
           </button>
         </div>
 
-        {/* HOME VIEW */}
+        {/* ======================================================== */}
+        {/* VIEW 1: HOME VIEW                                        */}
+        {/* ======================================================== */}
         {view === 'home' && (
           <div>
             {/* Announcements (if any) */}
@@ -469,7 +398,6 @@ export default function StudentDashboard({ profile }) {
 
             {/* -------------------------------------------------------- */}
             {/* 📝 MY ACTIVITIES SECTION                                 */}
-            {/* (Only Teacher-Uploaded + Student Uploads)                */}
             {/* -------------------------------------------------------- */}
             <div className="mb-5.5">
               <div className="flex items-center justify-between mb-2">
@@ -482,7 +410,6 @@ export default function StudentDashboard({ profile }) {
                   )}
                 </div>
 
-                {/* Upload My Activity Button */}
                 <button
                   onClick={() => setIsUploadModalOpen(true)}
                   className="px-3 py-1.5 rounded-xl bg-coral hover:bg-coral-deep text-white text-xs font-extrabold flex items-center gap-1 shadow-bump active:translate-y-0.5 transition-all cursor-pointer"
@@ -628,33 +555,43 @@ export default function StudentDashboard({ profile }) {
             </div>
 
             {/* -------------------------------------------------------- */}
-            {/* 6 COLORFUL CATEGORY BUTTONS                              */}
+            {/* 6 BILINGUAL CATEGORY CARDS (English & Bisaya)            */}
             {/* -------------------------------------------------------- */}
-            <div className="grid grid-cols-3 gap-3.5 my-5.5">
-              {categories.map((c, i) => {
-                const count = pendingByCategory[c.id] || 0;
-                return (
-                  <button
-                    key={c.id}
-                    onClick={() => openCategory(c)}
-                    className={`relative border-none rounded-[24px] py-6 sm:py-6.5 px-2 flex flex-col items-center gap-2 font-baloo font-bold text-base text-white cursor-pointer shadow-bump transition-transform active:translate-y-1 active:shadow-bump-active ${
-                      PALETTES[i % PALETTES.length]
-                    }`}
-                  >
-                    {count > 0 && (
-                      <span className="absolute top-1.5 right-2 sm:right-2.5 bg-[#E8483D] text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-full border-2 border-white shadow-xs">
-                        {count} new
-                      </span>
-                    )}
-                    <div className="text-[46px] sm:text-[54px] leading-none drop-shadow-[0_2px_3px_rgba(0,0,0,0.15)] flex items-center justify-center">
-                      {c.icon}
-                    </div>
-                    <span className="text-[14.5px] sm:text-base leading-tight drop-shadow-xs">
+            <div className="text-left mb-2">
+              <span className="text-xs font-extrabold text-[#6b5c42]">
+                📚 Explore &amp; Learn (English &amp; Bisaya)
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 my-3">
+              {categories.map((c, i) => (
+                <button
+                  key={c.id}
+                  onClick={() => openCategory(c)}
+                  className={`group relative border-none rounded-[24px] py-4.5 px-3 flex flex-col items-center gap-2 font-baloo font-bold text-white cursor-pointer shadow-bump transition-all hover:scale-[1.02] active:translate-y-1 active:shadow-bump-active ${
+                    PALETTES[i % PALETTES.length]
+                  }`}
+                >
+                  {/* Custom 3D Badge / Icon */}
+                  <CategoryBadge
+                    id={c.id}
+                    className="w-16 h-16 shrink-0 transition-transform group-hover:scale-105 drop-shadow-sm"
+                  />
+
+                  <div className="text-center leading-tight">
+                    <div className="text-[17px] font-black tracking-tight drop-shadow-xs">
                       {c.name}
-                    </span>
-                  </button>
-                );
-              })}
+                    </div>
+                    <div className="text-xs font-bold opacity-90 drop-shadow-xs italic">
+                      {c.bisayaName}
+                    </div>
+                  </div>
+
+                  <span className="text-[10.5px] font-extrabold bg-black/15 text-white/95 px-2.5 py-0.5 rounded-full mt-0.5">
+                    {c.items?.length || 0} items • English &amp; Bisaya
+                  </span>
+                </button>
+              ))}
             </div>
 
             {/* -------------------------------------------------------- */}
@@ -680,66 +617,246 @@ export default function StudentDashboard({ profile }) {
           </div>
         )}
 
-        {/* -------------------------------------------------------- */}
-        {/* MATERIALS LIST VIEW (When a category button is clicked)  */}
-        {/* -------------------------------------------------------- */}
-        {view === 'materials' && (
-          <div>
+        {/* ======================================================== */}
+        {/* VIEW 2: CATEGORY BILINGUAL CONTENT EXPLORER             */}
+        {/* ======================================================== */}
+        {view === 'category_detail' && currentCategory && (
+          <div className="space-y-4 text-left">
             <button
               onClick={() => setView('home')}
-              className="border-none bg-white rounded-2xl px-4.5 py-2.5 font-extrabold text-sm text-[#3a3226] cursor-pointer shadow-flat mb-4 flex items-center gap-1.5"
+              className="border-none bg-white rounded-2xl px-4.5 py-2.5 font-extrabold text-sm text-[#3a3226] cursor-pointer shadow-flat flex items-center gap-1.5 hover:bg-gray-50 transition-colors"
             >
-              ⬅ Back to Activities
+              ⬅ Back to Home
             </button>
-            <div className="text-left font-baloo text-xl font-bold mb-3 flex items-center gap-2">
-              <span>{currentCategory?.icon}</span>
-              <span>{currentCategory?.name} Lessons &amp; Activities</span>
+
+            {/* Category Header Banner */}
+            <div className="bg-white rounded-3xl p-5 shadow-soft border border-[#F0E4CE] flex items-center gap-4">
+              <div className="text-5xl shrink-0">{currentCategory.icon}</div>
+              <div>
+                <h2 className="font-baloo text-2xl font-bold text-[#3a3226] m-0 flex items-center gap-2">
+                  <span>{currentCategory.name}</span>
+                  <span className="text-accent text-lg font-bold">• {currentCategory.bisayaName}</span>
+                </h2>
+                <p className="text-xs text-[#6b5c42] mt-0.5 m-0 font-medium">
+                  {currentCategory.subtitle} • <span className="italic">{currentCategory.subtitleBisaya}</span>
+                </p>
+              </div>
             </div>
 
-            <div className="flex flex-col gap-3">
-              {materialsLoading && (
-                <div className="text-[15px] text-[#6b6355] p-7">Loading materials...</div>
-              )}
-              {!materialsLoading && categoryMaterials.length === 0 && (
-                <div className="bg-white rounded-2xl p-7 text-center shadow-soft text-[#6b6355]">
-                  <div className="text-3xl mb-1.5">🎈</div>
-                  <div className="font-baloo font-bold text-base text-[#3a3226]">
-                    Nothing here yet in {currentCategory?.name}
-                  </div>
-                  <p className="text-xs text-dash-ink-soft mt-1">
-                    Your CDC teacher will upload lessons and fun activities soon!
-                  </p>
-                </div>
-              )}
-              {!materialsLoading &&
-                categoryMaterials.map((m) => (
+            {/* 1. ALPHABET / ALPETO BILINGUAL CARDS */}
+            {currentCategory.id === 'cat-alphabet' && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {currentCategory.items.map((item) => (
                   <div
-                    key={m.id}
-                    onClick={() => openMaterial(m, 'materials')}
-                    className="bg-white rounded-[20px] p-4.5 text-left shadow-soft cursor-pointer flex items-center gap-3.5 hover:bg-[#FFFDF8] transition-colors"
+                    key={item.id}
+                    className="bg-white rounded-2xl p-4 shadow-soft border border-[#F0E4CE] text-center space-y-1.5 hover:translate-y-[-2px] transition-transform"
                   >
-                    <div className="text-4xl flex-shrink-0">
-                      {TYPE_ICONS[m.type] || '📄'}
+                    <div className="font-baloo text-3xl font-black text-coral">
+                      {item.letter}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-baloo font-bold text-[18px] text-[#3a3226]">
-                        {m.title}
-                      </div>
-                      <div className="text-[12px] text-[#7a7a7a] font-bold uppercase mt-0.5">
-                        {m.type === 'activity' ? 'Activity' : m.type}
-                        {m.teacher_name ? ` • by ${m.teacher_name}` : ''}
-                      </div>
+                    <div className="text-4xl my-1">{item.icon}</div>
+                    <div className="font-baloo font-bold text-base text-[#3a3226]">
+                      {item.english}
                     </div>
-                    <span className="text-xs font-bold text-accent">Open →</span>
+                    <div className="text-xs font-bold text-accent bg-orange-50 px-2 py-0.5 rounded-full inline-block">
+                      {item.bisaya}
+                    </div>
+                    <div className="text-[11px] text-[#7a7a7a] font-medium pt-1">
+                      {item.note}
+                    </div>
                   </div>
                 ))}
-            </div>
+              </div>
+            )}
+
+            {/* 2. NUMBERS / MGA NUMERO BILINGUAL CARDS */}
+            {currentCategory.id === 'cat-numbers' && (
+              <div className="grid grid-cols-2 sm:grid-cols-2 gap-3.5">
+                {currentCategory.items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="bg-white rounded-2xl p-4 shadow-soft border border-[#F0E4CE] text-left flex items-center gap-3.5 hover:translate-y-[-2px] transition-transform"
+                  >
+                    <div className="w-14 h-14 rounded-2xl bg-[#00BCD4] text-white flex items-center justify-center font-baloo text-3xl font-black shrink-0 shadow-sm">
+                      {item.num}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-baloo font-bold text-lg text-[#3a3226]">
+                        {item.english} • <span className="text-accent">{item.bisaya}</span>
+                      </div>
+                      <div className="text-xl my-0.5 tracking-widest">{item.visual}</div>
+                      <div className="text-[11px] text-[#7a7a7a] font-medium">
+                        {item.countText}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 3. COLORS / MGA KOLOR BILINGUAL CARDS */}
+            {currentCategory.id === 'cat-colors' && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {currentCategory.items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="bg-white rounded-2xl p-4 shadow-soft border border-[#F0E4CE] text-center space-y-2 hover:translate-y-[-2px] transition-transform"
+                  >
+                    <div
+                      className="w-16 h-16 rounded-full mx-auto border-4 border-white shadow-md flex items-center justify-center text-2xl"
+                      style={{ backgroundColor: item.colorHex }}
+                    >
+                      {item.icon}
+                    </div>
+                    <div>
+                      <div className="font-baloo font-bold text-base text-[#3a3226]">
+                        {item.english}
+                      </div>
+                      <div className="text-xs font-bold text-accent">
+                        {item.bisaya}
+                      </div>
+                    </div>
+                    <div className="text-[11px] text-[#7a7a7a] leading-tight">
+                      {item.sample}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 4. SHAPES / MGA PORMA BILINGUAL CARDS */}
+            {currentCategory.id === 'cat-shapes' && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {currentCategory.items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="bg-white rounded-2xl p-4 shadow-soft border border-[#F0E4CE] text-center space-y-1.5 hover:translate-y-[-2px] transition-transform"
+                  >
+                    <div className="text-4xl">{item.icon}</div>
+                    <div className="font-baloo font-bold text-base text-[#3a3226]">
+                      {item.english}
+                    </div>
+                    <div className="text-xs font-bold text-[#2E7D32] bg-emerald-50 px-2 py-0.5 rounded-full inline-block">
+                      {item.bisaya}
+                    </div>
+                    <div className="text-[11px] text-[#7a7a7a] leading-tight pt-1">
+                      {item.sample}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 5. ANIMALS / MGA HAYOP BILINGUAL CARDS */}
+            {currentCategory.id === 'cat-animals' && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {currentCategory.items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="bg-white rounded-2xl p-4 shadow-soft border border-[#F0E4CE] text-center space-y-1 hover:translate-y-[-2px] transition-transform"
+                  >
+                    <div className="text-4xl my-1">{item.icon}</div>
+                    <div className="font-baloo font-bold text-base text-[#3a3226]">
+                      {item.english}
+                    </div>
+                    <div className="text-xs font-bold text-[#6A1B9A] bg-purple-50 px-2 py-0.5 rounded-full inline-block">
+                      {item.bisaya}
+                    </div>
+                    <div className="text-xs font-extrabold text-coral pt-1">
+                      Sound: "{item.sound}"
+                    </div>
+                    <div className="text-[10.5px] text-[#7a7a7a] leading-tight">
+                      {item.note}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 6. STORIES / MGA SUGILANON BILINGUAL STORIES */}
+            {currentCategory.id === 'cat-stories' && (
+              <div className="space-y-4">
+                {selectedStory ? (
+                  <div className="bg-white rounded-3xl p-6 shadow-soft border border-[#F0E4CE] space-y-4">
+                    <button
+                      onClick={() => setSelectedStory(null)}
+                      className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-xs font-bold text-[#3a3226] mb-2"
+                    >
+                      ⬅ Back to Story List
+                    </button>
+                    <div className="flex items-center gap-3">
+                      <span className="text-4xl">{selectedStory.icon}</span>
+                      <div>
+                        <h3 className="font-baloo text-xl font-bold text-[#3a3226] m-0">
+                          {selectedStory.english}
+                        </h3>
+                        <div className="text-sm font-bold text-accent">
+                          {selectedStory.bisaya}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 pt-2 text-sm leading-relaxed">
+                      <div className="bg-amber-50/70 p-4 rounded-2xl border border-amber-200">
+                        <div className="text-xs font-bold text-accent uppercase mb-1">
+                          📖 English Story
+                        </div>
+                        <p className="m-0 text-[#3a3226] font-medium leading-relaxed">
+                          {selectedStory.storyEnglish}
+                        </p>
+                      </div>
+
+                      <div className="bg-orange-50/70 p-4 rounded-2xl border border-orange-200">
+                        <div className="text-xs font-bold text-coral-deep uppercase mb-1">
+                          🌺 Sugilanon sa Bisaya
+                        </div>
+                        <p className="m-0 text-[#3a3226] font-medium leading-relaxed">
+                          {selectedStory.storyBisaya}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200 text-xs font-bold text-emerald-800">
+                      💡 {selectedStory.lesson}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {currentCategory.items.map((story) => (
+                      <div
+                        key={story.id}
+                        onClick={() => setSelectedStory(story)}
+                        className="bg-white rounded-2xl p-4 shadow-soft border border-[#F0E4CE] flex items-center justify-between gap-3 cursor-pointer hover:translate-x-1 transition-transform"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-3xl shrink-0">{story.icon}</span>
+                          <div>
+                            <div className="font-baloo font-bold text-base text-[#3a3226]">
+                              {story.english}
+                            </div>
+                            <div className="text-xs font-bold text-accent">
+                              {story.bisaya}
+                            </div>
+                            <div className="text-[11.5px] text-[#7a7a7a] mt-0.5 line-clamp-1">
+                              {story.summary}
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-xs font-bold text-accent bg-orange-50 px-2.5 py-1 rounded-lg shrink-0">
+                          Read Story →
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
-        {/* -------------------------------------------------------- */}
-        {/* CONTENT VIEW (Interactive activity & lesson viewer)      */}
-        {/* -------------------------------------------------------- */}
+        {/* ======================================================== */}
+        {/* VIEW 3: CONTENT VIEW (Doing teacher assigned activity)   */}
+        {/* ======================================================== */}
         {view === 'content' && currentMaterial && (
           <div>
             <button
@@ -827,9 +944,9 @@ export default function StudentDashboard({ profile }) {
           </div>
         )}
 
-        {/* -------------------------------------------------------- */}
+        {/* ======================================================== */}
         {/* MODAL: STUDENT UPLOAD ACTIVITY / ARTWORK                 */}
-        {/* -------------------------------------------------------- */}
+        {/* ======================================================== */}
         {isUploadModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-xs">
             <div className="bg-white w-full max-w-md rounded-3xl p-6 text-left shadow-2xl border border-[#F0E4CE] space-y-4 max-h-[90vh] overflow-y-auto">
@@ -870,20 +987,20 @@ export default function StudentDashboard({ profile }) {
 
                 <div>
                   <label className="block font-bold text-[#3a3226] mb-1">
-                    Subject / Category
+                    Subject / Category (English &amp; Bisaya)
                   </label>
                   <select
                     value={uploadCategory}
                     onChange={(e) => setUploadCategory(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold text-[#3a3226] outline-none focus:border-coral"
                   >
-                    <option value="Colors">🎨 Colors</option>
-                    <option value="Alphabet">🔤 Alphabet</option>
-                    <option value="Numbers">🔢 Numbers</option>
-                    <option value="Shapes">🔺 Shapes</option>
-                    <option value="Animals">🐶 Animals</option>
-                    <option value="Stories">📖 Stories</option>
-                    <option value="General Artwork">🖍️ General Artwork / Craft</option>
+                    <option value="Colors / Mga Kolor">🎨 Colors / Mga Kolor</option>
+                    <option value="Alphabet / Alpabeto">🔤 Alphabet / Alpabeto</option>
+                    <option value="Numbers / Mga Numero">🔢 Numbers / Mga Numero</option>
+                    <option value="Shapes / Mga Porma">🔺 Shapes / Mga Porma</option>
+                    <option value="Animals / Mga Hayop">🐶 Animals / Mga Hayop</option>
+                    <option value="Stories / Mga Sugilanon">📖 Stories / Mga Sugilanon</option>
+                    <option value="General Artwork / Buhat">🖍️ General Artwork / Buhat</option>
                   </select>
                 </div>
 
