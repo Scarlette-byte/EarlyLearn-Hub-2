@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase, barangays, normalizeAuthIdentifier } from '../lib/supabaseClient';
+import {
+  getTeachersForBarangaySync,
+  getTeachersForBarangay,
+  syncStudentLogin,
+} from '../lib/learnersService.js';
 
 export default function SignUp() {
   const navigate = useNavigate();
@@ -24,6 +29,56 @@ export default function SignUp() {
   const [msg, setMsg] = useState({ text: '', type: '' });
   const [loading, setLoading] = useState(false);
 
+  // Dynamic teacher choices for Parent & Learner unified account
+  const [availableTeachers, setAvailableTeachers] = useState([]);
+  const [selectedTeacherId, setSelectedTeacherId] = useState('');
+  const [selectedTeacherName, setSelectedTeacherName] = useState('');
+  const [selectedTeacherCdc, setSelectedTeacherCdc] = useState('');
+
+  // Handle barangay change with dynamic teacher retrieval
+  async function handleBarangayChange(newBarangay) {
+    setBarangay(newBarangay);
+    setSelectedTeacherId('');
+    setSelectedTeacherName('');
+    setSelectedTeacherCdc('');
+
+    if (!newBarangay) {
+      setAvailableTeachers([]);
+      return;
+    }
+
+    // Instant baseline list
+    const syncList = getTeachersForBarangaySync(newBarangay);
+    setAvailableTeachers(syncList);
+    if (syncList.length > 0) {
+      setSelectedTeacherId(syncList[0].id);
+      setSelectedTeacherName(syncList[0].full_name);
+      setSelectedTeacherCdc(syncList[0].cdc_name || `${newBarangay} Child Development Center`);
+    }
+
+    // Async enhancement from Supabase teachers
+    try {
+      const asyncList = await getTeachersForBarangay(newBarangay);
+      if (asyncList && asyncList.length > 0) {
+        setAvailableTeachers(asyncList);
+      }
+    } catch {
+      // Keep baseline
+    }
+  }
+
+  function handleTeacherSelect(id) {
+    setSelectedTeacherId(id);
+    const tch = availableTeachers.find((t) => t.id === id);
+    if (tch) {
+      setSelectedTeacherName(tch.full_name);
+      setSelectedTeacherCdc(tch.cdc_name || `${barangay} Child Development Center`);
+    } else {
+      setSelectedTeacherName('');
+      setSelectedTeacherCdc('');
+    }
+  }
+
   async function handleSubmit(e) {
     if (e && e.preventDefault) e.preventDefault();
     setMsg({ text: '', type: '' });
@@ -35,6 +90,10 @@ export default function SignUp() {
       }
       if (!childName.trim()) {
         setMsg({ text: "⚠️ Please enter the Child / Little Learner's name.", type: 'error' });
+        return;
+      }
+      if (!selectedTeacherName) {
+        setMsg({ text: '⚠️ Please select a Day Care Teacher / Adviser in your barangay.', type: 'error' });
         return;
       }
     } else {
@@ -104,6 +163,10 @@ export default function SignUp() {
           role: dbRole,
           barangay: barangay,
           account_type: accountType,
+          adviser_name: isTeacher ? null : selectedTeacherName,
+          teacher_name: isTeacher ? null : selectedTeacherName,
+          teacher_id: isTeacher ? null : selectedTeacherId,
+          cdc_name: isTeacher ? cdcName.trim() : selectedTeacherCdc,
         },
       },
     });
@@ -138,11 +201,35 @@ export default function SignUp() {
           await supabase.from('teachers').upsert({
             id: user.id,
             full_name: teacherName.trim(),
-            email: email.trim(),
+            email: authEmail,
             barangay: barangay,
           });
         } catch {
           // Ignore if teachers table has custom RLS policies
+        }
+      } else {
+        // Register learner immediately to the assigned teacher's roster & barangay
+        try {
+          await syncStudentLogin(user, {
+            id: user.id,
+            full_name: displayName,
+            role: dbRole,
+            barangay: barangay,
+            adviser_name: selectedTeacherName,
+            cdc_name: selectedTeacherCdc,
+            user_metadata: {
+              parent_name: parentName.trim(),
+              child_name: childName.trim(),
+              child_age: childAge,
+              adviser_name: selectedTeacherName,
+              teacher_name: selectedTeacherName,
+              teacher_id: selectedTeacherId,
+              cdc_name: selectedTeacherCdc,
+              contact_number: isPhone ? display : null,
+            },
+          });
+        } catch (syncErr) {
+          console.warn('Could not sync learner on signup:', syncErr);
         }
       }
     }
@@ -362,7 +449,7 @@ export default function SignUp() {
                 id="barangay"
                 required
                 value={barangay}
-                onChange={(e) => setBarangay(e.target.value)}
+                onChange={(e) => handleBarangayChange(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-[13px] border-2 border-[#E6E6E6] font-nunito text-sm outline-none focus:border-sky-deep bg-white appearance-none cursor-pointer pr-9 text-ink"
               >
                 <option value="">— Select Barangay in Manolo Fortich —</option>
@@ -380,6 +467,52 @@ export default function SignUp() {
               🏡 Connects your family to your local Barangay Child Development Center.
             </p>
           </div>
+
+          {/* DYNAMIC TEACHER / ADVISER CHOICES FOR PARENTS */}
+          {accountType === 'parent_learner' && (
+            <div className="mt-3">
+              <label htmlFor="teacherAdviser" className="block font-bold text-[12.5px] text-ink mb-1">
+                Day Care Teacher / Class Adviser <span className="text-coral">*</span>
+              </label>
+              <div className="relative">
+                <select
+                  id="teacherAdviser"
+                  required
+                  disabled={!barangay}
+                  value={selectedTeacherId}
+                  onChange={(e) => handleTeacherSelect(e.target.value)}
+                  className={`w-full px-3.5 py-2.5 rounded-[13px] border-2 font-nunito text-sm outline-none appearance-none pr-9 text-ink ${
+                    !barangay
+                      ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'border-[#E6E6E6] bg-white cursor-pointer focus:border-sky-deep'
+                  }`}
+                >
+                  {!barangay ? (
+                    <option value="">— Select Barangay first to view teachers —</option>
+                  ) : availableTeachers.length === 0 ? (
+                    <option value="">— No teachers registered yet for Barangay {barangay} —</option>
+                  ) : (
+                    <>
+                      <option value="">— Select Teacher / Adviser in {barangay} —</option>
+                      {availableTeachers.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          👩‍🏫 {t.full_name} {t.cdc_name ? `(${t.cdc_name})` : ''}
+                        </option>
+                      ))}
+                    </>
+                  )}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-ink-soft text-xs">
+                  ▼
+                </div>
+              </div>
+              <p className="text-[11px] text-ink-soft mt-0.5">
+                {barangay
+                  ? `👩‍🏫 Select the Day Care Teacher who will handle ${childName ? childName.trim() + "'s" : "your child's"} class & activities.`
+                  : 'ℹ️ Please choose your Barangay above to see the assigned Day Care teachers.'}
+              </p>
+            </div>
+          )}
 
           <div className="mt-3">
             <label htmlFor="identifier" className="block font-bold text-[12.5px] text-ink mb-1">

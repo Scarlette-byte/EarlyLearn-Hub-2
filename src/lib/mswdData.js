@@ -1,4 +1,4 @@
-import { barangays } from './supabaseClient';
+import { barangays } from './supabaseClient.js';
 
 // Baseline Daycare Centers across all 22 Barangays of Manolo Fortich
 export const baselineCdcs = [

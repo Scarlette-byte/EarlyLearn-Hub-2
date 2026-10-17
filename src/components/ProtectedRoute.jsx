@@ -69,6 +69,12 @@ export default function ProtectedRoute({ allowedRoles, children }) {
         email: user.email,
         role: effectiveRole,
         isSuperAdmin,
+        adviser_name: user.user_metadata?.adviser_name || prof?.adviser_name || null,
+        teacher_name: user.user_metadata?.teacher_name || user.user_metadata?.adviser_name || null,
+        cdc_name: user.user_metadata?.cdc_name || prof?.cdc_name || null,
+        child_name: user.user_metadata?.child_name || null,
+        parent_name: user.user_metadata?.parent_name || null,
+        user_metadata: user.user_metadata,
       });
       setStatus('ok');
     })();

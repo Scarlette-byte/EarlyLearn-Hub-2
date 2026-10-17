@@ -6,7 +6,9 @@ import {
   preK2Curriculum,
   initialCurriculumAssignments,
   initialTeacherModules,
+  realTeachersList,
 } from '../lib/curriculumData.js';
+import { getLearnersForTeacher, getCdcForBarangay } from '../lib/learnersService.js';
 import {
   IconPlus,
   IconSearch,
@@ -513,33 +515,93 @@ export default function TeacherDashboard({ profile }) {
     else setProfileMsg({ text: '✅ Barangay saved!', type: 'ok' });
   }
 
-  // --- My Learners: find this teacher's CDC, then list learners in that same CDC ---
+  // --- My Learners: find this teacher's CDC and Barangay, then list learners in that jurisdiction ---
   const loadMyLearners = useCallback(async () => {
     setLearnersLoading(true);
-    const { data: teacherRow } = await supabase
-      .from('teachers')
-      .select('cdc_id, cdcs(name)')
-      .eq('id', currentUserId)
-      .single();
 
-    if (!teacherRow || !teacherRow.cdc_id) {
-      setMyCdcName(null);
-      setMyLearners([]);
-      setLearnersLoading(false);
-      return;
+    let dbTeacher = null;
+    try {
+      const { data } = await supabase
+        .from('teachers')
+        .select('id, full_name, barangay, cdc_id, cdcs(id, name, barangay)')
+        .eq('id', currentUserId)
+        .single();
+      dbTeacher = data;
+    } catch {
+      // ignore
     }
 
-    setMyCdcName(teacherRow.cdcs?.name || null);
+    const teacherName = profile?.full_name || '';
+    const cleanTeacherName = teacherName.replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase();
 
-    const { data: learners } = await supabase
-      .from('learners')
-      .select('id, full_name, birthdate, parent_name, parent_contact')
-      .eq('cdc_id', teacherRow.cdc_id)
-      .order('full_name');
+    // Check if matched in real baseline teachers
+    const baselineMatch = realTeachersList.find(
+      (t) =>
+        t.id === currentUserId ||
+        (cleanTeacherName && t.full_name?.toLowerCase().includes(cleanTeacherName)) ||
+        (profile?.email && t.email?.toLowerCase() === profile.email.toLowerCase())
+    );
 
-    setMyLearners(learners || []);
-    setLearnersLoading(false);
-  }, [currentUserId]);
+    const effectiveBarangay =
+      myBarangay ||
+      dbTeacher?.barangay ||
+      profile?.barangay ||
+      baselineMatch?.barangay ||
+      '';
+
+    const effectiveCdcId = dbTeacher?.cdc_id || null;
+
+    let effectiveCdcName =
+      dbTeacher?.cdcs?.name ||
+      baselineMatch?.cdc_name ||
+      '';
+
+    if (!effectiveCdcName && effectiveBarangay) {
+      effectiveCdcName = getCdcForBarangay(effectiveBarangay)?.name || `${effectiveBarangay} Child Development Center`;
+    }
+
+    setMyCdcName(effectiveCdcName || (effectiveBarangay ? `${effectiveBarangay} Child Development Center` : null));
+    if (effectiveBarangay && !myBarangay) {
+      setMyBarangay(effectiveBarangay);
+    }
+
+    // Load learners for this teacher's assigned barangay & CDC
+    try {
+      const learners = await getLearnersForTeacher({
+        teacherId: currentUserId,
+        teacherName: teacherName || baselineMatch?.full_name || '',
+        barangay: effectiveBarangay,
+        cdcName: effectiveCdcName,
+        cdcId: effectiveCdcId,
+      });
+
+      setMyLearners(learners || []);
+    } catch (err) {
+      console.warn('Failed loading learners for teacher:', err);
+      setMyLearners([]);
+    } finally {
+      setLearnersLoading(false);
+    }
+  }, [currentUserId, profile, myBarangay]);
+
+  // Live synchronization: auto-reload learners when a student signs up or logs in
+  useEffect(() => {
+    function handleLearnerSync(e) {
+      if (
+        e.type === 'earlylearn_learners_updated' ||
+        (e.type === 'storage' && e.key === 'earlylearn_registered_learners')
+      ) {
+        loadMyLearners();
+      }
+    }
+
+    window.addEventListener('storage', handleLearnerSync);
+    window.addEventListener('earlylearn_learners_updated', handleLearnerSync);
+    return () => {
+      window.removeEventListener('storage', handleLearnerSync);
+      window.removeEventListener('earlylearn_learners_updated', handleLearnerSync);
+    };
+  }, [loadMyLearners]);
 
   useEffect(() => {
     loadCategoryOptions();
@@ -575,7 +637,7 @@ export default function TeacherDashboard({ profile }) {
           label: 'Pending Submissions',
           value: submissions.filter((s) => s.status === 'submitted').length,
         },
-        { label: 'Total Students', value: totalStudents || '-' },
+        { label: 'Total Students', value: myLearners.length || totalStudents || 0 },
       ]}
       activeTab={activeTab}
       onTabChange={setActiveTab}
@@ -732,39 +794,56 @@ export default function TeacherDashboard({ profile }) {
         </div>
       )}
 
-      {/* MY LEARNERS — auto-matched by CDC, no manual assignment needed */}
+      {/* MY LEARNERS — auto-matched by CDC and Barangay */}
       {activeTab === 'mylearners' && (
         <div className={cardBox}>
-          <h3 className={cardBoxTitle}>My Learners</h3>
-          {learnersLoading && <p className="text-[13px] text-dash-ink-soft">Loading...</p>}
-
-          {!learnersLoading && !myCdcName && (
-            <p className="text-[13px] text-dash-ink-soft">
-              You're not yet assigned to a CDC. Please ask the Admin to assign your CDC in
-              "Manage Teachers" — your learners will appear here automatically once that's set.
-            </p>
-          )}
-
-          {!learnersLoading && myCdcName && (
-            <>
-              <p className="text-[12.5px] text-dash-ink-soft -mt-2.5 mb-4">
-                Showing learners assigned to <strong>{myCdcName}</strong>.
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div>
+              <h3 className={cardBoxTitle}>My Learners</h3>
+              <p className="text-[12.5px] text-dash-ink-soft m-0">
+                Showing learners assigned to <strong>{myCdcName || (myBarangay ? `${myBarangay} Child Development Center` : 'Child Development Center')}</strong>.
               </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                👥 {myLearners.length} {myLearners.length === 1 ? 'Learner' : 'Learners'} Enrolled
+              </span>
+              <button
+                type="button"
+                onClick={loadMyLearners}
+                className="px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold cursor-pointer flex items-center gap-1"
+                title="Refresh learner list"
+              >
+                <span>🔄</span>
+                <span>Refresh</span>
+              </button>
+            </div>
+          </div>
+
+          {learnersLoading && <p className="text-[13px] text-dash-ink-soft">Loading learners...</p>}
+
+          {!learnersLoading && (
+            <>
               <div className="overflow-x-auto">
                 <table className={table}>
                   <thead>
                     <tr>
-                      <th className={th}>Name</th>
-                      <th className={th}>Birthdate</th>
-                      <th className={th}>Parent</th>
-                      <th className={th}>Contact</th>
+                      <th className={th}>NAME</th>
+                      <th className={th}>BIRTHDATE</th>
+                      <th className={th}>PARENT</th>
+                      <th className={th}>CONTACT</th>
                     </tr>
                   </thead>
                   <tbody>
                     {myLearners.map((l) => (
                       <tr key={l.id}>
-                        <td className={td}>{l.full_name}</td>
-                        <td className={td}>{l.birthdate || '-'}</td>
+                        <td className={td}>
+                          <div className="flex items-center gap-2">
+                            <span>🧒</span>
+                            <span className="font-bold text-slate-900">{l.full_name}</span>
+                          </div>
+                        </td>
+                        <td className={td}>{l.birthdate || l.child_age || '-'}</td>
                         <td className={td}>{l.parent_name || '-'}</td>
                         <td className={td}>{l.parent_contact || '-'}</td>
                       </tr>
@@ -772,9 +851,10 @@ export default function TeacherDashboard({ profile }) {
                   </tbody>
                 </table>
               </div>
+
               {myLearners.length === 0 && (
                 <p className="text-[13px] mt-3 text-dash-ink-soft">
-                  No learners recorded yet for {myCdcName}.
+                  No learners recorded yet for {myCdcName || (myBarangay ? `${myBarangay} Child Development Center` : 'this Child Development Center')}.
                 </p>
               )}
             </>

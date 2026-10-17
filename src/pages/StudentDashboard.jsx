@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { BILINGUAL_CATEGORIES, playAudioWord } from '../lib/studentLearningData.js';
 import { CategoryBadge } from '../components/Category3DBadges.jsx';
+import { getDefaultTeacherForBarangay, syncStudentLogin } from '../lib/learnersService.js';
 
 const PALETTES = [
   'bg-coral', // coral red
@@ -27,6 +28,48 @@ export default function StudentDashboard({ profile }) {
     }
     return profile.full_name;
   }, [profile?.full_name]);
+
+  const studentBarangay = profile?.barangay || profile?.user_metadata?.barangay || '';
+
+  // Class adviser information linked to this student
+  const adviserInfo = useMemo(() => {
+    let adviser =
+      profile?.adviser_name ||
+      profile?.user_metadata?.adviser_name ||
+      profile?.user_metadata?.teacher_name ||
+      '';
+    let cdc =
+      profile?.cdc_name ||
+      profile?.user_metadata?.cdc_name ||
+      '';
+
+    if (!adviser && currentUserId) {
+      try {
+        const cached = localStorage.getItem(`earlylearn_student_adviser_${currentUserId}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed.adviser_name) adviser = parsed.adviser_name;
+          if (parsed.cdc_name) cdc = parsed.cdc_name;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (!adviser && studentBarangay) {
+      const defaultTch = getDefaultTeacherForBarangay(studentBarangay);
+      if (defaultTch) {
+        adviser = defaultTch.full_name;
+        cdc = defaultTch.cdc_name || `${studentBarangay} Child Development Center`;
+      }
+    }
+
+    return {
+      adviserName: adviser || 'Day Care Teacher',
+      cdcName: cdc || (studentBarangay ? `${studentBarangay} Child Development Center` : 'Child Development Center'),
+      barangay: studentBarangay,
+    };
+  }, [profile, currentUserId, studentBarangay]);
 
   const [announcements, setAnnouncements] = useState([]);
   const [categories] = useState(BILINGUAL_CATEGORIES);
@@ -132,6 +175,9 @@ export default function StudentDashboard({ profile }) {
     loadAnnouncements();
     loadDbMaterials();
 
+    // Ensure student registration is synced with teacher dashboard
+    syncStudentLogin(null, profile);
+
     function handleStorageChange(e) {
       if (e.key === 'earlylearn_teacher_modules') {
         try {
@@ -155,7 +201,7 @@ export default function StudentDashboard({ profile }) {
     }
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [loadAnnouncements, loadDbMaterials, currentUserId]);
+  }, [loadAnnouncements, loadDbMaterials, currentUserId, profile]);
 
   // -------------------------------------------------------------------------
   // "MY ACTIVITIES": STRICTLY BASED ON WHAT THE TEACHER UPLOADS
@@ -371,6 +417,42 @@ export default function StudentDashboard({ profile }) {
           >
             Log Out
           </button>
+        </div>
+
+        {/* ======================================================== */}
+        {/* 👩‍🏫 CLASS ADVISER & DAY CARE CENTER DISPLAY               */}
+        {/* ======================================================== */}
+        <div className="bg-white/95 rounded-2xl p-3.5 sm:p-4 mb-4 text-left shadow-soft border border-[#F4E8D0] flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-[#FFE082] to-[#FFB74D] flex items-center justify-center text-2xl shadow-xs shrink-0 border border-amber-200">
+              👩‍🏫
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] sm:text-[10.5px] font-extrabold uppercase tracking-wider text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60">
+                  Class Adviser
+                </span>
+                {adviserInfo.barangay && (
+                  <span className="text-[10.5px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                    📍 Brgy. {adviserInfo.barangay}
+                  </span>
+                )}
+              </div>
+              <div className="font-baloo text-[16px] sm:text-[17px] font-bold text-[#3a3226] leading-snug mt-0.5 truncate">
+                Teacher {adviserInfo.adviserName.replace(/^Teacher\s+/i, '')}
+              </div>
+              <div className="text-[12px] text-slate-500 font-medium truncate">
+                🏫 {adviserInfo.cdcName}
+              </div>
+            </div>
+          </div>
+
+          <div className="hidden xs:flex flex-col items-end shrink-0">
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-full shadow-2xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Enrolled
+            </span>
+          </div>
         </div>
 
         {/* ======================================================== */}
@@ -630,143 +712,319 @@ export default function StudentDashboard({ profile }) {
             </button>
 
             {/* Category Header Banner */}
-            <div className="bg-white rounded-3xl p-5 shadow-soft border border-[#F0E4CE] flex items-center gap-4">
-              <div className="text-5xl shrink-0">{currentCategory.icon}</div>
-              <div>
-                <h2 className="font-baloo text-2xl font-bold text-[#3a3226] m-0 flex items-center gap-2">
-                  <span>{currentCategory.name}</span>
-                  <span className="text-accent text-lg font-bold">• {currentCategory.bisayaName}</span>
-                </h2>
-                <p className="text-xs text-[#6b5c42] mt-0.5 m-0 font-medium">
-                  {currentCategory.subtitle} • <span className="italic">{currentCategory.subtitleBisaya}</span>
-                </p>
+            <div className="bg-white rounded-3xl p-5 shadow-soft border border-[#F0E4CE] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <CategoryBadge id={currentCategory.id} className="w-16 h-16 shrink-0 drop-shadow-sm" />
+                <div>
+                  <h2 className="font-baloo text-2xl font-black text-[#3a3226] m-0 flex items-center gap-2 flex-wrap">
+                    <span>{currentCategory.name}</span>
+                    <span className="text-accent text-lg font-bold">• {currentCategory.bisayaName}</span>
+                  </h2>
+                  <p className="text-xs text-[#6b5c42] mt-0.5 m-0 font-medium">
+                    {currentCategory.subtitle} • <span className="italic">{currentCategory.subtitleBisaya}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    playAudioWord(`${currentCategory.name}. ${currentCategory.bisayaName}`, 'en-US');
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-[#8C6200] font-baloo font-bold text-xs flex items-center gap-1.5 border border-amber-200 transition-colors cursor-pointer"
+                  title="Pronounce Category"
+                >
+                  <span>🔊</span>
+                  <span>Listen / Paminaw</span>
+                </button>
+                <span className="text-xs font-bold text-[#6b5c42] bg-[#F7F2E7] px-3 py-1.5 rounded-xl">
+                  {currentCategory.items.length} items
+                </span>
               </div>
             </div>
 
-            {/* 1. ALPHABET / ALPETO BILINGUAL CARDS */}
+            {/* Instruction Banner for Toddlers & Parents */}
+            <div className="bg-[#FFFDF8] rounded-2xl px-4 py-2.5 border border-[#F0E4CE] flex items-center justify-between text-xs text-[#6b5c42]">
+              <div className="flex items-center gap-2">
+                <span>💡</span>
+                <span>Tap any card to view large flashcard • Pindota ang kard aron makita sa dako</span>
+              </div>
+              <span className="text-[11px] font-bold text-accent">English &amp; Bisaya</span>
+            </div>
+
+            {/* 1. ALPHABET / ALPETO BILINGUAL CARDS (A-Z) */}
             {currentCategory.id === 'cat-alphabet' && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {currentCategory.items.map((item) => (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
+                {currentCategory.items.map((item, idx) => (
                   <div
                     key={item.id}
-                    className="bg-white rounded-2xl p-4 shadow-soft border border-[#F0E4CE] text-center space-y-1.5 hover:translate-y-[-2px] transition-transform"
+                    onClick={() => setActiveFlashcardIndex(idx)}
+                    className="group bg-white rounded-2xl p-4 shadow-soft border border-[#F0E4CE] text-center space-y-2 cursor-pointer hover:border-coral hover:translate-y-[-2px] transition-all flex flex-col justify-between"
                   >
-                    <div className="font-baloo text-3xl font-black text-coral">
-                      {item.letter}
-                    </div>
-                    <div className="text-4xl my-1">{item.icon}</div>
-                    <div className="font-baloo font-bold text-base text-[#3a3226]">
-                      {item.english}
-                    </div>
-                    <div className="text-xs font-bold text-accent bg-orange-50 px-2 py-0.5 rounded-full inline-block">
-                      {item.bisaya}
-                    </div>
-                    <div className="text-[11px] text-[#7a7a7a] font-medium pt-1">
-                      {item.note}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* 2. NUMBERS / MGA NUMERO BILINGUAL CARDS */}
-            {currentCategory.id === 'cat-numbers' && (
-              <div className="grid grid-cols-2 sm:grid-cols-2 gap-3.5">
-                {currentCategory.items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="bg-white rounded-2xl p-4 shadow-soft border border-[#F0E4CE] text-left flex items-center gap-3.5 hover:translate-y-[-2px] transition-transform"
-                  >
-                    <div className="w-14 h-14 rounded-2xl bg-[#00BCD4] text-white flex items-center justify-center font-baloo text-3xl font-black shrink-0 shadow-sm">
-                      {item.num}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-baloo font-bold text-lg text-[#3a3226]">
-                        {item.english} • <span className="text-accent">{item.bisaya}</span>
-                      </div>
-                      <div className="text-xl my-0.5 tracking-widest">{item.visual}</div>
-                      <div className="text-[11px] text-[#7a7a7a] font-medium">
-                        {item.countText}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* 3. COLORS / MGA KOLOR BILINGUAL CARDS */}
-            {currentCategory.id === 'cat-colors' && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {currentCategory.items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="bg-white rounded-2xl p-4 shadow-soft border border-[#F0E4CE] text-center space-y-2 hover:translate-y-[-2px] transition-transform"
-                  >
-                    <div
-                      className="w-16 h-16 rounded-full mx-auto border-4 border-white shadow-md flex items-center justify-center text-2xl"
-                      style={{ backgroundColor: item.colorHex }}
-                    >
-                      {item.icon}
-                    </div>
                     <div>
-                      <div className="font-baloo font-bold text-base text-[#3a3226]">
+                      <div className="flex items-center justify-between">
+                        <span className="font-baloo text-2xl font-black text-coral">
+                          {item.letter}
+                        </span>
+                        <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                          {item.phonetic}
+                        </span>
+                      </div>
+                      <div className="text-5xl my-2 transform group-hover:scale-110 transition-transform">
+                        {item.icon}
+                      </div>
+                      <div className="font-baloo font-bold text-lg text-[#3a3226] leading-tight">
                         {item.english}
                       </div>
-                      <div className="text-xs font-bold text-accent">
+                      <div className="text-xs font-bold text-accent bg-orange-50 px-2 py-0.5 rounded-full inline-block mt-1">
                         {item.bisaya}
                       </div>
                     </div>
-                    <div className="text-[11px] text-[#7a7a7a] leading-tight">
-                      {item.sample}
+
+                    <div className="pt-2 border-t border-gray-100 mt-2">
+                      <div className="text-[10.5px] text-[#7a7a7a] font-medium leading-tight mb-2 line-clamp-1">
+                        {item.note}
+                      </div>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            playAudioWord(item.english, 'en-US');
+                          }}
+                          className="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10.5px] font-extrabold flex items-center gap-1 transition-colors"
+                          title="Listen in English"
+                        >
+                          🔊 EN
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            playAudioWord(item.bisaya, 'fil-PH');
+                          }}
+                          className="px-2 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10.5px] font-extrabold flex items-center gap-1 transition-colors"
+                          title="Paminaw sa Bisaya"
+                        >
+                          🔊 BSY
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
 
-            {/* 4. SHAPES / MGA PORMA BILINGUAL CARDS */}
+            {/* 2. NUMBERS / MGA NUMERO BILINGUAL CARDS (0 to 10) */}
+            {currentCategory.id === 'cat-numbers' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {currentCategory.items.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    onClick={() => setActiveFlashcardIndex(idx)}
+                    className="group bg-white rounded-2xl p-4 shadow-soft border border-[#F0E4CE] text-left flex items-center gap-4 cursor-pointer hover:border-turquoise hover:translate-y-[-2px] transition-all"
+                  >
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#00BCD4] to-[#0097A7] text-white flex items-center justify-center font-baloo text-3xl font-black shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+                      {item.num}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-baloo font-bold text-lg text-[#3a3226]">
+                          {item.english} • <span className="text-accent">{item.bisaya}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              playAudioWord(item.english, 'en-US');
+                            }}
+                            className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold"
+                            title="English"
+                          >
+                            🔊 EN
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              playAudioWord(item.bisaya, 'fil-PH');
+                            }}
+                            className="p-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 text-[11px] font-bold"
+                            title="Bisaya"
+                          >
+                            🔊 BSY
+                          </button>
+                        </div>
+                      </div>
+                      <div className="text-xl my-1 tracking-wider">{item.visual}</div>
+                      <div className="text-xs text-[#6b5c42] font-semibold">
+                        {item.countText}
+                      </div>
+                      <div className="text-[11px] text-[#8C7A63] mt-0.5">
+                        {item.sample}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 3. COLORS / MGA KOLOR BILINGUAL CARDS (10 Colors) */}
+            {currentCategory.id === 'cat-colors' && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3.5">
+                {currentCategory.items.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    onClick={() => setActiveFlashcardIndex(idx)}
+                    className="group bg-white rounded-2xl p-4 shadow-soft border border-[#F0E4CE] text-center space-y-2 cursor-pointer hover:border-[#FFD93D] hover:translate-y-[-2px] transition-all flex flex-col justify-between"
+                  >
+                    <div>
+                      <div
+                        className="w-16 h-16 rounded-full mx-auto border-4 border-white shadow-md flex items-center justify-center text-2xl group-hover:scale-105 transition-transform"
+                        style={{ backgroundColor: item.colorHex, color: item.textColor || '#FFFFFF' }}
+                      >
+                        {item.icon}
+                      </div>
+                      <div className="mt-2.5">
+                        <div className="font-baloo font-bold text-base text-[#3a3226] leading-tight">
+                          {item.english}
+                        </div>
+                        <div className="text-xs font-bold text-accent">
+                          {item.bisaya}
+                        </div>
+                      </div>
+                      <div className="text-[11px] text-[#7a7a7a] leading-tight mt-1">
+                        {item.sample}
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-gray-100 flex items-center justify-center gap-1.5 mt-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          playAudioWord(item.english, 'en-US');
+                        }}
+                        className="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10.5px] font-extrabold"
+                      >
+                        🔊 EN
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          playAudioWord(item.bisaya, 'fil-PH');
+                        }}
+                        className="px-2 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10.5px] font-extrabold"
+                      >
+                        🔊 BSY
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 4. SHAPES / MGA PORMA BILINGUAL CARDS (8 Shapes) */}
             {currentCategory.id === 'cat-shapes' && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {currentCategory.items.map((item) => (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+                {currentCategory.items.map((item, idx) => (
                   <div
                     key={item.id}
-                    className="bg-white rounded-2xl p-4 shadow-soft border border-[#F0E4CE] text-center space-y-1.5 hover:translate-y-[-2px] transition-transform"
+                    onClick={() => setActiveFlashcardIndex(idx)}
+                    className="group bg-white rounded-2xl p-4 shadow-soft border border-[#F0E4CE] text-center space-y-2 cursor-pointer hover:border-leaf hover:translate-y-[-2px] transition-all flex flex-col justify-between"
                   >
-                    <div className="text-4xl">{item.icon}</div>
-                    <div className="font-baloo font-bold text-base text-[#3a3226]">
-                      {item.english}
+                    <div>
+                      <div className="text-5xl my-1 group-hover:scale-110 transition-transform">
+                        {item.icon}
+                      </div>
+                      <div className="font-baloo font-bold text-base text-[#3a3226]">
+                        {item.english}
+                      </div>
+                      <div className="text-xs font-bold text-[#2E7D32] bg-emerald-50 px-2.5 py-0.5 rounded-full inline-block mt-0.5">
+                        {item.bisaya}
+                      </div>
+                      <div className="text-[11px] text-[#7a7a7a] leading-tight pt-1.5 line-clamp-2">
+                        {item.sample}
+                      </div>
                     </div>
-                    <div className="text-xs font-bold text-[#2E7D32] bg-emerald-50 px-2 py-0.5 rounded-full inline-block">
-                      {item.bisaya}
-                    </div>
-                    <div className="text-[11px] text-[#7a7a7a] leading-tight pt-1">
-                      {item.sample}
+
+                    <div className="pt-2 border-t border-gray-100 flex items-center justify-center gap-1.5 mt-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          playAudioWord(item.english, 'en-US');
+                        }}
+                        className="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10.5px] font-extrabold"
+                      >
+                        🔊 EN
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          playAudioWord(item.bisaya, 'fil-PH');
+                        }}
+                        className="px-2 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10.5px] font-extrabold"
+                      >
+                        🔊 BSY
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
             )}
 
-            {/* 5. ANIMALS / MGA HAYOP BILINGUAL CARDS */}
+            {/* 5. ANIMALS / MGA HAYOP BILINGUAL CARDS (12 Animals) */}
             {currentCategory.id === 'cat-animals' && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {currentCategory.items.map((item) => (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
+                {currentCategory.items.map((item, idx) => (
                   <div
                     key={item.id}
-                    className="bg-white rounded-2xl p-4 shadow-soft border border-[#F0E4CE] text-center space-y-1 hover:translate-y-[-2px] transition-transform"
+                    onClick={() => setActiveFlashcardIndex(idx)}
+                    className="group bg-white rounded-2xl p-4 shadow-soft border border-[#F0E4CE] text-center space-y-1.5 cursor-pointer hover:border-purple hover:translate-y-[-2px] transition-all flex flex-col justify-between"
                   >
-                    <div className="text-4xl my-1">{item.icon}</div>
-                    <div className="font-baloo font-bold text-base text-[#3a3226]">
-                      {item.english}
+                    <div>
+                      <div className="text-5xl my-1 group-hover:scale-110 transition-transform">
+                        {item.icon}
+                      </div>
+                      <div className="font-baloo font-bold text-base text-[#3a3226]">
+                        {item.english}
+                      </div>
+                      <div className="text-xs font-bold text-[#6A1B9A] bg-purple-50 px-2 py-0.5 rounded-full inline-block">
+                        {item.bisaya}
+                      </div>
+                      <div className="text-xs font-black text-coral pt-1">
+                        Sound: "{item.sound}"
+                      </div>
+                      <div className="text-[10.5px] text-[#7a7a7a] leading-tight line-clamp-2 mt-1">
+                        {item.note}
+                      </div>
                     </div>
-                    <div className="text-xs font-bold text-[#6A1B9A] bg-purple-50 px-2 py-0.5 rounded-full inline-block">
-                      {item.bisaya}
-                    </div>
-                    <div className="text-xs font-extrabold text-coral pt-1">
-                      Sound: "{item.sound}"
-                    </div>
-                    <div className="text-[10.5px] text-[#7a7a7a] leading-tight">
-                      {item.note}
+
+                    <div className="pt-2 border-t border-gray-100 flex items-center justify-center gap-1.5 mt-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          playAudioWord(item.english, 'en-US');
+                        }}
+                        className="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10.5px] font-extrabold"
+                      >
+                        🔊 EN
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          playAudioWord(item.bisaya, 'fil-PH');
+                        }}
+                        className="px-2 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10.5px] font-extrabold"
+                      >
+                        🔊 BSY
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -778,72 +1036,146 @@ export default function StudentDashboard({ profile }) {
               <div className="space-y-4">
                 {selectedStory ? (
                   <div className="bg-white rounded-3xl p-6 shadow-soft border border-[#F0E4CE] space-y-4">
-                    <button
-                      onClick={() => setSelectedStory(null)}
-                      className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-xs font-bold text-[#3a3226] mb-2"
-                    >
-                      ⬅ Back to Story List
-                    </button>
-                    <div className="flex items-center gap-3">
-                      <span className="text-4xl">{selectedStory.icon}</span>
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <button
+                        onClick={() => {
+                          window.speechSynthesis?.cancel();
+                          setSelectedStory(null);
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-xs font-bold text-[#3a3226] cursor-pointer"
+                      >
+                        ⬅ Back to Stories List
+                      </button>
+
+                      {/* Language filter for reader */}
+                      <div className="flex items-center gap-1 p-1 bg-amber-50 rounded-xl border border-amber-200">
+                        <button
+                          onClick={() => setStoryLanguageTab('both')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                            storyLanguageTab === 'both' ? 'bg-white text-dash-ink shadow-xs' : 'text-[#8C6200]'
+                          }`}
+                        >
+                          ✨ Both
+                        </button>
+                        <button
+                          onClick={() => setStoryLanguageTab('en')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                            storyLanguageTab === 'en' ? 'bg-white text-dash-ink shadow-xs' : 'text-[#8C6200]'
+                          }`}
+                        >
+                          📖 English
+                        </button>
+                        <button
+                          onClick={() => setStoryLanguageTab('bis')}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                            storyLanguageTab === 'bis' ? 'bg-white text-dash-ink shadow-xs' : 'text-[#8C6200]'
+                          }`}
+                        >
+                          🌺 Bisaya
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Story Header */}
+                    <div className="flex items-center gap-3.5 pb-2 border-b border-gray-100">
+                      <span className="text-5xl">{selectedStory.icon}</span>
                       <div>
-                        <h3 className="font-baloo text-xl font-bold text-[#3a3226] m-0">
+                        <div className="text-[11px] font-bold text-accent uppercase tracking-wider">
+                          {selectedStory.theme}
+                        </div>
+                        <h3 className="font-baloo text-xl font-black text-[#3a3226] m-0">
                           {selectedStory.english}
                         </h3>
-                        <div className="text-sm font-bold text-accent">
+                        <div className="text-sm font-bold text-coral-deep italic">
                           {selectedStory.bisaya}
                         </div>
                       </div>
                     </div>
 
-                    <div className="space-y-3 pt-2 text-sm leading-relaxed">
-                      <div className="bg-amber-50/70 p-4 rounded-2xl border border-amber-200">
-                        <div className="text-xs font-bold text-accent uppercase mb-1">
-                          📖 English Story
-                        </div>
-                        <p className="m-0 text-[#3a3226] font-medium leading-relaxed">
-                          {selectedStory.storyEnglish}
-                        </p>
-                      </div>
-
-                      <div className="bg-orange-50/70 p-4 rounded-2xl border border-orange-200">
-                        <div className="text-xs font-bold text-coral-deep uppercase mb-1">
-                          🌺 Sugilanon sa Bisaya
-                        </div>
-                        <p className="m-0 text-[#3a3226] font-medium leading-relaxed">
-                          {selectedStory.storyBisaya}
-                        </p>
-                      </div>
+                    {/* Audio read-aloud buttons */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => playAudioWord(selectedStory.storyEnglish, 'en-US')}
+                        className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-blue-200"
+                      >
+                        <span>🔊</span>
+                        <span>Read in English</span>
+                      </button>
+                      <button
+                        onClick={() => playAudioWord(selectedStory.storyBisaya, 'fil-PH')}
+                        className="px-3 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-700 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-orange-200"
+                      >
+                        <span>🌺</span>
+                        <span>Paminaw sa Bisaya</span>
+                      </button>
+                      <button
+                        onClick={() => window.speechSynthesis?.cancel()}
+                        className="px-2.5 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <span>⏹️</span>
+                        <span>Stop Audio</span>
+                      </button>
                     </div>
 
-                    <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200 text-xs font-bold text-emerald-800">
-                      💡 {selectedStory.lesson}
+                    {/* Story paragraphs */}
+                    <div className="space-y-3 pt-2 text-sm leading-relaxed">
+                      {(storyLanguageTab === 'both' || storyLanguageTab === 'en') && (
+                        <div className="bg-amber-50/70 p-4.5 rounded-2xl border border-amber-200">
+                          <div className="text-xs font-extrabold text-accent uppercase mb-1.5 flex items-center gap-1">
+                            <span>📖</span>
+                            <span>English Story</span>
+                          </div>
+                          <p className="m-0 text-[#3a3226] font-medium leading-relaxed text-[15px]">
+                            {selectedStory.storyEnglish}
+                          </p>
+                        </div>
+                      )}
+
+                      {(storyLanguageTab === 'both' || storyLanguageTab === 'bis') && (
+                        <div className="bg-orange-50/70 p-4.5 rounded-2xl border border-orange-200">
+                          <div className="text-xs font-extrabold text-coral-deep uppercase mb-1.5 flex items-center gap-1">
+                            <span>🌺</span>
+                            <span>Sugilanon sa Bisaya</span>
+                          </div>
+                          <p className="m-0 text-[#3a3226] font-medium leading-relaxed text-[15px]">
+                            {selectedStory.storyBisaya}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-200 text-xs font-bold text-emerald-800 flex items-center gap-2">
+                      <span className="text-lg">💡</span>
+                      <span>{selectedStory.lesson}</span>
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     {currentCategory.items.map((story) => (
                       <div
                         key={story.id}
                         onClick={() => setSelectedStory(story)}
-                        className="bg-white rounded-2xl p-4 shadow-soft border border-[#F0E4CE] flex items-center justify-between gap-3 cursor-pointer hover:translate-x-1 transition-transform"
+                        className="bg-white rounded-2xl p-4.5 shadow-soft border border-[#F0E4CE] flex items-start justify-between gap-3 cursor-pointer hover:border-orange hover:translate-y-[-2px] transition-all"
                       >
-                        <div className="flex items-center gap-3">
-                          <span className="text-3xl shrink-0">{story.icon}</span>
+                        <div className="flex items-start gap-3.5">
+                          <span className="text-4xl shrink-0 mt-0.5">{story.icon}</span>
                           <div>
-                            <div className="font-baloo font-bold text-base text-[#3a3226]">
+                            <div className="text-[10.5px] font-bold text-accent uppercase">
+                              {story.theme}
+                            </div>
+                            <div className="font-baloo font-bold text-base text-[#3a3226] leading-snug">
                               {story.english}
                             </div>
-                            <div className="text-xs font-bold text-accent">
+                            <div className="text-xs font-bold text-coral-deep italic">
                               {story.bisaya}
                             </div>
-                            <div className="text-[11.5px] text-[#7a7a7a] mt-0.5 line-clamp-1">
+                            <div className="text-[11.5px] text-[#7a7a7a] mt-1.5 line-clamp-2">
                               {story.summary}
                             </div>
                           </div>
                         </div>
-                        <span className="text-xs font-bold text-accent bg-orange-50 px-2.5 py-1 rounded-lg shrink-0">
-                          Read Story →
+                        <span className="text-xs font-bold text-accent bg-orange-50 px-2.5 py-1 rounded-lg shrink-0 mt-1">
+                          Read →
                         </span>
                       </div>
                     ))}
@@ -1080,6 +1412,152 @@ export default function StudentDashboard({ profile }) {
             </div>
           </div>
         )}
+
+        {/* ======================================================== */}
+        {/* 🎴 INTERACTIVE BIG FLASHCARD MODAL (Toddler Learning)   */}
+        {/* ======================================================== */}
+        {activeFlashcardIndex !== null && currentCategory?.items?.[activeFlashcardIndex] && (() => {
+          const item = currentCategory.items[activeFlashcardIndex];
+          const total = currentCategory.items.length;
+          const hasPrev = activeFlashcardIndex > 0;
+          const hasNext = activeFlashcardIndex < total - 1;
+
+          return (
+            <div
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in"
+              onClick={() => setActiveFlashcardIndex(null)}
+            >
+              <div
+                className="bg-cream w-full max-w-md rounded-[32px] p-6 shadow-2xl border-4 border-white text-center relative animate-pop space-y-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal Top Bar */}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-[#8C6200] bg-[#FFF3D6] px-3 py-1 rounded-full border border-amber-200">
+                    {currentCategory.name} • {currentCategory.bisayaName} ({activeFlashcardIndex + 1}/{total})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveFlashcardIndex(null)}
+                    className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold flex items-center justify-center cursor-pointer transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Card Display Area */}
+                <div className="bg-white rounded-3xl p-6 shadow-soft border border-[#F0E4CE] space-y-3">
+                  {/* Big Letter / Number / Color / Shape / Animal Visual */}
+                  {item.letter && (
+                    <div className="font-baloo text-5xl font-black text-coral leading-none">
+                      {item.letter}
+                    </div>
+                  )}
+
+                  {item.num !== undefined && (
+                    <div className="w-20 h-20 mx-auto rounded-3xl bg-gradient-to-br from-[#00BCD4] to-[#0097A7] text-white flex items-center justify-center font-baloo text-5xl font-black shadow-md">
+                      {item.num}
+                    </div>
+                  )}
+
+                  {item.colorHex && (
+                    <div
+                      className="w-24 h-24 mx-auto rounded-full border-4 border-white shadow-lg flex items-center justify-center text-4xl"
+                      style={{ backgroundColor: item.colorHex, color: item.textColor || '#FFFFFF' }}
+                    >
+                      {item.icon}
+                    </div>
+                  )}
+
+                  {item.icon && !item.colorHex && (
+                    <div className="text-7xl my-2 drop-shadow-sm">
+                      {item.icon}
+                    </div>
+                  )}
+
+                  {item.visual && (
+                    <div className="text-2xl tracking-widest my-1">{item.visual}</div>
+                  )}
+
+                  {/* Names in English & Bisaya */}
+                  <div>
+                    <h3 className="font-baloo text-3xl font-black text-[#3a3226] m-0 leading-tight">
+                      {item.english}
+                    </h3>
+                    <div className="text-xl font-extrabold text-coral-deep italic mt-0.5">
+                      {item.bisaya}
+                    </div>
+                  </div>
+
+                  {/* Pronunciation & Sample */}
+                  {item.phonetic && (
+                    <div className="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1 rounded-full inline-block">
+                      Phonics: {item.phonetic}
+                    </div>
+                  )}
+
+                  {item.countText && (
+                    <div className="text-sm font-bold text-[#6b5c42]">
+                      {item.countText}
+                    </div>
+                  )}
+
+                  {item.sound && (
+                    <div className="text-base font-black text-coral">
+                      Sound: "{item.sound}"
+                    </div>
+                  )}
+
+                  {(item.note || item.sample || item.hint) && (
+                    <p className="text-xs text-[#6b5c42] bg-[#FFFDF8] p-3 rounded-2xl border border-[#F0E4CE] m-0 font-medium leading-relaxed">
+                      {item.note || item.sample || item.hint}
+                    </p>
+                  )}
+
+                  {/* Audio Pronunciation Buttons */}
+                  <div className="flex items-center justify-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => playAudioWord(item.english, 'en-US')}
+                      className="px-4 py-2 rounded-xl bg-blue-100 hover:bg-blue-200 text-blue-800 font-baloo font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <span>🔊</span>
+                      <span>English ({item.english})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => playAudioWord(item.bisaya, 'fil-PH')}
+                      className="px-4 py-2 rounded-xl bg-orange-100 hover:bg-orange-200 text-orange-800 font-baloo font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <span>🌺</span>
+                      <span>Bisaya ({item.bisaya})</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Modal Bottom Controls: Previous / Next */}
+                <div className="flex items-center justify-between gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => hasPrev && setActiveFlashcardIndex(activeFlashcardIndex - 1)}
+                    disabled={!hasPrev}
+                    className="flex-1 py-2.5 rounded-2xl bg-white border border-[#E6E6E6] font-baloo font-bold text-xs text-[#3a3226] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50 cursor-pointer shadow-xs"
+                  >
+                    ◀ Previous / Niagi
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => hasNext && setActiveFlashcardIndex(activeFlashcardIndex + 1)}
+                    disabled={!hasNext}
+                    className="flex-1 py-2.5 rounded-2xl bg-coral hover:bg-coral-deep text-white font-baloo font-bold text-xs disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-bump"
+                  >
+                    Next / Sunod ▶
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

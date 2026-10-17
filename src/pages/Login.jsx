@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase, normalizeAuthIdentifier } from '../lib/supabaseClient';
 import { getEffectiveRole } from '../lib/roles.js';
+import { syncStudentLogin } from '../lib/learnersService.js';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -74,6 +75,15 @@ export default function Login() {
 
     const roleTag = effectiveRole === 'superadmin' ? ' • Superadmin' : '';
     setMsg({ text: `✅ Welcome, ${profile.full_name || user.email}!${roleTag}`, type: 'ok' });
+
+    // Link student to teacher dashboard according to assigned barangay upon successful login
+    if (effectiveRole === 'student' || (!effectiveRole && profile?.role === 'student')) {
+      try {
+        await syncStudentLogin(user, profile);
+      } catch (err) {
+        console.warn('Could not sync student login to teacher dashboard:', err);
+      }
+    }
 
     setTimeout(() => {
       if (effectiveRole === 'superadmin' || effectiveRole === 'admin') {
