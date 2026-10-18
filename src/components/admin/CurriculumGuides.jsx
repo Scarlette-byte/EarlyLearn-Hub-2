@@ -65,6 +65,15 @@ export default function CurriculumGuides({
   const [schoolYear, setSchoolYear] = useState('2026-2027');
   const [assignSuccessMsg, setAssignSuccessMsg] = useState('');
 
+  // Enhanced topic and deadline assignment states
+  const [assignmentDeadline, setAssignmentDeadline] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().split('T')[0];
+  });
+  const [selectedSpecificTopic, setSelectedSpecificTopic] = useState(null);
+  const [adminNotes, setAdminNotes] = useState('');
+
   // Active Curriculum Data depending on tab
   const currentCurriculum = selectedLevel === 'PRE-K1' ? preK1Curriculum : preK2Curriculum;
 
@@ -108,8 +117,8 @@ export default function CurriculumGuides({
     ).length;
   };
 
-  // Open modal with pre-selected quarter and optional specific week
-  const handleOpenAssignModal = (quarterNum = null, specificWeek = null) => {
+  // Open modal with pre-selected quarter, optional specific week, and optional topic details
+  const handleOpenAssignModal = (quarterNum = null, specificWeek = null, specificTopicObj = null) => {
     if (quarterNum) {
       setSelectedQuarterForModal(quarterNum);
       setSelectedQuartersForAssign([quarterNum]);
@@ -124,8 +133,16 @@ export default function CurriculumGuides({
       setWeekScopeMode('all');
       setSelectedWeeksForAssign([]);
     }
+
+    setSelectedSpecificTopic(specificTopicObj || null);
     setSelectedLevelForAssign(selectedLevel === 'PRE-K1' ? 'Pre-K1' : 'Pre-K2');
     setAssignSuccessMsg('');
+
+    // Default deadline to 7 days ahead
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    setAssignmentDeadline(d.toISOString().split('T')[0]);
+    setAdminNotes('');
     setAssignModalOpen(true);
   };
 
@@ -152,38 +169,46 @@ export default function CurriculumGuides({
     let newAssignmentsList = [...assignments];
     const targetWeeks = weekScopeMode === 'all' || selectedWeeksForAssign.length === 0 ? 'all' : selectedWeeksForAssign;
 
+    const resolvedTopic =
+      selectedSpecificTopic?.subTheme ||
+      (weekScopeMode === 'specific' && selectedWeeksForAssign.length === 1
+        ? availableWeeksInModal.find((w) => w.week === selectedWeeksForAssign[0])?.subTheme
+        : '') ||
+      'Curriculum Learning Topic';
+
+    const resolvedWeekStr =
+      selectedSpecificTopic?.week ||
+      (Array.isArray(targetWeeks) && targetWeeks.length === 1
+        ? targetWeeks[0]
+        : targetWeeks === 'all'
+        ? 'All Weeks'
+        : (targetWeeks[0] || 'Week 1'));
+
     if (targetType === 'all') {
       realTeachersList.forEach((teacher) => {
-        const existingIdx = newAssignmentsList.findIndex(
-          (a) => a.teacherId === teacher.id && a.level === selectedLevelForAssign
-        );
-        if (existingIdx >= 0) {
-          const prevWeeks = newAssignmentsList[existingIdx].weeks;
-          const mergedWeeks = targetWeeks === 'all' || prevWeeks === 'all'
-            ? 'all'
-            : Array.from(new Set([...(Array.isArray(prevWeeks) ? prevWeeks : []), ...(Array.isArray(targetWeeks) ? targetWeeks : [])]));
-
-          newAssignmentsList[existingIdx] = {
-            ...newAssignmentsList[existingIdx],
-            quarters: Array.from(new Set([...newAssignmentsList[existingIdx].quarters, ...selectedQuartersForAssign])),
-            weeks: mergedWeeks,
-            schoolYear,
-          };
-        } else {
-          newAssignmentsList.push({
-            id: 'asg-' + Date.now() + '-' + teacher.id,
-            teacherId: teacher.id,
-            teacherName: teacher.full_name,
-            barangay: teacher.barangay,
-            cdcName: teacher.cdc_name,
-            level: selectedLevelForAssign,
-            quarters: selectedQuartersForAssign,
-            weeks: targetWeeks,
-            schoolYear,
-            status: 'Active',
-            assignedDate: new Date().toISOString().split('T')[0],
-          });
-        }
+        const newAssignmentObj = {
+          id: 'asg-' + Date.now() + '-' + teacher.id,
+          teacherId: teacher.id,
+          teacherName: teacher.full_name,
+          barangay: teacher.barangay,
+          cdcName: teacher.cdc_name,
+          level: selectedLevelForAssign,
+          quarters: selectedQuartersForAssign,
+          quarter: selectedQuartersForAssign[0] || 1,
+          weeks: targetWeeks,
+          week: resolvedWeekStr,
+          topicTitle: resolvedTopic,
+          subTheme: resolvedTopic,
+          theme: selectedSpecificTopic?.theme || (selectedLevelForAssign === 'Pre-K1' ? 'TELL ME ABOUT YOURSELF' : 'MORE ABOUT MYSELF AND MY SCHOOL'),
+          suggestedContent: selectedSpecificTopic?.suggestedContent || '',
+          suggestedActivities: selectedSpecificTopic?.suggestedActivities || '',
+          deadline: assignmentDeadline,
+          notes: adminNotes.trim(),
+          schoolYear,
+          status: 'Pending',
+          assignedDate: new Date().toISOString().split('T')[0],
+        };
+        newAssignmentsList.push(newAssignmentObj);
       });
     } else if (targetType === 'teacher') {
       const teacher = realTeachersList.find((t) => t.id === selectedTeacherId);
@@ -192,40 +217,29 @@ export default function CurriculumGuides({
         return;
       }
 
-      // Check if already assigned this level
-      const existingIdx = newAssignmentsList.findIndex(
-        (a) => a.teacherId === teacher.id && a.level === selectedLevelForAssign
-      );
-
       const newAssignmentObj = {
-        id: 'asg-' + Date.now(),
+        id: 'asg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
         teacherId: teacher.id,
         teacherName: teacher.full_name,
         barangay: teacher.barangay,
         cdcName: teacher.cdc_name,
         level: selectedLevelForAssign,
         quarters: selectedQuartersForAssign,
+        quarter: selectedQuartersForAssign[0] || 1,
         weeks: targetWeeks,
+        week: resolvedWeekStr,
+        topicTitle: resolvedTopic,
+        subTheme: resolvedTopic,
+        theme: selectedSpecificTopic?.theme || (selectedLevelForAssign === 'Pre-K1' ? 'TELL ME ABOUT YOURSELF' : 'MORE ABOUT MYSELF AND MY SCHOOL'),
+        suggestedContent: selectedSpecificTopic?.suggestedContent || '',
+        suggestedActivities: selectedSpecificTopic?.suggestedActivities || '',
+        deadline: assignmentDeadline,
+        notes: adminNotes.trim(),
         schoolYear,
-        status: 'Active',
+        status: 'Pending',
         assignedDate: new Date().toISOString().split('T')[0],
       };
-
-      if (existingIdx >= 0) {
-        const prevWeeks = newAssignmentsList[existingIdx].weeks;
-        const mergedWeeks = targetWeeks === 'all' || prevWeeks === 'all'
-          ? 'all'
-          : Array.from(new Set([...(Array.isArray(prevWeeks) ? prevWeeks : []), ...(Array.isArray(targetWeeks) ? targetWeeks : [])]));
-
-        newAssignmentsList[existingIdx] = {
-          ...newAssignmentsList[existingIdx],
-          quarters: Array.from(new Set([...newAssignmentsList[existingIdx].quarters, ...selectedQuartersForAssign])),
-          weeks: mergedWeeks,
-          schoolYear,
-        };
-      } else {
-        newAssignmentsList.push(newAssignmentObj);
-      }
+      newAssignmentsList.push(newAssignmentObj);
     } else if (targetType === 'barangay') {
       if (!selectedBarangayForAssign) {
         alert('Please select a Barangay.');
@@ -238,35 +252,28 @@ export default function CurriculumGuides({
       }
 
       teachersInBrgy.forEach((teacher) => {
-        const existingIdx = newAssignmentsList.findIndex(
-          (a) => a.teacherId === teacher.id && a.level === selectedLevelForAssign
-        );
-        if (existingIdx >= 0) {
-          const prevWeeks = newAssignmentsList[existingIdx].weeks;
-          const mergedWeeks = targetWeeks === 'all' || prevWeeks === 'all'
-            ? 'all'
-            : Array.from(new Set([...(Array.isArray(prevWeeks) ? prevWeeks : []), ...(Array.isArray(targetWeeks) ? targetWeeks : [])]));
-
-          newAssignmentsList[existingIdx] = {
-            ...newAssignmentsList[existingIdx],
-            quarters: Array.from(new Set([...newAssignmentsList[existingIdx].quarters, ...selectedQuartersForAssign])),
-            weeks: mergedWeeks,
-          };
-        } else {
-          newAssignmentsList.push({
-            id: 'asg-' + Date.now() + '-' + teacher.id,
-            teacherId: teacher.id,
-            teacherName: teacher.full_name,
-            barangay: teacher.barangay,
-            cdcName: teacher.cdc_name,
-            level: selectedLevelForAssign,
-            quarters: selectedQuartersForAssign,
-            weeks: targetWeeks,
-            schoolYear,
-            status: 'Active',
-            assignedDate: new Date().toISOString().split('T')[0],
-          });
-        }
+        newAssignmentsList.push({
+          id: 'asg-' + Date.now() + '-' + teacher.id,
+          teacherId: teacher.id,
+          teacherName: teacher.full_name,
+          barangay: teacher.barangay,
+          cdcName: teacher.cdc_name,
+          level: selectedLevelForAssign,
+          quarters: selectedQuartersForAssign,
+          quarter: selectedQuartersForAssign[0] || 1,
+          weeks: targetWeeks,
+          week: resolvedWeekStr,
+          topicTitle: resolvedTopic,
+          subTheme: resolvedTopic,
+          theme: selectedSpecificTopic?.theme || (selectedLevelForAssign === 'Pre-K1' ? 'TELL ME ABOUT YOURSELF' : 'MORE ABOUT MYSELF AND MY SCHOOL'),
+          suggestedContent: selectedSpecificTopic?.suggestedContent || '',
+          suggestedActivities: selectedSpecificTopic?.suggestedActivities || '',
+          deadline: assignmentDeadline,
+          notes: adminNotes.trim(),
+          schoolYear,
+          status: 'Pending',
+          assignedDate: new Date().toISOString().split('T')[0],
+        });
       });
     } else if (targetType === 'cdc') {
       if (!selectedCdcForAssign) {
@@ -280,46 +287,40 @@ export default function CurriculumGuides({
       }
 
       teachersInCdc.forEach((teacher) => {
-        const existingIdx = newAssignmentsList.findIndex(
-          (a) => a.teacherId === teacher.id && a.level === selectedLevelForAssign
-        );
-        if (existingIdx >= 0) {
-          const prevWeeks = newAssignmentsList[existingIdx].weeks;
-          const mergedWeeks = targetWeeks === 'all' || prevWeeks === 'all'
-            ? 'all'
-            : Array.from(new Set([...(Array.isArray(prevWeeks) ? prevWeeks : []), ...(Array.isArray(targetWeeks) ? targetWeeks : [])]));
-
-          newAssignmentsList[existingIdx] = {
-            ...newAssignmentsList[existingIdx],
-            quarters: Array.from(new Set([...newAssignmentsList[existingIdx].quarters, ...selectedQuartersForAssign])),
-            weeks: mergedWeeks,
-          };
-        } else {
-          newAssignmentsList.push({
-            id: 'asg-' + Date.now() + '-' + teacher.id,
-            teacherId: teacher.id,
-            teacherName: teacher.full_name,
-            barangay: teacher.barangay,
-            cdcName: teacher.cdc_name,
-            level: selectedLevelForAssign,
-            quarters: selectedQuartersForAssign,
-            weeks: targetWeeks,
-            schoolYear,
-            status: 'Active',
-            assignedDate: new Date().toISOString().split('T')[0],
-          });
-        }
+        newAssignmentsList.push({
+          id: 'asg-' + Date.now() + '-' + teacher.id,
+          teacherId: teacher.id,
+          teacherName: teacher.full_name,
+          barangay: teacher.barangay,
+          cdcName: teacher.cdc_name,
+          level: selectedLevelForAssign,
+          quarters: selectedQuartersForAssign,
+          quarter: selectedQuartersForAssign[0] || 1,
+          weeks: targetWeeks,
+          week: resolvedWeekStr,
+          topicTitle: resolvedTopic,
+          subTheme: resolvedTopic,
+          theme: selectedSpecificTopic?.theme || (selectedLevelForAssign === 'Pre-K1' ? 'TELL ME ABOUT YOURSELF' : 'MORE ABOUT MYSELF AND MY SCHOOL'),
+          suggestedContent: selectedSpecificTopic?.suggestedContent || '',
+          suggestedActivities: selectedSpecificTopic?.suggestedActivities || '',
+          deadline: assignmentDeadline,
+          notes: adminNotes.trim(),
+          schoolYear,
+          status: 'Pending',
+          assignedDate: new Date().toISOString().split('T')[0],
+        });
       });
     }
 
     setAssignments(newAssignmentsList);
     try {
       localStorage.setItem('earlylearn_curriculum_assignments', JSON.stringify(newAssignmentsList));
+      window.dispatchEvent(new CustomEvent('earlylearn_assignments_updated', { detail: newAssignmentsList }));
     } catch {
       // Ignored
     }
 
-    setAssignSuccessMsg('✅ Curriculum Guide successfully assigned!');
+    setAssignSuccessMsg(`✅ Topic "${resolvedTopic}" assigned successfully with deadline ${assignmentDeadline}!`);
     setTimeout(() => {
       setAssignModalOpen(false);
       setAssignSuccessMsg('');
@@ -632,11 +633,21 @@ export default function CurriculumGuides({
                               </span>
                               <button
                                 type="button"
-                                onClick={() => handleOpenAssignModal(q.quarterNumber, w.week)}
-                                className="text-[10px] font-semibold text-slate-700 hover:text-white bg-slate-100 hover:bg-slate-900 border border-slate-300 px-1.5 py-0.5 rounded cursor-pointer transition-colors shadow-2xs whitespace-nowrap"
-                                title={`Assign ${w.week} specifically to a teacher`}
+                                onClick={() =>
+                                  handleOpenAssignModal(q.quarterNumber, w.week, {
+                                    quarterNumber: q.quarterNumber,
+                                    week: w.week,
+                                    subTheme: w.subTheme,
+                                    theme: q.theme,
+                                    suggestedActivities: w.suggestedActivities,
+                                    suggestedContent: q.suggestedContent,
+                                  })
+                                }
+                                className="text-[10.5px] font-bold text-accent hover:text-white bg-amber-50 hover:bg-accent border border-amber-300 px-2 py-0.5 rounded-md cursor-pointer transition-colors shadow-2xs whitespace-nowrap flex items-center gap-1"
+                                title={`Assign "${w.subTheme}" (${w.week}) to teacher`}
                               >
-                                + Assign Week
+                                <span>🎯</span>
+                                <span>+ Assign Topic</span>
                               </button>
                             </div>
                           </td>
@@ -791,9 +802,10 @@ export default function CurriculumGuides({
                 <tr className="bg-[#FAF5EC] border-b border-card-border text-[11px] font-bold text-[#8C7F63] uppercase">
                   <th className="px-4 py-3">Teacher / Child Development Worker</th>
                   <th className="px-4 py-3">Barangay &amp; Child Development Center</th>
-                  <th className="px-4 py-3 text-center">Curriculum Level</th>
-                  <th className="px-4 py-3">Assigned Coverage (Quarter &amp; Week)</th>
-                  <th className="px-4 py-3 text-center">Uploaded Modules</th>
+                  <th className="px-4 py-3 text-center">Level</th>
+                  <th className="px-4 py-3">Assigned Topic &amp; Focus</th>
+                  <th className="px-4 py-3 text-center">Submission Deadline</th>
+                  <th className="px-4 py-3 text-center">Uploaded</th>
                   <th className="px-4 py-3 text-center">Status</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
@@ -801,8 +813,10 @@ export default function CurriculumGuides({
               <tbody className="divide-y divide-[#F6F1E7]">
                 {filteredAssignments.map((asg) => {
                   const teacherModules = initialTeacherModules.filter(
-                    (m) => m.teacher_name === asg.teacherName || m.teacher_id === asg.teacherId
+                    (m) => m.teacher_name === asg.teacherName || m.teacher_id === asg.teacherId || m.assignment_id === asg.id
                   );
+                  const isPastDeadline = asg.deadline && new Date(asg.deadline + 'T23:59:59') < new Date();
+                  const isCompleted = asg.status === 'Completed' || teacherModules.length > 0;
 
                   return (
                     <tr key={asg.id} className="hover:bg-[#FFFDF9] transition-colors">
@@ -838,26 +852,58 @@ export default function CurriculumGuides({
 
                       <td className="px-4 py-3.5">
                         <div className="font-bold text-slate-800 text-xs">
-                          {formatAssignmentCoverage(asg)}
+                          {asg.topicTitle || formatAssignmentCoverage(asg)}
                         </div>
+                        {asg.subTheme && (
+                          <div className="text-[11px] text-slate-500 mt-0.5 line-clamp-1 italic">
+                            Focus: {asg.subTheme}
+                          </div>
+                        )}
                         <div className="flex flex-wrap gap-1 mt-1">
                           {asg.quarters.map((q) => (
                             <span
                               key={q}
-                              className="px-2 py-0.5 bg-[#FAF3E8] border border-[#E8DFC9] rounded-md text-[10.5px] font-bold text-[#5C5036]"
+                              className="px-2 py-0.5 bg-[#FAF3E8] border border-[#E8DFC9] rounded-md text-[10px] font-bold text-[#5C5036]"
                             >
-                              Quarter {q}
+                              Q{q}
                             </span>
                           ))}
                           {asg.weeks && asg.weeks !== 'all' && Array.isArray(asg.weeks) && asg.weeks.map((w) => (
                             <span
                               key={w}
-                              className="px-2 py-0.5 bg-amber-50 border border-amber-300 text-amber-900 rounded-md text-[10.5px] font-bold"
+                              className="px-2 py-0.5 bg-amber-50 border border-amber-300 text-amber-900 rounded-md text-[10px] font-bold"
                             >
                               {w}
                             </span>
                           ))}
                         </div>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                        {asg.deadline ? (
+                          <div className="inline-flex flex-col items-center">
+                            <span
+                              className={`px-2 py-1 rounded-md text-[11px] font-bold flex items-center gap-1 ${
+                                isCompleted
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : isPastDeadline
+                                  ? 'bg-rose-50 text-rose-700 border border-rose-200 animate-pulse'
+                                  : 'bg-amber-50 text-amber-800 border border-amber-200'
+                              }`}
+                            >
+                              📅 {asg.deadline}
+                            </span>
+                            <span className="text-[10px] mt-0.5 font-medium text-slate-500">
+                              {isCompleted
+                                ? '✓ Submitted'
+                                : isPastDeadline
+                                ? '⚠️ Deadline Passed'
+                                : '⏳ Open for Upload'}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 text-xs italic">No deadline set</span>
+                        )}
                       </td>
 
                       <td className="px-4 py-3.5 text-center">
@@ -866,9 +912,17 @@ export default function CurriculumGuides({
                         </span>
                       </td>
 
-                      <td className="px-4 py-3.5 text-center">
-                        <span className="inline-block px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-[#DCEBDD] text-[#2E6B38]">
-                          {asg.status}
+                      <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                        <span
+                          className={`inline-block px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
+                            isCompleted
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              : isPastDeadline
+                              ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                              : 'bg-[#DCEBDD] text-[#2E6B38]'
+                          }`}
+                        >
+                          {isCompleted ? 'Completed' : isPastDeadline ? 'Expired' : asg.status || 'Active'}
                         </span>
                       </td>
 
@@ -1221,6 +1275,86 @@ export default function CurriculumGuides({
                     )}
                   </div>
                 )}
+              </div>
+
+              {/* Assignment Deadline */}
+              <div className="space-y-1.5 p-3 rounded-xl bg-amber-50/80 border border-amber-200">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-amber-950 block">
+                    ⏰ Activity Submission Deadline <span className="text-coral">*</span>
+                  </label>
+                  <span className="text-[10.5px] text-amber-800">
+                    Teacher cannot upload once this deadline expires
+                  </span>
+                </div>
+                <input
+                  type="date"
+                  required
+                  value={assignmentDeadline}
+                  onChange={(e) => setAssignmentDeadline(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-amber-300 bg-white font-bold text-slate-800 outline-none focus:border-accent"
+                />
+                <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                  <span className="text-[10.5px] font-semibold text-slate-500">Quick Presets:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date();
+                      d.setDate(d.getDate() + 3);
+                      setAssignmentDeadline(d.toISOString().split('T')[0]);
+                    }}
+                    className="px-2 py-0.5 rounded bg-white hover:bg-amber-100 border border-amber-200 text-[10.5px] font-semibold text-slate-700 cursor-pointer"
+                  >
+                    +3 Days
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date();
+                      d.setDate(d.getDate() + 7);
+                      setAssignmentDeadline(d.toISOString().split('T')[0]);
+                    }}
+                    className="px-2 py-0.5 rounded bg-white hover:bg-amber-100 border border-amber-200 text-[10.5px] font-semibold text-slate-700 cursor-pointer"
+                  >
+                    +1 Week (7 Days)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date();
+                      d.setDate(d.getDate() + 14);
+                      setAssignmentDeadline(d.toISOString().split('T')[0]);
+                    }}
+                    className="px-2 py-0.5 rounded bg-white hover:bg-amber-100 border border-amber-200 text-[10.5px] font-semibold text-slate-700 cursor-pointer"
+                  >
+                    +2 Weeks
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date();
+                      const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+                      setAssignmentDeadline(endOfMonth.toISOString().split('T')[0]);
+                    }}
+                    className="px-2 py-0.5 rounded bg-white hover:bg-amber-100 border border-amber-200 text-[10.5px] font-semibold text-slate-700 cursor-pointer"
+                  >
+                    End of Month
+                  </button>
+                </div>
+              </div>
+
+              {/* Instructions / Topic Notes for Teacher */}
+              <div className="space-y-1">
+                <label className="font-bold text-dash-ink block">
+                  Instructions / Topic Notes for Teacher <span className="text-slate-400 font-normal">(Optional)</span>
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Please post interactive toddler worksheets and tactile coloring crafts for this topic..."
+                  value={adminNotes}
+                  onChange={(e) => setAdminNotes(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] font-medium text-dash-ink outline-none focus:border-accent text-xs"
+                />
               </div>
 
               {/* School Year */}

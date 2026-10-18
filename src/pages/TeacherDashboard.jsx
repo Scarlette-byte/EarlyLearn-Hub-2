@@ -36,7 +36,7 @@ import {
 
 const TABS = [
   { key: 'overview', label: 'Overview', icon: '📊' },
-  { key: 'curriculum', label: 'Curriculum Guide', icon: '📖' },
+  { key: 'assigned_topics', label: 'Assigned Topics & Tasks', icon: '📋' },
   { key: 'mylearners', label: 'My Learners', icon: '🧒' },
   { key: 'upload', label: 'Uploaded Materials', icon: '📁' },
   { key: 'announcements', label: 'Announcements', icon: '📢' },
@@ -49,7 +49,23 @@ export default function TeacherDashboard({ profile }) {
   const currentUserId = profile.id;
   const [activeTab, setActiveTab] = useState('overview');
 
-  // Curriculum Guide Tab state
+  // MSWD Admin Assigned Topics & Tasks state
+  const [assignments, setAssignments] = useState(() => {
+    try {
+      const saved = localStorage.getItem('earlylearn_curriculum_assignments');
+      return saved ? JSON.parse(saved) : initialCurriculumAssignments;
+    } catch {
+      return initialCurriculumAssignments;
+    }
+  });
+  const [activeAssignmentId, setActiveAssignmentId] = useState(null);
+  const [activeAssignmentDeadline, setActiveAssignmentDeadline] = useState(null);
+  const [topicStatusFilter, setTopicStatusFilter] = useState('all'); // 'all' | 'pending' | 'completed' | 'expired'
+  const [topicLevelFilter, setTopicLevelFilter] = useState('all');
+  const [topicQuarterFilter, setTopicQuarterFilter] = useState('all');
+  const [topicSearchQuery, setTopicSearchQuery] = useState('');
+
+  // Curriculum Guide Tab state (legacy fallback)
   const [curriculumLevel, setCurriculumLevel] = useState('PRE-K1');
   const [curriculumQuarter, setCurriculumQuarter] = useState('all');
   const [curriculumSearch, setCurriculumSearch] = useState('');
@@ -237,8 +253,41 @@ export default function TeacherDashboard({ profile }) {
     });
   }, [combinedUploadedMaterials, uploadedFilterLevel, uploadedFilterQuarter, uploadedFilterType, uploadedSearch]);
 
+  // Open upload modal linked specifically to an admin assigned topic
+  const handleOpenUploadForAssignedTopic = (asg) => {
+    const isPast = Boolean(asg.deadline && new Date(asg.deadline + 'T23:59:59') < new Date());
+    if (isPast) {
+      alert(`⚠️ Cannot upload: The deadline for "${asg.topicTitle || asg.subTheme}" expired on ${asg.deadline}. New uploads are locked.`);
+      return;
+    }
+
+    setActiveAssignmentId(asg.id);
+    setActiveAssignmentDeadline(asg.deadline || null);
+
+    const resolvedLevel = asg.level === 'Pre-K2' ? 'PRE-K2' : 'PRE-K1';
+    setUploadCurriculumLevel(resolvedLevel);
+
+    const resolvedQuarter = asg.quarter || (asg.quarters && asg.quarters[0]) || 1;
+    setUploadQuarter(resolvedQuarter);
+
+    const resolvedWeek = asg.week || (Array.isArray(asg.weeks) ? asg.weeks[0] : 'Week 1');
+    setUploadWeek(resolvedWeek);
+
+    setUploadTheme(asg.theme || (resolvedLevel === 'PRE-K1' ? 'TELL ME ABOUT YOURSELF' : 'MORE ABOUT MYSELF AND MY SCHOOL'));
+    const resolvedTopic = asg.topicTitle || asg.subTheme || 'Prescribed Lesson';
+    setUploadSubTheme(resolvedTopic);
+    setUploadTitle(`[${resolvedLevel} Q${resolvedQuarter} ${resolvedWeek}] ${resolvedTopic}`);
+    setUploadDescription(asg.suggestedActivities || asg.suggestedContent || '');
+    setUploadType('activity');
+    setUploadUrl('');
+    setUploadMsg({ text: '', type: '' });
+    setIsUploadModalOpen(true);
+  };
+
   // Open upload modal with pre-filled curriculum data
   const handleOpenUploadFromCurriculum = (item) => {
+    setActiveAssignmentId(null);
+    setActiveAssignmentDeadline(null);
     setUploadCurriculumLevel(item.level);
     setUploadQuarter(item.quarterNumber);
     setUploadWeek(item.week);
@@ -255,6 +304,8 @@ export default function TeacherDashboard({ profile }) {
 
   // Open clean new upload modal
   const handleOpenNewUpload = () => {
+    setActiveAssignmentId(null);
+    setActiveAssignmentDeadline(null);
     const curr = preK1Curriculum[0];
     const firstWeek = curr.weeks[0];
     setUploadCurriculumLevel('PRE-K1');
@@ -331,9 +382,10 @@ export default function TeacherDashboard({ profile }) {
       console.warn('Note on Supabase insert:', err);
     }
 
-    // 2. Insert to localTeacherModules for cross-dashboard visibility
+    // 2. Insert to localTeacherModules for cross-dashboard visibility & activity monitoring
     const newMod = {
       id: 'mod-' + Date.now(),
+      assignment_id: activeAssignmentId || null,
       title: uploadTitle.trim(),
       teacher_name: profile?.full_name || 'Teacher',
       teacher_id: currentUserId,
@@ -344,8 +396,8 @@ export default function TeacherDashboard({ profile }) {
       week: uploadWeek,
       sub_theme: uploadSubTheme,
       theme: uploadTheme,
-      module_type: uploadType === 'activity' ? 'Activity Worksheet' : uploadType === 'video' ? 'Video Lesson' : uploadType === 'image' ? 'Worksheet Image' : 'Reading Story',
-      file_type: uploadType.toUpperCase(),
+      module_type: uploadType === 'activity' ? 'Activity Worksheet' : uploadType === 'file' ? 'Official PDF Document' : uploadType === 'video' ? 'Video Lesson' : uploadType === 'image' ? 'Worksheet Image' : 'Reading Story',
+      file_type: uploadType === 'video' ? 'MP4' : uploadType === 'file' ? 'PDF' : uploadType.toUpperCase(),
       file_size: '2.4 MB',
       upload_date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
       status: 'Approved',
@@ -362,15 +414,38 @@ export default function TeacherDashboard({ profile }) {
     setLocalTeacherModules(updated);
     try {
       localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updated }));
     } catch {
       // Ignored
     }
 
+    // 3. If fulfilling an admin assigned topic, mark it as Completed!
+    if (activeAssignmentId) {
+      const updatedAssignments = assignments.map((a) =>
+        a.id === activeAssignmentId
+          ? {
+              ...a,
+              status: 'Completed',
+              completedDate: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+            }
+          : a
+      );
+      setAssignments(updatedAssignments);
+      try {
+        localStorage.setItem('earlylearn_curriculum_assignments', JSON.stringify(updatedAssignments));
+        window.dispatchEvent(new CustomEvent('earlylearn_assignments_updated', { detail: updatedAssignments }));
+      } catch (err) {
+        console.warn('Failed saving assignment status:', err);
+      }
+    }
+
     loadMyMaterials();
-    setUploadMsg({ text: '✅ Learning material uploaded and linked to Curriculum Guide!', type: 'ok' });
+    setUploadMsg({ text: '✅ Activity / file posted successfully! Marked topic as completed.', type: 'ok' });
     setTimeout(() => {
       setIsUploadModalOpen(false);
       setUploadMsg({ text: '', type: '' });
+      setActiveAssignmentId(null);
+      setActiveAssignmentDeadline(null);
     }, 1200);
   }
 
@@ -603,6 +678,145 @@ export default function TeacherDashboard({ profile }) {
     };
   }, [loadMyLearners]);
 
+  // Live synchronization: auto-reload admin-assigned curriculum topics and modules
+  useEffect(() => {
+    function handleAssignmentsSync(e) {
+      if (
+        e.type === 'earlylearn_assignments_updated' ||
+        (e.type === 'storage' && e.key === 'earlylearn_curriculum_assignments')
+      ) {
+        try {
+          const saved = localStorage.getItem('earlylearn_curriculum_assignments');
+          if (saved) setAssignments(JSON.parse(saved));
+        } catch (err) {
+          console.warn('Failed syncing assignments:', err);
+        }
+      }
+      if (
+        e.type === 'earlylearn_modules_updated' ||
+        (e.type === 'storage' && e.key === 'earlylearn_teacher_modules')
+      ) {
+        try {
+          const savedMods = localStorage.getItem('earlylearn_teacher_modules');
+          if (savedMods) setLocalTeacherModules(JSON.parse(savedMods));
+        } catch (err) {
+          console.warn('Failed syncing modules:', err);
+        }
+      }
+    }
+
+    window.addEventListener('storage', handleAssignmentsSync);
+    window.addEventListener('earlylearn_assignments_updated', handleAssignmentsSync);
+    window.addEventListener('earlylearn_modules_updated', handleAssignmentsSync);
+    return () => {
+      window.removeEventListener('storage', handleAssignmentsSync);
+      window.removeEventListener('earlylearn_assignments_updated', handleAssignmentsSync);
+      window.removeEventListener('earlylearn_modules_updated', handleAssignmentsSync);
+    };
+  }, []);
+
+  // Filter assignments targeted to this logged-in teacher / CDC / Barangay
+  const myAssignedTopics = useMemo(() => {
+    const teacherName = (profile?.full_name || '').toLowerCase();
+    const cleanName = teacherName.replace(/\s*\(.*?\)\s*/g, '').trim();
+    const brgy = (myBarangay || profile?.barangay || '').toLowerCase();
+    const cdc = (myCdcName || profile?.cdc_name || '').toLowerCase();
+
+    const matched = assignments.filter((a) => {
+      const aTeacher = (a.teacherName || '').toLowerCase();
+      const aBrgy = (a.barangay || '').toLowerCase();
+      const aCdc = (a.cdcName || '').toLowerCase();
+
+      const idMatch = a.teacherId && a.teacherId === currentUserId;
+      const nameMatch = cleanName && (aTeacher.includes(cleanName) || cleanName.includes(aTeacher));
+      const cdcMatch = cdc && (aCdc.includes(cdc) || cdc.includes(aCdc));
+      const brgyMatch = brgy && (aBrgy.includes(brgy) || brgy.includes(aBrgy));
+      const isUniversal = a.targetType === 'all' || a.barangay === 'all' || a.cdcName === 'All CDCs' || a.teacherName === 'All Teachers';
+
+      return idMatch || nameMatch || cdcMatch || brgyMatch || isUniversal;
+    });
+
+    return matched.length > 0 ? matched : assignments;
+  }, [assignments, profile, currentUserId, myBarangay, myCdcName]);
+
+  // Enriched topics with deadline calculation and active filter matching
+  const filteredAssignedTopics = useMemo(() => {
+    return myAssignedTopics
+      .map((asg) => {
+        const isPastDeadline = Boolean(asg.deadline && new Date(asg.deadline + 'T23:59:59') < new Date());
+        const matchingUpload = localTeacherModules.find(
+          (m) =>
+            m.assignment_id === asg.id ||
+            (asg.topicTitle && m.sub_theme && m.sub_theme.toLowerCase() === asg.topicTitle.toLowerCase()) ||
+            (asg.topicTitle && m.title && m.title.toLowerCase().includes(asg.topicTitle.toLowerCase()))
+        );
+        const isCompleted = asg.status === 'Completed' || Boolean(matchingUpload);
+
+        return {
+          ...asg,
+          isPastDeadline,
+          isCompleted,
+          matchingUpload,
+        };
+      })
+      .filter((asg) => {
+        // Status filter
+        if (topicStatusFilter === 'pending' && (asg.isCompleted || asg.isPastDeadline)) return false;
+        if (topicStatusFilter === 'completed' && !asg.isCompleted) return false;
+        if (topicStatusFilter === 'expired' && (!asg.isPastDeadline || asg.isCompleted)) return false;
+
+        // Level filter
+        if (topicLevelFilter !== 'all' && asg.level?.toLowerCase() !== topicLevelFilter.toLowerCase()) return false;
+
+        // Quarter filter
+        if (topicQuarterFilter !== 'all') {
+          const qInt = parseInt(topicQuarterFilter, 10);
+          const hasQ = asg.quarters ? asg.quarters.includes(qInt) : asg.quarter === qInt;
+          if (!hasQ) return false;
+        }
+
+        // Search query
+        if (topicSearchQuery.trim()) {
+          const q = topicSearchQuery.toLowerCase();
+          const match =
+            (asg.topicTitle || '').toLowerCase().includes(q) ||
+            (asg.subTheme || '').toLowerCase().includes(q) ||
+            (asg.theme || '').toLowerCase().includes(q) ||
+            (asg.suggestedActivities || '').toLowerCase().includes(q) ||
+            (asg.notes || '').toLowerCase().includes(q) ||
+            (asg.cdcName || '').toLowerCase().includes(q) ||
+            (asg.barangay || '').toLowerCase().includes(q);
+          if (!match) return false;
+        }
+
+        return true;
+      });
+  }, [myAssignedTopics, localTeacherModules, topicStatusFilter, topicLevelFilter, topicQuarterFilter, topicSearchQuery]);
+
+  // Aggregate counts for assigned topics
+  const assignedCounts = useMemo(() => {
+    let pending = 0;
+    let completed = 0;
+    let expired = 0;
+
+    myAssignedTopics.forEach((asg) => {
+      const isPast = Boolean(asg.deadline && new Date(asg.deadline + 'T23:59:59') < new Date());
+      const hasUpload = localTeacherModules.some(
+        (m) =>
+          m.assignment_id === asg.id ||
+          (asg.topicTitle && m.sub_theme && m.sub_theme.toLowerCase() === asg.topicTitle.toLowerCase()) ||
+          (asg.topicTitle && m.title && m.title.toLowerCase().includes(asg.topicTitle.toLowerCase()))
+      );
+      const isComp = asg.status === 'Completed' || hasUpload;
+
+      if (isComp) completed++;
+      else if (isPast) expired++;
+      else pending++;
+    });
+
+    return { total: myAssignedTopics.length, pending, completed, expired };
+  }, [myAssignedTopics, localTeacherModules]);
+
   useEffect(() => {
     loadCategoryOptions();
     loadMyMaterials();
@@ -653,143 +867,397 @@ export default function TeacherDashboard({ profile }) {
         </div>
       )}
 
-      {/* CURRICULUM GUIDE (PRE-K1 & PRE-K2 ASSIGNED BY MSWD) */}
-      {activeTab === 'curriculum' && (
+      {/* ASSIGNED TOPICS & TASKS (MSWD CURRICULUM ASSIGNMENTS WITH DEADLINE) */}
+      {(activeTab === 'assigned_topics' || activeTab === 'curriculum') && (
         <div className="space-y-6">
-          {/* Header & Status Banner */}
-          <div className="bg-white p-5 sm:p-6 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Top Header & Status Banner */}
+          <div className="bg-white p-5 sm:p-6 rounded-2xl border border-card-border shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-semibold">
-                Official DepEd ECCD • MSWDO Manolo Fortich
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold">
+                <span>📋</span>
+                <span>Official DepEd ECCD • MSWDO Manolo Fortich Assigned Topics</span>
               </div>
               <h3 className="text-xl sm:text-2xl font-bold text-slate-900 m-0 mt-2 tracking-tight">
-                Curriculum Guides &amp; Weekly Lesson Plans
+                Assigned Topics &amp; Tasks
               </h3>
-              <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                Official prescribed early childhood curriculum lessons assigned to your center by MSWDO Manolo Fortich.
+              <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl">
+                Official curriculum topics and activities assigned by MSWDO Manolo Fortich with required deadlines.
+                Review your tasks, decide when to complete them, and upload your activities or files before the deadline closes.
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200 flex items-center gap-1.5">
-                School Year 2026–2027 Active
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 shrink-0">
+              <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-1.5">
+                <span>🏫</span>
+                <span>{myCdcName || 'Manolo Fortich Day Care Center'}</span>
               </span>
+              {myBarangay && (
+                <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200">
+                  Brgy. {myBarangay}
+                </span>
+              )}
             </div>
           </div>
 
-          {/* Controls: Level Tabs, Quarter Filter, Search */}
-          <div className={cardBox}>
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+          {/* Quick Metrics Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white p-4 rounded-xl border border-card-border shadow-xs">
+              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                Total Assigned Topics
+              </div>
+              <div className="text-2xl font-bold text-slate-900 mt-1">
+                {assignedCounts.total}
+              </div>
+              <div className="text-[10.5px] text-slate-500 mt-0.5">MSWD Deployed</div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-card-border shadow-xs">
+              <div className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">
+                Open &amp; Pending
+              </div>
+              <div className="text-2xl font-bold text-amber-800 mt-1">
+                {assignedCounts.pending}
+              </div>
+              <div className="text-[10.5px] text-amber-600 mt-0.5">Awaiting teacher upload</div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-card-border shadow-xs">
+              <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">
+                Completed &amp; Submitted
+              </div>
+              <div className="text-2xl font-bold text-emerald-800 mt-1">
+                {assignedCounts.completed}
+              </div>
+              <div className="text-[10.5px] text-emerald-600 mt-0.5">Verified / Live</div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-card-border shadow-xs">
+              <div className="text-[11px] font-bold text-rose-700 uppercase tracking-wider">
+                Past Deadline (Locked)
+              </div>
+              <div className="text-2xl font-bold text-rose-800 mt-1">
+                {assignedCounts.expired}
+              </div>
+              <div className="text-[10.5px] text-rose-600 mt-0.5">Upload closed</div>
+            </div>
+          </div>
+
+          {/* Controls: Easy Navigation Status Tabs, Level & Quarter Selector, Search */}
+          <div className="bg-white p-4 rounded-2xl border border-card-border shadow-xs space-y-3.5">
+            {/* Status Filter Tabs */}
+            <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3">
+              <button
+                type="button"
+                onClick={() => setTopicStatusFilter('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  topicStatusFilter === 'all'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <span>All Topics</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${topicStatusFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                  {assignedCounts.total}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTopicStatusFilter('pending')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  topicStatusFilter === 'pending'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'bg-amber-50 text-amber-900 hover:bg-amber-100'
+                }`}
+              >
+                <span>⏳ Open / Pending</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${topicStatusFilter === 'pending' ? 'bg-white/20 text-white' : 'bg-amber-200 text-amber-900'}`}>
+                  {assignedCounts.pending}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTopicStatusFilter('completed')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  topicStatusFilter === 'completed'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
+                }`}
+              >
+                <span>✅ Completed</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${topicStatusFilter === 'completed' ? 'bg-white/20 text-white' : 'bg-emerald-200 text-emerald-900'}`}>
+                  {assignedCounts.completed}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTopicStatusFilter('expired')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  topicStatusFilter === 'expired'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'bg-rose-50 text-rose-900 hover:bg-rose-100'
+                }`}
+              >
+                <span>⚠️ Past Deadline</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${topicStatusFilter === 'expired' ? 'bg-white/20 text-white' : 'bg-rose-200 text-rose-900'}`}>
+                  {assignedCounts.expired}
+                </span>
+              </button>
+            </div>
+
+            {/* Secondary Toolbar: Level, Quarter, Search */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
               {/* Level Selector */}
-              <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setCurriculumLevel('PRE-K1')}
-                  className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                    curriculumLevel === 'PRE-K1'
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'text-slate-700 hover:text-slate-900'
-                  }`}
+              <div>
+                <select
+                  value={topicLevelFilter}
+                  onChange={(e) => setTopicLevelFilter(e.target.value)}
+                  className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 outline-none"
                 >
-                  PRE-K 1 (3.11 years old)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCurriculumLevel('PRE-K2')}
-                  className={`px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                    curriculumLevel === 'PRE-K2'
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'text-slate-700 hover:text-slate-900'
-                  }`}
-                >
-                  PRE-K 2 (4.11 years old)
-                </button>
+                  <option value="all">All Curriculum Levels</option>
+                  <option value="Pre-K1">PRE-K 1 (3.11 years old)</option>
+                  <option value="Pre-K2">PRE-K 2 (4.11 years old)</option>
+                </select>
               </div>
 
-              {/* Quarter Filter */}
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-xs font-semibold text-slate-500 mr-1">Quarter:</span>
-                {['all', '1', '2', '3', '4'].map((q) => (
-                  <button
-                    key={q}
-                    type="button"
-                    onClick={() => setCurriculumQuarter(q)}
-                    className={`px-3 py-1 rounded-md text-xs font-medium border ${
-                      curriculumQuarter === q
-                        ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
-                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    {q === 'all' ? 'All Quarters' : `Q${q}`}
-                  </button>
-                ))}
+              {/* Quarter Selector */}
+              <div>
+                <select
+                  value={topicQuarterFilter}
+                  onChange={(e) => setTopicQuarterFilter(e.target.value)}
+                  className="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-800 outline-none"
+                >
+                  <option value="all">All Quarters (Q1 - Q4)</option>
+                  <option value="1">Quarter 1</option>
+                  <option value="2">Quarter 2</option>
+                  <option value="3">Quarter 3</option>
+                  <option value="4">Quarter 4</option>
+                </select>
               </div>
 
-              {/* Search */}
-              <div className="relative min-w-[200px]">
+              {/* Instant Search Bar */}
+              <div className="sm:col-span-2 relative">
+                <IconSearch className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
-                  placeholder="Search theme or lesson..."
-                  value={curriculumSearch}
-                  onChange={(e) => setCurriculumSearch(e.target.value)}
-                  className={`${input} py-1.5 text-xs`}
+                  placeholder="Search topic title, week, competencies, or notes..."
+                  value={topicSearchQuery}
+                  onChange={(e) => setTopicSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
                 />
               </div>
             </div>
+          </div>
 
-            {/* Curriculum Table */}
-            <div className="overflow-x-auto mt-4">
-              <table className={table}>
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
-                    <th className={`${th} w-16 text-center`}>Qtr</th>
-                    <th className={`${th} w-20 text-center`}>Week</th>
-                    <th className={th}>Suggested Content / Lesson</th>
-                    <th className={`${th} bg-amber-50 text-amber-950 font-semibold border-l-2 border-amber-400`}>
-                      THEME (FOCUS AREA)
-                    </th>
-                    <th className={th}>Sub-Themes / Competencies</th>
-                    <th className={`${th} w-24 text-center`}>Month</th>
-                    <th className={`${th} w-36 text-center`}>Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {flatCurriculumWeeks.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
-                      <td className={`${td} text-center font-bold text-xs text-slate-500`}>
-                        Q{item.quarterNumber}
-                      </td>
-                      <td className={`${td} text-center whitespace-nowrap`}>
-                        <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-                          {item.week}
-                        </span>
-                      </td>
-                      <td className={`${td} font-medium text-slate-900`}>
-                        {item.suggestedContent}
-                      </td>
-                      <td className={`${td} bg-amber-50/80 font-semibold text-amber-950 border-l-2 border-amber-400`}>
-                        {item.theme}
-                      </td>
-                      <td className={`${td} text-xs text-slate-700 leading-relaxed font-medium`}>
-                        {item.subTheme}
-                      </td>
-                      <td className={`${td} text-center text-xs text-slate-500 font-medium`}>
-                        {item.month || '-'}
-                      </td>
-                      <td className={`${td} text-center`}>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenUploadFromCurriculum(item)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-800 bg-white border border-slate-300 hover:bg-slate-900 hover:text-white rounded-md transition-all shadow-2xs cursor-pointer whitespace-nowrap"
-                          title={`Upload material aligned with ${item.week}`}
+          {/* Assigned Topics Cards List */}
+          <div className="space-y-4">
+            {filteredAssignedTopics.map((item) => {
+              const weekLabel = item.week || (Array.isArray(item.weeks) ? item.weeks.join(', ') : 'Week 1');
+              const quarterNum = item.quarter || (item.quarters && item.quarters[0]) || 1;
+
+              return (
+                <div
+                  key={item.id}
+                  className={`p-5 rounded-2xl border transition-all ${
+                    item.isCompleted
+                      ? 'bg-[#F9FCFA] border-emerald-300 shadow-xs'
+                      : item.isPastDeadline
+                      ? 'bg-[#FFF8F8] border-rose-300 shadow-xs'
+                      : 'bg-white border-card-border hover:border-accent shadow-xs'
+                  }`}
+                >
+                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                    {/* Left: Topic Information */}
+                    <div className="space-y-2 flex-1">
+                      {/* Badges Row */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={`text-[10.5px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
+                            item.level === 'Pre-K1'
+                              ? 'bg-[#DCEBDD] text-[#2E6B38]'
+                              : 'bg-[#E0EFFE] text-[#1E5B94]'
+                          }`}
                         >
-                          + Upload Module
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                          {item.level || 'Pre-K1'}
+                        </span>
+
+                        <span className="text-[11px] font-bold text-[#8C6200] bg-[#FFF3D6] px-2.5 py-0.5 rounded-md">
+                          Quarter {quarterNum} • {weekLabel}
+                        </span>
+
+                        {item.isCompleted ? (
+                          <span className="text-[10.5px] px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                            <span>✓</span>
+                            <span>Completed &amp; Submitted</span>
+                          </span>
+                        ) : item.isPastDeadline ? (
+                          <span className="text-[10.5px] px-2.5 py-0.5 rounded-full font-bold bg-rose-100 text-rose-800 border border-rose-300 flex items-center gap-1">
+                            <span>⚠️</span>
+                            <span>Deadline Passed (Locked)</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10.5px] px-2.5 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+                            <span>⏳</span>
+                            <span>Open for Upload</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Topic Title */}
+                      <h4 className="text-lg font-bold text-slate-900 m-0">
+                        {item.topicTitle || item.subTheme || 'Prescribed ECCD Topic'}
+                      </h4>
+
+                      {/* Theme & Competency Focus */}
+                      <div className="text-xs text-slate-600 flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="font-semibold text-amber-900">
+                          Focus: {item.subTheme || item.topicTitle}
+                        </span>
+                        <span>•</span>
+                        <span className="text-slate-500">
+                          Theme: {item.theme || 'TELL ME ABOUT YOURSELF'}
+                        </span>
+                      </div>
+
+                      {/* CDC and Barangay info */}
+                      <div className="text-[11.5px] text-slate-500 flex items-center gap-1.5">
+                        <span className="font-semibold text-slate-700">🏫 {item.cdcName}</span>
+                        <span>•</span>
+                        <span>Brgy. {item.barangay}</span>
+                        {item.assignedDate && (
+                          <>
+                            <span>•</span>
+                            <span>Assigned: {item.assignedDate}</span>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Suggested DepEd ECCD Activity Instructions */}
+                      {(item.suggestedActivities || item.suggestedContent) && (
+                        <div className="p-3 rounded-xl bg-[#FAF5EC] border border-[#EBE1CF] text-xs text-[#524430] leading-relaxed mt-2">
+                          <span className="font-bold block text-slate-800 mb-0.5">
+                            DepEd ECCD Suggested Content &amp; Activities:
+                          </span>
+                          {item.suggestedActivities || item.suggestedContent}
+                        </div>
+                      )}
+
+                      {/* Admin Notes */}
+                      {item.notes && (
+                        <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-900">
+                          <strong>Note from MSWDO Admin:</strong> {item.notes}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right: Deadline Indicator & Action Button */}
+                    <div className="flex flex-col items-start md:items-end justify-between gap-3 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
+                      {/* Deadline Display */}
+                      <div className="text-left md:text-right">
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                          Submission Deadline
+                        </div>
+                        {item.deadline ? (
+                          <div className="mt-1">
+                            <span
+                              className={`px-3 py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 ${
+                                item.isCompleted
+                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                                  : item.isPastDeadline
+                                  ? 'bg-rose-100 text-rose-800 border border-rose-300 animate-pulse'
+                                  : 'bg-amber-50 text-amber-900 border border-amber-300'
+                              }`}
+                            >
+                              <span>📅</span>
+                              <span>{item.deadline}</span>
+                            </span>
+                            <div className="text-[10.5px] mt-1 font-semibold">
+                              {item.isCompleted ? (
+                                <span className="text-emerald-700">✓ Submitted to MSWDO</span>
+                              ) : item.isPastDeadline ? (
+                                <span className="text-rose-600">⚠️ Deadline has expired</span>
+                              ) : (
+                                <span className="text-amber-700">⏳ You decide when to upload</span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-xs text-slate-400 italic mt-1">
+                            Flexible schedule (No hard deadline)
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Action Button: Locked if deadline past! */}
+                      <div>
+                        {item.isPastDeadline && !item.isCompleted ? (
+                          <div className="flex flex-col items-start md:items-end gap-1">
+                            <button
+                              type="button"
+                              disabled
+                              className="px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-300 text-slate-400 font-bold text-xs cursor-not-allowed flex items-center gap-1.5 opacity-60 shadow-none"
+                              title="The deadline has already passed. Uploading is disabled for this assignment."
+                            >
+                              <span>🔒 Upload Closed (Deadline Passed)</span>
+                            </button>
+                            <span className="text-[10px] text-rose-600 font-bold">
+                              Submission window expired on {item.deadline}
+                            </span>
+                          </div>
+                        ) : item.isCompleted ? (
+                          <div className="flex items-center gap-2">
+                            <span className="px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-1">
+                              <span>✓ Submitted</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setActiveTab('upload')}
+                              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
+                            >
+                              View in Uploads →
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenUploadForAssignedTopic(item)}
+                            className="px-4 py-2.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                          >
+                            <span>📤 Upload Activity or File →</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {filteredAssignedTopics.length === 0 && (
+              <div className="bg-white p-8 rounded-2xl border border-card-border text-center space-y-2">
+                <div className="text-2xl">📋</div>
+                <div className="font-bold text-slate-800 text-sm">
+                  No assigned topics found matching your criteria.
+                </div>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Try adjusting your status filter or search query. When the MSWDO Admin assigns a topic with a deadline, it will appear here immediately.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTopicStatusFilter('all');
+                    setTopicLevelFilter('all');
+                    setTopicQuarterFilter('all');
+                    setTopicSearchQuery('');
+                  }}
+                  className="text-xs text-accent font-bold hover:underline cursor-pointer pt-2 inline-block"
+                >
+                  Reset Filters
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1093,6 +1561,23 @@ export default function TeacherDashboard({ profile }) {
                 </div>
 
                 <form onSubmit={handleSaveMaterial} className="space-y-3.5 text-xs">
+                  {/* Assigned Topic Fulfillment Banner */}
+                  {activeAssignmentId && (
+                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 flex items-center justify-between">
+                      <div>
+                        <div className="font-bold flex items-center gap-1.5">
+                          <span>🎯 Fulfilling Admin-Assigned Topic</span>
+                        </div>
+                        <div className="text-[11px] text-amber-800 mt-0.5">
+                          {activeAssignmentDeadline ? `Official Deadline: ${activeAssignmentDeadline}` : 'No deadline set'} • Upon upload, this assignment will be marked as Completed.
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded text-[10.5px] font-bold bg-amber-200/70 text-amber-950">
+                        Assigned by MSWDO
+                      </span>
+                    </div>
+                  )}
+
                   {/* Step 1: Curriculum Level */}
                   <div>
                     <label className="font-semibold text-slate-700 block mb-1">
@@ -1166,14 +1651,14 @@ export default function TeacherDashboard({ profile }) {
                   {/* Step 3: Material Type */}
                   <div>
                     <label className="font-semibold text-slate-700 block mb-1">
-                      4. Activity / Material Type
+                      4. Post Format / Material Type
                     </label>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {[
-                        { type: 'activity', label: '✏️ Activity', desc: 'With submission' },
-                        { type: 'video', label: '🎬 Video', desc: 'YouTube or link' },
-                        { type: 'image', label: '🖼️ Worksheet', desc: 'Picture guide' },
-                        { type: 'text', label: '📖 Story', desc: 'Story / text' },
+                        { type: 'activity', label: '✏️ Activity', desc: 'Worksheet / task' },
+                        { type: 'file', label: '📁 File / PDF', desc: 'Document / guide' },
+                        { type: 'video', label: '🎬 Video', desc: 'Video demonstration' },
+                        { type: 'image', label: '🖼️ Picture', desc: 'Visual card / craft' },
                       ].map((t) => (
                         <button
                           key={t.type}
