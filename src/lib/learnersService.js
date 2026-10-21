@@ -80,7 +80,14 @@ export function getStoredLearners() {
     const raw = localStorage.getItem(REGISTERED_LEARNERS_STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    const list = Array.isArray(parsed) ? parsed : [];
+    const filtered = list.filter(
+      (l) => (l.full_name || '').trim().toLowerCase() !== 'hannah mae tion' && l.id !== 'lrn-real-001'
+    );
+    if (filtered.length !== list.length) {
+      localStorage.setItem(REGISTERED_LEARNERS_STORAGE_KEY, JSON.stringify(filtered));
+    }
+    return filtered;
   } catch {
     return [];
   }

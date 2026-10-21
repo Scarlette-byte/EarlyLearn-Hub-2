@@ -4,21 +4,19 @@ import DashboardLayout from '../components/DashboardLayout.jsx';
 import MswdOverview from '../components/admin/MswdOverview.jsx';
 import EnrolleePopulation from '../components/admin/EnrolleePopulation.jsx';
 import DaycareCenterMonitoring from '../components/admin/DaycareCenterMonitoring.jsx';
-import ChildDevelopmentMonitoring from '../components/admin/ChildDevelopmentMonitoring.jsx';
 import ReportsGeneration from '../components/admin/ReportsGeneration.jsx';
 import ProgramMonitoring from '../components/admin/ProgramMonitoring.jsx';
 import CurriculumGuides from '../components/admin/CurriculumGuides.jsx';
 import ManageTeachers from './ManageTeachers.jsx';
 import {
   baselineCdcs,
-  baselineLearners,
-  baselineAssessments,
   baselineActivityReports,
 } from '../lib/mswdData.js';
 import {
   realTeachersList,
   realCdcsList,
 } from '../lib/curriculumData.js';
+import { getStoredLearners } from '../lib/learnersService.js';
 import {
   cardBox,
   cardBoxTitle,
@@ -47,9 +45,8 @@ const TABS = [
   { key: 'overview', label: 'MSWD Overview', icon: <IconOverview className="w-4 h-4" /> },
   { key: 'enrollees', label: '1. Enrollee Population', icon: <IconLearners className="w-4 h-4" /> },
   { key: 'centers', label: '2. Daycare Centers', icon: <IconTeachers className="w-4 h-4" /> },
-  { key: 'development', label: '3. Child Development', icon: <IconApprovals className="w-4 h-4" /> },
-  { key: 'reports', label: '4. Reports Generation', icon: <IconMaterials className="w-4 h-4" /> },
-  { key: 'programs', label: '5. Activity Monitoring', icon: <IconOverview className="w-4 h-4" /> },
+  { key: 'reports', label: '3. Reports Generation', icon: <IconMaterials className="w-4 h-4" /> },
+  { key: 'programs', label: '4. Activity Monitoring', icon: <IconOverview className="w-4 h-4" /> },
   { key: 'curriculum', label: 'Curriculum Guides', icon: <IconMaterials className="w-4 h-4" /> },
   { key: 'teachers', label: 'Manage Teachers', icon: <IconTeachers className="w-4 h-4" /> },
   { key: 'categories', label: 'Categories', icon: <IconCategories className="w-4 h-4" /> },
@@ -60,9 +57,20 @@ export default function AdminDashboard({ profile }) {
 
   // Core MSWD Datasets (Real Data from MSWDO Manolo Fortich)
   const [cdcs, setCdcs] = useState(realCdcsList);
-  const [learners, setLearners] = useState(baselineLearners);
+  const [learners, setLearners] = useState(() => {
+    return getStoredLearners().filter(
+      (l) => (l.full_name || '').trim().toLowerCase() !== 'hannah mae tion' && l.id !== 'lrn-real-001'
+    );
+  });
   const [teachers, setTeachers] = useState(realTeachersList);
-  const [assessments, setAssessments] = useState(baselineAssessments);
+  const [assessments, setAssessments] = useState(() => {
+    try {
+      const saved = localStorage.getItem('earlylearn_teacher_eccd_assessments');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [activityReports, setActivityReports] = useState(baselineActivityReports);
 
   // Users tab
@@ -100,29 +108,41 @@ export default function AdminDashboard({ profile }) {
     }
   }, []);
 
-  // --- Load Learners from Supabase, merging with baseline ---
+  // --- Load Real Learners from Supabase & Local Registration Records ---
   const loadLearners = useCallback(async () => {
     try {
+      const stored = getStoredLearners().filter(
+        (l) => (l.full_name || '').trim().toLowerCase() !== 'hannah mae tion' && l.id !== 'lrn-real-001'
+      );
       const { data, error } = await supabase
         .from('learners')
         .select('id, full_name, birthdate, barangay, cdc_id, parent_name, parent_contact, cdcs(name)')
         .order('full_name');
 
+      let combined = [...stored];
       if (!error && data && data.length > 0) {
-        const existingIds = new Set(data.map((l) => l.id));
+        const existingIds = new Set(combined.map((l) => l.id));
         const formattedData = data.map((l) => ({
           ...l,
-          cdc_name: l.cdcs?.name || 'CDC Center',
+          cdc_name: l.cdcs?.name || `${l.barangay || 'Municipal'} Child Development Center`,
           enrollment_status: l.enrollment_status || 'Enrolled',
           age: 3,
         }));
-        const nonDuplicatedBaseline = baselineLearners.filter((b) => !existingIds.has(b.id));
-        setLearners([...formattedData, ...nonDuplicatedBaseline]);
-      } else {
-        setLearners(baselineLearners);
+        formattedData.forEach((l) => {
+          if (!existingIds.has(l.id)) {
+            combined.push(l);
+          }
+        });
       }
+      combined = combined.filter(
+        (l) => (l.full_name || '').trim().toLowerCase() !== 'hannah mae tion' && l.id !== 'lrn-real-001'
+      );
+      setLearners(combined);
     } catch {
-      setLearners(baselineLearners);
+      const stored = getStoredLearners().filter(
+        (l) => (l.full_name || '').trim().toLowerCase() !== 'hannah mae tion' && l.id !== 'lrn-real-001'
+      );
+      setLearners(stored);
     }
   }, []);
 
@@ -311,25 +331,43 @@ export default function AdminDashboard({ profile }) {
     }
   }
 
-  // --- Handlers for Child Development (Core Function 3) ---
-  function handleVerifyAssessment(id) {
-    setAssessments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, mswd_verified: true } : a))
-    );
-  }
-
-  function handleAddRecommendation(id, text) {
-    setAssessments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, recommendation: text } : a))
-    );
-  }
-
-  // --- Handlers for Program Monitoring (Core Function 5) ---
+  // --- Handlers for Program Monitoring (Core Function 4) ---
   function handleVerifyReport(id) {
     setActivityReports((prev) =>
       prev.map((r) => (r.id === id ? { ...r, mswd_verified: true } : r))
     );
   }
+
+  // Live synchronization: auto-reload when learners register or teachers record assessments
+  useEffect(() => {
+    function handleSync(e) {
+      if (
+        e.type === 'earlylearn_learners_updated' ||
+        (e.type === 'storage' && e.key === 'earlylearn_registered_learners')
+      ) {
+        loadLearners();
+      }
+      if (
+        e.type === 'earlylearn_assessments_updated' ||
+        (e.type === 'storage' && e.key === 'earlylearn_teacher_eccd_assessments')
+      ) {
+        try {
+          const saved = localStorage.getItem('earlylearn_teacher_eccd_assessments');
+          if (saved) setAssessments(JSON.parse(saved));
+        } catch {
+          // ignore
+        }
+      }
+    }
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('earlylearn_learners_updated', handleSync);
+    window.addEventListener('earlylearn_assessments_updated', handleSync);
+    return () => {
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('earlylearn_learners_updated', handleSync);
+      window.removeEventListener('earlylearn_assessments_updated', handleSync);
+    };
+  }, [loadLearners]);
 
   useEffect(() => {
     loadCdcs();
@@ -420,18 +458,7 @@ export default function AdminDashboard({ profile }) {
       )}
 
       {/* ---------------------------------------------------- */}
-      {/* 3. CHILD DEVELOPMENT MONITORING                      */}
-      {/* ---------------------------------------------------- */}
-      {activeTab === 'development' && (
-        <ChildDevelopmentMonitoring
-          assessments={assessments}
-          onVerifyAssessment={handleVerifyAssessment}
-          onAddRecommendation={handleAddRecommendation}
-        />
-      )}
-
-      {/* ---------------------------------------------------- */}
-      {/* 4. REPORTS GENERATION                                */}
+      {/* 3. REPORTS GENERATION                                */}
       {/* ---------------------------------------------------- */}
       {activeTab === 'reports' && (
         <ReportsGeneration
@@ -443,7 +470,7 @@ export default function AdminDashboard({ profile }) {
       )}
 
       {/* ---------------------------------------------------- */}
-      {/* 5. PROGRAM MONITORING                                */}
+      {/* 4. PROGRAM MONITORING                                */}
       {/* ---------------------------------------------------- */}
       {activeTab === 'programs' && (
         <ProgramMonitoring

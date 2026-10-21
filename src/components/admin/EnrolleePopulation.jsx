@@ -591,7 +591,7 @@ export default function EnrolleePopulation({
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Hannah Mae Tion"
+                  placeholder="e.g. Maria Santos"
                   value={formData.full_name}
                   onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-gray-300 font-bold text-dash-ink outline-none focus:border-accent"

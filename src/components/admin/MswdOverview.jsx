@@ -120,31 +120,6 @@ export default function MswdOverview({
 
           {/* Function 3 */}
           <div
-            onClick={() => onNavigateTab('development')}
-            className="bg-white p-5 rounded-2xl border border-card-border shadow-xs hover:border-accent hover:shadow-card transition-all cursor-pointer space-y-2 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="w-10 h-10 rounded-xl bg-[#DCEBDD] text-[#2E6B38] flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
-                📈
-              </span>
-              <span className="text-[11px] font-bold text-[#2E6B38] bg-[#F2F8F3] px-2 py-0.5 rounded-full">
-                Core Function 3
-              </span>
-            </div>
-            <h4 className="font-fraunces text-base font-bold text-dash-ink group-hover:text-[#2E6B38] transition-colors">
-              Child Development Monitoring
-            </h4>
-            <p className="text-xs text-dash-ink-soft leading-relaxed">
-              Review toddler assessments across cognitive, physical, social-emotional, and language developmental domains submitted by workers.
-            </p>
-            <div className="pt-2 flex items-center justify-between text-xs font-bold text-[#2E6B38]">
-              <span>{assessmentsCount} Assessments Recorded</span>
-              <span>Open →</span>
-            </div>
-          </div>
-
-          {/* Function 4 */}
-          <div
             onClick={() => onNavigateTab('reports')}
             className="bg-white p-5 rounded-2xl border border-card-border shadow-xs hover:border-accent hover:shadow-card transition-all cursor-pointer space-y-2 group"
           >
@@ -153,22 +128,22 @@ export default function MswdOverview({
                 📄
               </span>
               <span className="text-[11px] font-bold text-[#8C6200] bg-[#FFFBF0] px-2 py-0.5 rounded-full">
-                Core Function 4
+                Core Function 3
               </span>
             </div>
             <h4 className="font-fraunces text-base font-bold text-dash-ink group-hover:text-[#8C6200] transition-colors">
               Reports Generation
             </h4>
             <p className="text-xs text-dash-ink-soft leading-relaxed">
-              Generate and download monthly or yearly reports on child enrollment, attendance, developmental progress, and performance in CSV/PDF.
+              Generate and download monthly or yearly municipal reports on child enrollment, attendance, developmental progress, and center metrics.
             </p>
             <div className="pt-2 flex items-center justify-between text-xs font-bold text-[#8C6200]">
-              <span>4 Exportable Formats</span>
+              <span>Exportable CSV/PDF</span>
               <span>Open →</span>
             </div>
           </div>
 
-          {/* Function 5 */}
+          {/* Function 4 */}
           <div
             onClick={() => onNavigateTab('programs')}
             className="bg-white p-5 rounded-2xl border border-card-border shadow-xs hover:border-accent hover:shadow-card transition-all cursor-pointer space-y-2 group"
@@ -178,7 +153,7 @@ export default function MswdOverview({
                 📋
               </span>
               <span className="text-[11px] font-bold text-[#553C9A] bg-[#F7F4FD] px-2 py-0.5 rounded-full">
-                Core Function 5
+                Core Function 4
               </span>
             </div>
             <h4 className="font-fraunces text-base font-bold text-dash-ink group-hover:text-[#553C9A] transition-colors">

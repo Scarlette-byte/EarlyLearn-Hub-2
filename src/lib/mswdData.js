@@ -29,48 +29,11 @@ export const baselineCdcs = [
   { id: 'cdc-ticala', name: 'Ticala Child Development Center', barangay: 'Ticala', capacity: 22, enrolledCount: 18, attendanceRate: 90 },
 ];
 
-// Real Student Record for System Navigation & Operational Testing
-// (Enrolled in Maluko Child Development Center under Teacher Lovey Guinevere Angeles Tion)
-export const baselineLearners = [
-  {
-    id: 'lrn-real-001',
-    full_name: 'Hannah Mae Tion',
-    age: 3,
-    birthdate: '2023-04-12',
-    gender: 'Female',
-    level: 'PRE-K 1',
-    barangay: 'Maluko',
-    cdc_id: 'cdc-maluko',
-    cdc_name: 'Maluko Child Development Center',
-    parent_name: 'Lovey Guinevere Tion',
-    relationship: 'Mother',
-    parent_contact: '0929-320-5411',
-    address: 'Purok 1, Barangay Maluko, Manolo Fortich',
-    enrollment_status: 'Enrolled',
-  },
-];
+// Registered Learners Roster (Populated dynamically as real students sign up / enroll)
+export const baselineLearners = [];
 
-// Baseline Child Development Assessments (DepEd ECCD 4-Domain Evaluations for Ages 3-4)
-export const baselineAssessments = [
-  {
-    id: 'ass-real-01',
-    child_id: 'lrn-real-001',
-    child_name: 'Hannah Mae Tion',
-    age: 3,
-    barangay: 'Maluko',
-    cdc_name: 'Maluko Child Development Center',
-    teacher_name: 'Teacher Lovey Guinevere Angeles Tion',
-    date: 'Jun 24, 2026',
-    cognitive_status: 'Developing as Expected',
-    physical_status: 'Developing as Expected',
-    social_status: 'Developing as Expected',
-    language_status: 'Developing as Expected',
-    overall_status: 'Developing as Expected',
-    observations: 'Active in morning greeting routines. Identifies colors and counts 1 to 5 with counting blocks independently.',
-    recommendation: 'Continue guided sensory play with mother tongue rhymes.',
-    mswd_verified: true,
-  },
-];
+// Child Development Assessments (Recorded by teachers for their assigned students)
+export const baselineAssessments = [];
 
 
 // Baseline Program Implementation & Activity Reports from Daycare Workers

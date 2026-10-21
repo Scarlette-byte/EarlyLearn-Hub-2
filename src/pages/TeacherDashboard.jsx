@@ -9,6 +9,7 @@ import {
   realTeachersList,
 } from '../lib/curriculumData.js';
 import { getLearnersForTeacher, getCdcForBarangay } from '../lib/learnersService.js';
+import TeacherChildDevelopment from '../components/teacher/TeacherChildDevelopment.jsx';
 import {
   IconPlus,
   IconSearch,
@@ -38,6 +39,7 @@ const TABS = [
   { key: 'overview', label: 'Overview', icon: '📊' },
   { key: 'assigned_topics', label: 'Assigned Topics & Tasks', icon: '📋' },
   { key: 'mylearners', label: 'My Learners', icon: '🧒' },
+  { key: 'child_development', label: 'Child Development', icon: '🌱' },
   { key: 'upload', label: 'Uploaded Materials', icon: '📁' },
   { key: 'announcements', label: 'Announcements', icon: '📢' },
   { key: 'submissions', label: 'Check Submissions', icon: '📝' },
@@ -1300,6 +1302,7 @@ export default function TeacherDashboard({ profile }) {
                       <th className={th}>BIRTHDATE</th>
                       <th className={th}>PARENT</th>
                       <th className={th}>CONTACT</th>
+                      <th className={th}>ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1314,6 +1317,16 @@ export default function TeacherDashboard({ profile }) {
                         <td className={td}>{l.birthdate || l.child_age || '-'}</td>
                         <td className={td}>{l.parent_name || '-'}</td>
                         <td className={td}>{l.parent_contact || '-'}</td>
+                        <td className={td}>
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('child_development')}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
+                          >
+                            <span>🌱</span>
+                            <span>Assess ECCD</span>
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1328,6 +1341,17 @@ export default function TeacherDashboard({ profile }) {
             </>
           )}
         </div>
+      )}
+
+      {/* CHILD DEVELOPMENT MONITORING */}
+      {activeTab === 'child_development' && (
+        <TeacherChildDevelopment
+          teacherProfile={profile}
+          teacherBarangay={myBarangay}
+          cdcName={myCdcName}
+          learners={myLearners}
+          onRefreshLearners={loadMyLearners}
+        />
       )}
 
       {/* UPLOADED MATERIALS */}
