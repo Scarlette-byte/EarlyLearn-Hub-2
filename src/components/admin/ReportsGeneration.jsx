@@ -45,9 +45,12 @@ export default function ReportsGeneration({
   const activeModules = useMemo(() => {
     try {
       const saved = localStorage.getItem('earlylearn_teacher_modules');
-      return saved ? JSON.parse(saved) : initialTeacherModules;
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((m) => m && m.id && !/^mod-0[1-9]$|^mod-1[0-2]$/.test(m.id));
     } catch {
-      return initialTeacherModules;
+      return [];
     }
   }, []);
 

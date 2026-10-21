@@ -72,13 +72,21 @@ export default function TeacherDashboard({ profile }) {
   const [curriculumQuarter, setCurriculumQuarter] = useState('all');
   const [curriculumSearch, setCurriculumSearch] = useState('');
 
-  // Uploaded Materials & Modules state
+  // Uploaded Materials & Modules state (persisted per teacher)
   const [localTeacherModules, setLocalTeacherModules] = useState(() => {
     try {
       const saved = localStorage.getItem('earlylearn_teacher_modules');
-      return saved ? JSON.parse(saved) : initialTeacherModules;
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return [];
+      // Clean out any legacy mod-01 to mod-12 dummy items
+      const filtered = parsed.filter((m) => m && m.id && !/^mod-0[1-9]$|^mod-1[0-2]$/.test(m.id));
+      if (filtered.length !== parsed.length) {
+        localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(filtered));
+      }
+      return filtered;
     } catch {
-      return initialTeacherModules;
+      return [];
     }
   });
 
@@ -402,8 +410,9 @@ export default function TeacherDashboard({ profile }) {
       file_type: uploadType === 'video' ? 'MP4' : uploadType === 'file' ? 'PDF' : uploadType.toUpperCase(),
       file_size: '2.4 MB',
       upload_date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
-      status: 'Approved',
-      verified_by_mswd: true,
+      status: 'Pending Review',
+      verified_by_mswd: false,
+      mswd_comments: '',
       description: uploadDescription.trim() || `${uploadCurriculumLevel} ${uploadWeek} ECCD learning activity on ${uploadSubTheme}`,
       content_url: uploadUrl.trim() || null,
       content_text: uploadDescription.trim() || null,
@@ -1501,6 +1510,16 @@ export default function TeacherDashboard({ profile }) {
                             {m.content_text}
                           </div>
                         )}
+                        {m.mswd_comments && (
+                          <div className="mt-1.5 p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-900">
+                            <span className="font-bold">💬 MSWD Review Note:</span> {m.mswd_comments}
+                          </div>
+                        )}
+                        {m.revision_notes && (
+                          <div className="mt-1.5 p-2 rounded-lg bg-rose-50 border border-rose-200 text-[11px] text-rose-900">
+                            <span className="font-bold">⚠️ MSWD Revision Note:</span> {m.revision_notes}
+                          </div>
+                        )}
                       </td>
 
                       <td className="px-4 py-3.5 whitespace-nowrap">
@@ -1527,11 +1546,17 @@ export default function TeacherDashboard({ profile }) {
 
                       <td className="px-4 py-3.5 text-center whitespace-nowrap">
                         <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                          m.status === 'Approved' || m.status === 'approved'
+                          m.status === 'Approved' || m.status === 'approved' || m.verified_by_mswd
                             ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            : m.status === 'Needs Revision'
+                            ? 'bg-rose-50 text-rose-800 border border-rose-200'
                             : 'bg-amber-50 text-amber-800 border border-amber-200'
                         }`}>
-                          {m.status === 'Approved' || m.status === 'approved' ? 'Active / Visible' : 'Under Review'}
+                          {m.status === 'Approved' || m.status === 'approved' || m.verified_by_mswd
+                            ? 'Approved by MSWD ✓'
+                            : m.status === 'Needs Revision'
+                            ? 'Needs Revision'
+                            : 'Pending MSWD Review'}
                         </span>
                       </td>
 

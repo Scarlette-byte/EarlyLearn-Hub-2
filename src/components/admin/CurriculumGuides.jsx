@@ -110,9 +110,22 @@ export default function CurriculumGuides({
     );
   };
 
+  // Helper to get authentic uploaded modules
+  const getCleanModules = () => {
+    try {
+      const saved = localStorage.getItem('earlylearn_teacher_modules');
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((m) => m && m.id && !/^mod-0[1-9]$|^mod-1[0-2]$/.test(m.id));
+    } catch {
+      return [];
+    }
+  };
+
   // Helper to count modules uploaded for a quarter
   const getModulesCountForQuarter = (levelStr, quarterNum) => {
-    return initialTeacherModules.filter(
+    return getCleanModules().filter(
       (m) => m.level.toLowerCase() === levelStr.toLowerCase() && m.quarter === quarterNum
     ).length;
   };
@@ -812,7 +825,7 @@ export default function CurriculumGuides({
               </thead>
               <tbody className="divide-y divide-[#F6F1E7]">
                 {filteredAssignments.map((asg) => {
-                  const teacherModules = initialTeacherModules.filter(
+                  const teacherModules = getCleanModules().filter(
                     (m) => m.teacher_name === asg.teacherName || m.teacher_id === asg.teacherId || m.assignment_id === asg.id
                   );
                   const isPastDeadline = asg.deadline && new Date(asg.deadline + 'T23:59:59') < new Date();

@@ -28,27 +28,35 @@ export default function ProgramMonitoring({
   const [inspectingModule, setInspectingModule] = useState(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
-  // Stored uploaded modules state (persisted to localStorage)
-  const [modules, setModules] = useState(() => {
+  // Helper to retrieve authentic real teacher modules only, clearing out dummy partial data
+  const getCleanTeacherModules = () => {
     try {
       const saved = localStorage.getItem('earlylearn_teacher_modules');
-      return saved ? JSON.parse(saved) : initialTeacherModules;
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return [];
+      // Clean out any legacy mod-01 to mod-12 dummy items
+      const filtered = parsed.filter((m) => m && m.id && !/^mod-0[1-9]$|^mod-1[0-2]$/.test(m.id));
+      if (filtered.length !== parsed.length) {
+        localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(filtered));
+      }
+      return filtered;
     } catch {
-      return initialTeacherModules;
+      return [];
     }
-  });
+  };
+
+  // Stored uploaded modules state (real teacher posts only)
+  const [modules, setModules] = useState(getCleanTeacherModules);
+  const [commentingModule, setCommentingModule] = useState(null);
+  const [commentText, setCommentText] = useState('');
+  const [commentDecision, setCommentDecision] = useState('approve'); // 'approve' | 'revision' | 'keep'
+  const [successToast, setSuccessToast] = useState('');
 
   // Real-time synchronization with Teacher Dashboard posts
   useEffect(() => {
     const handleSync = () => {
-      try {
-        const saved = localStorage.getItem('earlylearn_teacher_modules');
-        if (saved) {
-          setModules(JSON.parse(saved));
-        }
-      } catch (err) {
-        console.warn('Failed loading teacher modules from storage:', err);
-      }
+      setModules(getCleanTeacherModules());
     };
 
     window.addEventListener('storage', handleSync);
@@ -59,43 +67,70 @@ export default function ProgramMonitoring({
     };
   }, []);
 
-  // New module upload form state (for admin manual entry)
-  const [newTitle, setNewTitle] = useState('');
-  const [newTeacherId, setNewTeacherId] = useState('');
-  const [newLevel, setNewLevel] = useState('Pre-K1');
-  const [newQuarter, setNewQuarter] = useState('1');
-  const [newWeek, setNewWeek] = useState('Week 1');
-  const [newSubTheme, setNewSubTheme] = useState('I HAVE A NAME');
-  const [newModuleType, setNewModuleType] = useState('Activity Worksheet');
-  const [newDescription, setNewDescription] = useState('');
-  const [uploadSuccess, setUploadSuccess] = useState('');
+  // Open Comment dialog
+  const handleOpenComment = (module) => {
+    setCommentingModule(module);
+    setCommentText(module.mswd_comments || module.revision_notes || '');
+    setCommentDecision(module.verified_by_mswd ? 'approve' : 'keep');
+  };
 
-  // Classify module as activity or file or video
-  const getItemCategory = (m) => {
-    const typeStr = (m.module_type || m.type || '').toLowerCase();
-    const fileStr = (m.file_type || '').toLowerCase();
+  // Save MSWD Review Comment & Decision
+  const handleSaveComment = (e) => {
+    if (e) e.preventDefault();
+    if (!commentingModule) return;
 
-    if (typeStr.includes('video') || fileStr.includes('mp4')) {
-      return 'video';
+    const updated = modules.map((m) => {
+      if (m.id !== commentingModule.id) return m;
+
+      let newStatus = m.status;
+      let newVerified = m.verified_by_mswd;
+
+      if (commentDecision === 'approve') {
+        newStatus = 'Approved';
+        newVerified = true;
+      } else if (commentDecision === 'revision') {
+        newStatus = 'Needs Revision';
+        newVerified = false;
+      }
+
+      return {
+        ...m,
+        mswd_comments: commentText.trim(),
+        revision_notes: commentDecision === 'revision' ? commentText.trim() : m.revision_notes,
+        mswd_comment_date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+        status: newStatus,
+        verified_by_mswd: newVerified,
+      };
+    });
+
+    setModules(updated);
+    try {
+      localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updated }));
+    } catch {
+      // Ignored
     }
-    if (
-      typeStr.includes('file') ||
-      typeStr.includes('document') ||
-      typeStr.includes('pdf') ||
-      typeStr.includes('guide') ||
-      fileStr.includes('pdf') ||
-      fileStr.includes('doc')
-    ) {
-      return 'file';
+
+    if (inspectingModule?.id === commentingModule.id) {
+      setInspectingModule(updated.find((m) => m.id === commentingModule.id));
     }
-    return 'activity';
+
+    setCommentingModule(null);
+    setCommentText('');
+    setSuccessToast('✅ Review comment saved! The teacher will see your feedback in their dashboard.');
+    setTimeout(() => setSuccessToast(''), 4000);
   };
 
   // Handle Verify / Approve Module
   const handleApproveModule = (moduleId) => {
     const updated = modules.map((m) =>
       m.id === moduleId
-        ? { ...m, status: 'Approved', verified_by_mswd: true }
+        ? {
+            ...m,
+            status: 'Approved',
+            verified_by_mswd: true,
+            mswd_approved_date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+          }
         : m
     );
     setModules(updated);
@@ -105,27 +140,21 @@ export default function ProgramMonitoring({
     } catch {
       // Ignored
     }
+
+    if (inspectingModule?.id === moduleId) {
+      setInspectingModule((prev) => (prev ? { ...prev, status: 'Approved', verified_by_mswd: true } : null));
+    }
+
+    setSuccessToast('✅ Teacher post approved & verified by MSWD!');
+    setTimeout(() => setSuccessToast(''), 3000);
   };
 
   // Handle Reject / Request Revision
   const handleRejectModule = (moduleId) => {
-    const reason = prompt(
-      'Please enter a revision request note for the teacher:',
-      'Please align activity steps with DepEd ECCD sensory guidelines.'
-    );
-    if (!reason) return;
-
-    const updated = modules.map((m) =>
-      m.id === moduleId
-        ? { ...m, status: 'Needs Revision', verified_by_mswd: false, revision_notes: reason }
-        : m
-    );
-    setModules(updated);
-    try {
-      localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(updated));
-      window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updated }));
-    } catch {
-      // Ignored
+    const target = modules.find((m) => m.id === moduleId);
+    if (target) {
+      handleOpenComment(target);
+      setCommentDecision('revision');
     }
   };
 
@@ -243,6 +272,23 @@ export default function ProgramMonitoring({
 
   return (
     <div className="space-y-6">
+      {/* Toast Feedback Notification */}
+      {successToast && (
+        <div className="p-3.5 rounded-2xl bg-[#DCEBDD] border border-emerald-300 text-[#2E6B38] font-bold text-xs flex items-center justify-between shadow-xs animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <span className="text-sm">🔔</span>
+            <span>{successToast}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSuccessToast('')}
+            className="text-[#2E6B38] hover:text-[#23532B] font-bold text-sm px-2 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Metrics Row: Organized summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
         <div className="bg-white p-4 rounded-2xl border border-card-border shadow-xs">
@@ -267,7 +313,7 @@ export default function ProgramMonitoring({
             {approvedModules}
           </div>
           <div className="text-[11px] text-dash-ink-soft mt-0.5">
-            {Math.round((approvedModules / (totalModules || 1)) * 100)}% verified by MSWDO
+            {totalModules > 0 ? `${Math.round((approvedModules / totalModules) * 100)}% verified by MSWDO` : '0% verified by MSWDO'}
           </div>
         </div>
 
@@ -288,7 +334,11 @@ export default function ProgramMonitoring({
           <div className="font-fraunces text-2xl font-bold text-accent mt-1">
             {activeTeachersCount}
           </div>
-          <div className="text-[11px] text-dash-ink-soft mt-0.5">Across 46 CDCs</div>
+          <div className="text-[11px] text-dash-ink-soft mt-0.5">
+            {activeTeachersCount > 0
+              ? `Across ${new Set(modules.map((m) => m.cdc_name)).size} CDC${new Set(modules.map((m) => m.cdc_name)).size === 1 ? '' : 's'}`
+              : 'Awaiting uploads'}
+          </div>
         </div>
       </div>
 
@@ -529,6 +579,15 @@ export default function ProgramMonitoring({
                             {module.description}
                           </div>
                         )}
+                        {module.mswd_comments && (
+                          <div
+                            className="text-[10px] text-amber-800 bg-amber-50/90 px-2 py-0.5 rounded border border-amber-200 mt-1 flex items-center gap-1 font-medium"
+                            title={module.mswd_comments}
+                          >
+                            <span className="font-bold shrink-0">💬 MSWD Note:</span>
+                            <span className="truncate">{module.mswd_comments}</span>
+                          </div>
+                        )}
                       </td>
 
                       {/* 3. Teacher & CDC */}
@@ -587,32 +646,47 @@ export default function ProgramMonitoring({
                         </span>
                       </td>
 
-                      {/* 8. Actions */}
+                      {/* 8. Actions: View, Comment, Approve */}
                       <td className="px-4 py-3 text-right whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1.5">
-                          {!module.verified_by_mswd && (
-                            <button
-                              onClick={() => handleApproveModule(module.id)}
-                              className="px-2.5 py-1 rounded-lg bg-[#2E6B38] hover:bg-[#23532B] text-white font-bold text-[11px] shadow-2xs transition-colors cursor-pointer"
-                              title="Approve this post"
-                            >
-                              Approve
-                            </button>
-                          )}
+                        <div className="inline-flex items-center gap-1.5 justify-end">
+                          {/* 1. View Button */}
                           <button
                             onClick={() => setInspectingModule(module)}
-                            className="px-2.5 py-1 rounded-lg bg-[#FAF5EC] hover:bg-[#EFE8DC] text-dash-ink font-bold text-[11px] transition-colors cursor-pointer border border-[#E5DAC4]"
+                            className="px-2.5 py-1.5 rounded-lg bg-[#FAF5EC] hover:bg-[#EFE8DC] text-dash-ink font-bold text-[11px] transition-colors cursor-pointer border border-[#E5DAC4] flex items-center gap-1 shadow-2xs"
+                            title="View activity details and file"
                           >
-                            Inspect
+                            <span>👁️</span>
+                            <span>View</span>
                           </button>
-                          {!module.verified_by_mswd && (
+
+                          {/* 2. Comment Button */}
+                          <button
+                            onClick={() => handleOpenComment(module)}
+                            className="px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-900 font-bold text-[11px] transition-colors cursor-pointer border border-sky-200 flex items-center gap-1 shadow-2xs"
+                            title="Add MSWD review notes & comments"
+                          >
+                            <span>💬</span>
+                            <span>{module.mswd_comments ? 'Commented' : 'Comment'}</span>
+                          </button>
+
+                          {/* 3. Approve Button */}
+                          {!module.verified_by_mswd ? (
                             <button
-                              onClick={() => handleRejectModule(module.id)}
-                              className="px-2 py-1 rounded-lg hover:bg-rose-50 text-rose-700 font-bold text-[11px] transition-colors cursor-pointer"
-                              title="Request revision"
+                              onClick={() => handleApproveModule(module.id)}
+                              className="px-2.5 py-1.5 rounded-lg bg-[#2E6B38] hover:bg-[#23532B] text-white font-bold text-[11px] shadow-xs transition-colors cursor-pointer flex items-center gap-1"
+                              title="Approve and verify this teacher activity"
                             >
-                              Revision
+                              <span>✓</span>
+                              <span>Approve</span>
                             </button>
+                          ) : (
+                            <span
+                              className="px-2.5 py-1.5 rounded-lg bg-[#DCEBDD] text-[#2E6B38] font-bold text-[11px] border border-emerald-300 inline-flex items-center gap-1"
+                              title="Officially approved by MSWD"
+                            >
+                              <span>✓</span>
+                              <span>Approved</span>
+                            </span>
                           )}
                         </div>
                       </td>
@@ -623,8 +697,26 @@ export default function ProgramMonitoring({
             </table>
 
             {filteredModules.length === 0 && (
-              <div className="text-center py-10 text-dash-ink-soft text-xs">
-                No teacher-posted activities or files found matching your search or filters.
+              <div className="text-center py-12 px-4 bg-slate-50/50">
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xl flex items-center justify-center mx-auto mb-3">
+                  📂
+                </div>
+                <h4 className="font-fraunces text-base font-bold text-dash-ink">
+                  {totalModules === 0 ? 'No Teacher Activities Posted Yet' : 'No Matching Posts Found'}
+                </h4>
+                <p className="text-xs text-dash-ink-soft max-w-md mx-auto mt-1 leading-relaxed">
+                  {totalModules === 0
+                    ? 'When daycare teachers submit activity worksheets, lesson guides, or learning materials from their Teacher Dashboard, they will immediately appear here in real time for MSWD review, commenting, and approval.'
+                    : 'No teacher posts match your current search query or active filter selections. Try clearing your filters or search term.'}
+                </p>
+                {totalModules === 0 && (
+                  <button
+                    onClick={() => setUploadModalOpen(true)}
+                    className="mt-4 px-4 py-2 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                  >
+                    <span>+ Record First Post Upload</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -712,6 +804,13 @@ export default function ProgramMonitoring({
                       {module.description}
                     </p>
 
+                    {module.mswd_comments && (
+                      <div className="p-2.5 rounded-xl bg-amber-50/90 border border-amber-200 text-xs text-amber-950 flex items-start gap-2">
+                        <span className="font-bold text-amber-800 shrink-0">💬 MSWD Note:</span>
+                        <span className="italic leading-relaxed">{module.mswd_comments}</span>
+                      </div>
+                    )}
+
                     <div className="text-[11px] text-dash-ink-soft flex items-center gap-3 pt-1">
                       <span className="bg-[#FAF5EC] px-2 py-0.5 rounded border border-[#EBE1CF] font-mono">
                         📄 {module.module_type || 'Activity Worksheet'} ({module.file_type || 'PDF'} • {module.file_size || '2.4 MB'})
@@ -720,31 +819,44 @@ export default function ProgramMonitoring({
                     </div>
                   </div>
 
+                  {/* Actions Cluster: View, Comment, Approve */}
                   <div className="flex sm:flex-row md:flex-col items-end justify-center gap-2 shrink-0">
-                    {!module.verified_by_mswd && (
-                      <button
-                        onClick={() => handleApproveModule(module.id)}
-                        className="px-3.5 py-1.5 rounded-xl bg-[#2E6B38] hover:bg-[#23532B] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
-                      >
-                        Approve Post ✓
-                      </button>
-                    )}
-
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                      {/* 1. View Button */}
                       <button
                         onClick={() => setInspectingModule(module)}
-                        className="px-3 py-1.5 rounded-xl bg-[#FAF5EC] hover:bg-[#EFE8DC] text-dash-ink font-bold text-xs transition-colors cursor-pointer border border-[#E5DAC4]"
+                        className="px-3 py-1.5 rounded-xl bg-[#FAF5EC] hover:bg-[#EFE8DC] text-dash-ink font-bold text-xs transition-colors cursor-pointer border border-[#E5DAC4] flex items-center gap-1 shadow-2xs"
+                        title="View activity details and file"
                       >
-                        Inspect Details
+                        <span>👁️</span>
+                        <span>View</span>
                       </button>
 
-                      {!module.verified_by_mswd && (
+                      {/* 2. Comment Button */}
+                      <button
+                        onClick={() => handleOpenComment(module)}
+                        className="px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-900 font-bold text-xs transition-colors cursor-pointer border border-sky-200 flex items-center gap-1 shadow-2xs"
+                        title="Add MSWD review feedback & comment"
+                      >
+                        <span>💬</span>
+                        <span>{module.mswd_comments ? 'Edit Comment' : 'Comment'}</span>
+                      </button>
+
+                      {/* 3. Approve Button */}
+                      {!module.verified_by_mswd ? (
                         <button
-                          onClick={() => handleRejectModule(module.id)}
-                          className="px-2.5 py-1.5 rounded-xl hover:bg-danger/10 text-danger font-bold text-xs transition-colors cursor-pointer"
+                          onClick={() => handleApproveModule(module.id)}
+                          className="px-3 py-1.5 rounded-xl bg-[#2E6B38] hover:bg-[#23532B] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1"
+                          title="Approve and verify this teacher activity"
                         >
-                          Revision
+                          <span>✓</span>
+                          <span>Approve</span>
                         </button>
+                      ) : (
+                        <span className="px-3 py-1.5 rounded-xl bg-[#DCEBDD] text-[#2E6B38] font-bold text-xs border border-emerald-300 flex items-center gap-1">
+                          <span>✓</span>
+                          <span>Approved</span>
+                        </span>
                       )}
                     </div>
                   </div>
@@ -753,8 +865,26 @@ export default function ProgramMonitoring({
             })}
 
             {filteredModules.length === 0 && (
-              <div className="text-center py-10 text-dash-ink-soft text-xs">
-                No uploaded activities or files found matching your criteria.
+              <div className="text-center py-12 px-4 rounded-2xl bg-slate-50/50 border border-dashed border-slate-200">
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xl flex items-center justify-center mx-auto mb-3">
+                  📂
+                </div>
+                <h4 className="font-fraunces text-base font-bold text-dash-ink">
+                  {totalModules === 0 ? 'No Teacher Activities Posted Yet' : 'No Matching Posts Found'}
+                </h4>
+                <p className="text-xs text-dash-ink-soft max-w-md mx-auto mt-1 leading-relaxed">
+                  {totalModules === 0
+                    ? 'When daycare teachers submit activity worksheets, lesson guides, or learning materials from their Teacher Dashboard, they will immediately appear here in real time for MSWD review, commenting, and approval.'
+                    : 'No teacher posts match your current search query or active filter selections. Try clearing your filters or search term.'}
+                </p>
+                {totalModules === 0 && (
+                  <button
+                    onClick={() => setUploadModalOpen(true)}
+                    className="mt-4 px-4 py-2 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                  >
+                    <span>+ Record First Post Upload</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -952,14 +1082,31 @@ export default function ProgramMonitoring({
               </div>
             )}
 
-            {inspectingModule.revision_notes && (
+            {inspectingModule.mswd_comments && (
+              <div className="p-3.5 rounded-xl bg-amber-50/90 border border-amber-300 text-xs text-amber-950 space-y-1">
+                <div className="flex items-center justify-between font-bold text-amber-900">
+                  <span className="flex items-center gap-1.5">
+                    <span>💬</span>
+                    <span>MSWDO Pedagogical Feedback &amp; Review Notes:</span>
+                  </span>
+                  {inspectingModule.mswd_comment_date && (
+                    <span className="text-[11px] font-normal text-amber-700">
+                      {inspectingModule.mswd_comment_date}
+                    </span>
+                  )}
+                </div>
+                <div className="leading-relaxed whitespace-pre-wrap">{inspectingModule.mswd_comments}</div>
+              </div>
+            )}
+
+            {inspectingModule.revision_notes && !inspectingModule.mswd_comments && (
               <div className="p-3.5 rounded-xl bg-[#FDE2E2] border border-rose-200 text-xs text-danger space-y-1">
                 <div className="font-bold">⚠️ Requested Revision Note:</div>
                 <div>{inspectingModule.revision_notes}</div>
               </div>
             )}
 
-            <div className="flex items-center justify-between pt-2 border-t border-card-border">
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-card-border">
               <button
                 onClick={() => {
                   alert(`Downloading file for "${inspectingModule.title}" (${inspectingModule.file_size || '2.4 MB'})...`);
@@ -970,34 +1117,157 @@ export default function ProgramMonitoring({
               </button>
 
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleOpenComment(inspectingModule)}
+                  className="px-3.5 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-900 font-bold text-xs transition-colors cursor-pointer border border-sky-300 flex items-center gap-1.5 shadow-2xs"
+                >
+                  <span>💬</span>
+                  <span>{inspectingModule.mswd_comments ? 'Edit MSWD Comment' : 'Add Comment'}</span>
+                </button>
+
                 {!inspectingModule.verified_by_mswd ? (
-                  <>
-                    <button
-                      onClick={() => {
-                        handleRejectModule(inspectingModule.id);
-                        setInspectingModule(null);
-                      }}
-                      className="px-3.5 py-2 rounded-xl hover:bg-danger/10 text-danger font-bold text-xs transition-colors cursor-pointer"
-                    >
-                      Request Revision
-                    </button>
-                    <button
-                      onClick={() => {
-                        handleApproveModule(inspectingModule.id);
-                        setInspectingModule(null);
-                      }}
-                      className="px-4 py-2 rounded-xl bg-[#2E6B38] hover:bg-[#23532B] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
-                    >
-                      Verify &amp; Approve Post ✓
-                    </button>
-                  </>
+                  <button
+                    onClick={() => {
+                      handleApproveModule(inspectingModule.id);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-[#2E6B38] hover:bg-[#23532B] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>✓</span>
+                    <span>Approve Activity</span>
+                  </button>
                 ) : (
-                  <span className="text-xs font-bold text-[#2E6B38] bg-[#DCEBDD] px-3 py-1.5 rounded-xl border border-emerald-300">
-                    Officially MSWDO Approved
+                  <span className="text-xs font-bold text-[#2E6B38] bg-[#DCEBDD] px-3.5 py-2 rounded-xl border border-emerald-300 flex items-center gap-1">
+                    <span>✓</span>
+                    <span>Officially Approved</span>
                   </span>
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: MSWD REVIEW COMMENT & DECISION                    */}
+      {/* ======================================================== */}
+      {commentingModule && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/45 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-card-border shadow-2xl max-w-lg w-full p-6 space-y-4 animate-scaleUp">
+            <div className="flex items-center justify-between pb-3 border-b border-[#F0E6D2]">
+              <div>
+                <div className="inline-flex items-center gap-1 text-[11px] font-bold text-accent bg-[#FFF5EE] px-2.5 py-0.5 rounded-full mb-1">
+                  <span>💬 MSWD Activity Review</span>
+                </div>
+                <h3 className="font-fraunces text-lg font-bold text-dash-ink m-0">
+                  Review &amp; Comment on Activity
+                </h3>
+                <p className="text-xs text-dash-ink-soft mt-0.5">
+                  Provide official pedagogical feedback and check compliance for Teacher {commentingModule.teacher_name}.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCommentingModule(null)}
+                className="w-8 h-8 rounded-full bg-[#FAF5EC] hover:bg-[#F0E6D2] flex items-center justify-center text-dash-ink-soft text-sm transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-3 rounded-xl bg-[#FAF5EC] border border-[#EBE1CF] space-y-1 text-xs">
+              <div className="font-bold text-dash-ink">{commentingModule.title}</div>
+              <div className="text-dash-ink-soft text-[11px] flex flex-wrap gap-x-2">
+                <span>Teacher: <b className="text-dash-ink">{commentingModule.teacher_name}</b></span>
+                <span>•</span>
+                <span>CDC: <b className="text-dash-ink">{commentingModule.cdc_name}</b></span>
+                <span>•</span>
+                <span>Level: <b className="text-dash-ink">{commentingModule.level}</b></span>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveComment} className="space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-dash-ink block mb-1.5">
+                  MSWDO Review Decision
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCommentDecision('approve')}
+                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer font-bold ${
+                      commentDecision === 'approve'
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-xs'
+                        : 'bg-white border-[#E5DCC9] text-dash-ink-soft hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="text-base mb-0.5">✓</div>
+                    <div className="text-[11.5px]">Approve</div>
+                    <div className="text-[9.5px] font-normal opacity-80">Verified &amp; Cleared</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCommentDecision('revision')}
+                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer font-bold ${
+                      commentDecision === 'revision'
+                        ? 'bg-rose-50 border-rose-500 text-rose-800 shadow-xs'
+                        : 'bg-white border-[#E5DCC9] text-dash-ink-soft hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="text-base mb-0.5">⚠️</div>
+                    <div className="text-[11.5px]">Needs Revision</div>
+                    <div className="text-[9.5px] font-normal opacity-80">Requires Changes</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCommentDecision('keep')}
+                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer font-bold ${
+                      commentDecision === 'keep'
+                        ? 'bg-amber-50 border-amber-500 text-amber-800 shadow-xs'
+                        : 'bg-white border-[#E5DCC9] text-dash-ink-soft hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="text-base mb-0.5">💬</div>
+                    <div className="text-[11.5px]">Comment Only</div>
+                    <div className="text-[9.5px] font-normal opacity-80">Keep Current Status</div>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-dash-ink block mb-1">
+                  MSWDO Review Notes &amp; Guidance for the Teacher
+                </label>
+                <textarea
+                  rows={4}
+                  required
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  placeholder="Add specific comments, recommendations, or guidelines for the teacher regarding this activity..."
+                  className="w-full px-3 py-2.5 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] font-medium text-dash-ink outline-none focus:border-accent resize-none text-xs leading-relaxed"
+                />
+                <span className="text-[10.5px] text-dash-ink-soft mt-1 block">
+                  This comment will be visible to Teacher {commentingModule.teacher_name} in their Teacher Dashboard under this activity.
+                </span>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 border-t border-card-border">
+                <button
+                  type="button"
+                  onClick={() => setCommentingModule(null)}
+                  className="px-4 py-2 rounded-xl border border-[#D5C7B0] text-dash-ink font-bold text-xs cursor-pointer hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>💾 Save Comment &amp; Update Status</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
