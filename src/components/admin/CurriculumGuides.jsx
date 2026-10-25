@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   preK1Curriculum,
   preK2Curriculum,
   realTeachersList,
   realCdcsList,
   initialCurriculumAssignments,
+  getCleanCurriculumAssignments,
   initialTeacherModules,
   formatAssignmentCoverage,
 } from '../../lib/curriculumData.js';
@@ -38,16 +39,51 @@ export default function CurriculumGuides({
   const [quarterFilter, setQuarterFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBarangayFilter, setSelectedBarangayFilter] = useState('all');
+  const [teacherUpdateTick, setTeacherUpdateTick] = useState(0);
 
   // Curriculum assignments state (persisted to localStorage)
-  const [assignments, setAssignments] = useState(() => {
+  const [assignments, setAssignments] = useState(getCleanCurriculumAssignments);
+
+  // Sync when teacher profiles or assignments update
+  useEffect(() => {
+    const handleSync = () => {
+      setTeacherUpdateTick((prev) => prev + 1);
+      setAssignments(getCleanCurriculumAssignments());
+    };
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('earlylearn_teachers_updated', handleSync);
+    window.addEventListener('earlylearn_assignments_updated', handleSync);
+    return () => {
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('earlylearn_teachers_updated', handleSync);
+      window.removeEventListener('earlylearn_assignments_updated', handleSync);
+    };
+  }, []);
+
+  // Real active teachers list merged with teacher-edited profile overrides
+  const activeTeachersList = useMemo(() => {
     try {
-      const saved = localStorage.getItem('earlylearn_curriculum_assignments');
-      return saved ? JSON.parse(saved) : initialCurriculumAssignments;
+      const overrides = JSON.parse(localStorage.getItem('earlylearn_teacher_profiles_override') || '{}');
+      return realTeachersList.map((t) => {
+        const ov =
+          overrides[t.id] ||
+          (t.email && overrides[t.email.toLowerCase()]) ||
+          (t.full_name && overrides[t.full_name.toLowerCase()]);
+        if (ov) {
+          return {
+            ...t,
+            full_name: ov.full_name || t.full_name,
+            barangay: ov.barangay || t.barangay,
+            cdc_name: ov.cdc_name || t.cdc_name,
+            contact_number: ov.contact_number || t.contact_number,
+          };
+        }
+        return t;
+      });
     } catch {
-      return initialCurriculumAssignments;
+      return realTeachersList;
     }
-  });
+  }, [teacherUpdateTick]);
 
   // Modal State for Assigning Curriculum
   const [assignModalOpen, setAssignModalOpen] = useState(false);
@@ -198,7 +234,7 @@ export default function CurriculumGuides({
         : (targetWeeks[0] || 'Week 1'));
 
     if (targetType === 'all') {
-      realTeachersList.forEach((teacher) => {
+      activeTeachersList.forEach((teacher) => {
         const newAssignmentObj = {
           id: 'asg-' + Date.now() + '-' + teacher.id,
           teacherId: teacher.id,
@@ -224,7 +260,7 @@ export default function CurriculumGuides({
         newAssignmentsList.push(newAssignmentObj);
       });
     } else if (targetType === 'teacher') {
-      const teacher = realTeachersList.find((t) => t.id === selectedTeacherId);
+      const teacher = activeTeachersList.find((t) => t.id === selectedTeacherId);
       if (!teacher) {
         alert('Please select a teacher.');
         return;
@@ -258,7 +294,7 @@ export default function CurriculumGuides({
         alert('Please select a Barangay.');
         return;
       }
-      const teachersInBrgy = realTeachersList.filter((t) => t.barangay === selectedBarangayForAssign);
+      const teachersInBrgy = activeTeachersList.filter((t) => t.barangay === selectedBarangayForAssign);
       if (teachersInBrgy.length === 0) {
         alert('No teachers found in this Barangay.');
         return;
@@ -293,7 +329,7 @@ export default function CurriculumGuides({
         alert('Please select a CDC.');
         return;
       }
-      const teachersInCdc = realTeachersList.filter((t) => t.cdc_name === selectedCdcForAssign);
+      const teachersInCdc = activeTeachersList.filter((t) => t.cdc_name === selectedCdcForAssign);
       if (teachersInCdc.length === 0) {
         alert('No teachers found assigned to this CDC.');
         return;
@@ -1054,7 +1090,7 @@ export default function CurriculumGuides({
                     className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] font-bold text-dash-ink outline-none focus:border-accent"
                   >
                     <option value="">-- Choose Teacher from 46 CDCs --</option>
-                    {realTeachersList.map((t) => (
+                    {activeTeachersList.map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.full_name} — Brgy. {t.barangay} ({t.cdc_name})
                       </option>

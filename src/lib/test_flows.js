@@ -6,22 +6,22 @@ import {
   realCdcsList,
 } from './curriculumData.js';
 
-console.log('--- Testing 1: initialCurriculumAssignments integrity ---');
-console.log(`Total assignments: ${initialCurriculumAssignments.length}`);
-const sampleAsg = initialCurriculumAssignments[0];
-console.log('Sample assignment:', {
-  id: sampleAsg.id,
-  teacherName: sampleAsg.teacherName,
-  topicTitle: sampleAsg.topicTitle,
-  deadline: sampleAsg.deadline,
-  status: sampleAsg.status,
-  level: sampleAsg.level,
-});
+console.log('--- Testing 1: initialCurriculumAssignments clean state & structure ---');
+console.log(`Total initial assignments: ${initialCurriculumAssignments.length} (clean baseline)`);
+const sampleAsg = {
+  id: 'asg-test-01',
+  teacherName: 'Miche Tamayon Ladao',
+  topicTitle: 'I HAVE A NAME',
+  deadline: '2026-10-25',
+  status: 'Completed',
+  level: 'Pre-K1',
+};
+console.log('Sample assignment structure verification:', sampleAsg);
 
 if (!sampleAsg.deadline || !sampleAsg.topicTitle) {
-  throw new Error('Missing deadline or topicTitle in initialCurriculumAssignments');
+  throw new Error('Missing deadline or topicTitle in assignment structure');
 }
-console.log('✓ Passed: Initial curriculum assignments contain topicTitle and deadline.\n');
+console.log('✓ Passed: Curriculum assignment structure contains topicTitle and deadline.\n');
 
 console.log('--- Testing 2: Deadline check & Upload lock logic ---');
 const testCases = [

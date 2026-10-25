@@ -76,16 +76,61 @@ export default function ManageTeachers() {
         .select('id, full_name, barangay, contact_number, email, cdc_id, cdcs(id, name, barangay)')
         .order('full_name');
 
+      let combined = [];
       if (!error && data && data.length > 0) {
         // Merge Supabase teachers with realTeachersList baseline
         const existingNames = new Set(data.map((t) => (t.full_name || '').toLowerCase()));
         const nonDuplicateBaseline = realTeachersList.filter(
           (b) => !existingNames.has((b.full_name || '').toLowerCase())
         );
-        setTeachers([...data, ...nonDuplicateBaseline]);
+        combined = [...data, ...nonDuplicateBaseline];
       } else {
-        setTeachers(realTeachersList);
+        combined = [...realTeachersList];
       }
+
+      // Merge real-time teacher profile edits from Teacher Dashboard
+      try {
+        const overrides = JSON.parse(localStorage.getItem('earlylearn_teacher_profiles_override') || '{}');
+        combined = combined.map((t) => {
+          const override =
+            overrides[t.id] ||
+            (t.email && overrides[t.email.toLowerCase()]) ||
+            (t.full_name && overrides[t.full_name.toLowerCase()]);
+          if (override) {
+            return {
+              ...t,
+              full_name: override.full_name || t.full_name,
+              barangay: override.barangay || t.barangay,
+              cdc_name: override.cdc_name || t.cdc_name,
+              cdc_id: override.cdc_id || t.cdc_id,
+              cdcs: override.cdc_name ? { name: override.cdc_name, barangay: override.barangay } : t.cdcs,
+              contact_number: override.contact_number || t.contact_number,
+              email: override.email || t.email,
+            };
+          }
+          return t;
+        });
+
+        // Include any newly active teacher profile not yet in baseline
+        Object.values(overrides).forEach((ov) => {
+          if (ov && ov.id && !combined.some((t) => t.id === ov.id || (ov.email && t.email === ov.email))) {
+            combined.unshift({
+              id: ov.id,
+              full_name: ov.full_name,
+              barangay: ov.barangay,
+              cdc_name: ov.cdc_name,
+              cdc_id: ov.cdc_id,
+              cdcs: { name: ov.cdc_name, barangay: ov.barangay },
+              contact_number: ov.contact_number,
+              email: ov.email,
+            });
+          }
+        });
+      } catch {
+        // ignore
+      }
+
+      setTeachers(combined);
     } catch {
       setTeachers(realTeachersList);
     }
@@ -112,6 +157,16 @@ export default function ManageTeachers() {
   useEffect(() => {
     loadTeachers();
     loadCdcs();
+
+    const handleSync = () => {
+      loadTeachers();
+    };
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('earlylearn_teachers_updated', handleSync);
+    return () => {
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('earlylearn_teachers_updated', handleSync);
+    };
   }, [loadTeachers, loadCdcs]);
 
   // Filtered teachers list

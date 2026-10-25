@@ -5,8 +5,10 @@ import {
   preK1Curriculum,
   preK2Curriculum,
   initialCurriculumAssignments,
+  getCleanCurriculumAssignments,
   initialTeacherModules,
   realTeachersList,
+  realCdcsList,
 } from '../lib/curriculumData.js';
 import { getLearnersForTeacher, getCdcForBarangay } from '../lib/learnersService.js';
 import TeacherChildDevelopment from '../components/teacher/TeacherChildDevelopment.jsx';
@@ -16,6 +18,10 @@ import {
   IconMaterials,
   IconCheck,
   IconClose,
+  IconTeachers,
+  IconBuilding,
+  IconPin,
+  IconRefresh,
 } from '../components/Icons.jsx';
 import {
   cardBox,
@@ -51,15 +57,8 @@ export default function TeacherDashboard({ profile }) {
   const currentUserId = profile.id;
   const [activeTab, setActiveTab] = useState('overview');
 
-  // MSWD Admin Assigned Topics & Tasks state
-  const [assignments, setAssignments] = useState(() => {
-    try {
-      const saved = localStorage.getItem('earlylearn_curriculum_assignments');
-      return saved ? JSON.parse(saved) : initialCurriculumAssignments;
-    } catch {
-      return initialCurriculumAssignments;
-    }
-  });
+  // MSWD Admin Assigned Topics & Tasks state (Real MSWDO deployments only)
+  const [assignments, setAssignments] = useState(getCleanCurriculumAssignments);
   const [activeAssignmentId, setActiveAssignmentId] = useState(null);
   const [activeAssignmentDeadline, setActiveAssignmentDeadline] = useState(null);
   const [topicStatusFilter, setTopicStatusFilter] = useState('all'); // 'all' | 'pending' | 'completed' | 'expired'
@@ -126,12 +125,22 @@ export default function TeacherDashboard({ profile }) {
   const [progressRows, setProgressRows] = useState([]);
   const [totalStudents, setTotalStudents] = useState(0);
 
-  // Profile tab
-  const [myBarangay, setMyBarangay] = useState('');
+  // Profile tab states (personal info, barangay, and specific CDC)
+  const [myFullName, setMyFullName] = useState(profile?.full_name || '');
+  const [myContact, setMyContact] = useState(profile?.contact_number || '');
+  const [myEmail, setMyEmail] = useState(profile?.email || '');
+  const [myBarangay, setMyBarangay] = useState(profile?.barangay || '');
+  const [myCdcId, setMyCdcId] = useState(profile?.cdc_id || '');
+  const [myCdcName, setMyCdcName] = useState(profile?.cdc_name || null);
+  const [customCdcMode, setCustomCdcMode] = useState(false);
+  const [customCdcInput, setCustomCdcInput] = useState('');
+  const [mySpecialization, setMySpecialization] = useState('Child Development Teacher (CDT) / Worker');
+  const [myYearsService, setMyYearsService] = useState('3 years');
+  const [myBio, setMyBio] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
   const [profileMsg, setProfileMsg] = useState({ text: '', type: '' });
 
   // My Learners tab — auto-filtered by this teacher's assigned CDC
-  const [myCdcName, setMyCdcName] = useState(null);
   const [myLearners, setMyLearners] = useState([]);
   const [learnersLoading, setLearnersLoading] = useState(true);
 
@@ -580,25 +589,188 @@ export default function TeacherDashboard({ profile }) {
 
   // --- My Profile ---
   const loadMyProfile = useCallback(async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('barangay')
-      .eq('id', currentUserId)
-      .single();
-    if (data?.barangay) setMyBarangay(data.barangay);
-  }, [currentUserId]);
+    let loadedName = profile?.full_name || '';
+    let loadedBarangay = profile?.barangay || '';
+    let loadedContact = profile?.contact_number || '';
+    let loadedEmail = profile?.email || '';
+    let loadedCdcId = profile?.cdc_id || '';
+    let loadedCdcName = profile?.cdc_name || '';
+    let loadedSpec = 'Child Development Teacher (CDT) / Worker';
+    let loadedYears = '3 years';
+    let loadedBio = '';
 
-  async function saveBarangay() {
-    if (!myBarangay) {
-      setProfileMsg({ text: '⚠️ Please select a barangay first', type: 'error' });
+    // 1. Check local storage overrides first
+    try {
+      const overrides = JSON.parse(localStorage.getItem('earlylearn_teacher_profiles_override') || '{}');
+      const ov =
+        overrides[currentUserId] ||
+        (profile?.email && overrides[profile.email.toLowerCase()]) ||
+        (loadedName && overrides[loadedName.trim().toLowerCase()]);
+      if (ov) {
+        if (ov.full_name) loadedName = ov.full_name;
+        if (ov.barangay) loadedBarangay = ov.barangay;
+        if (ov.contact_number) loadedContact = ov.contact_number;
+        if (ov.email) loadedEmail = ov.email;
+        if (ov.cdc_id) loadedCdcId = ov.cdc_id;
+        if (ov.cdc_name) loadedCdcName = ov.cdc_name;
+        if (ov.specialization) loadedSpec = ov.specialization;
+        if (ov.years_service) loadedYears = ov.years_service;
+        if (ov.bio) loadedBio = ov.bio;
+      }
+    } catch {
+      // ignore
+    }
+
+    // 2. Query Supabase profiles & teachers
+    try {
+      const { data: profData } = await supabase
+        .from('profiles')
+        .select('full_name, barangay')
+        .eq('id', currentUserId)
+        .single();
+      if (profData?.full_name && !loadedName) loadedName = profData.full_name;
+      if (profData?.barangay && !loadedBarangay) loadedBarangay = profData.barangay;
+
+      const { data: teachData } = await supabase
+        .from('teachers')
+        .select('full_name, barangay, contact_number, email, cdc_id, cdcs(name)')
+        .eq('id', currentUserId)
+        .single();
+      if (teachData) {
+        if (teachData.full_name && !loadedName) loadedName = teachData.full_name;
+        if (teachData.barangay && !loadedBarangay) loadedBarangay = teachData.barangay;
+        if (teachData.contact_number && !loadedContact) loadedContact = teachData.contact_number;
+        if (teachData.email && !loadedEmail) loadedEmail = teachData.email;
+        if (teachData.cdc_id && !loadedCdcId) loadedCdcId = teachData.cdc_id;
+        if (teachData.cdcs?.name && !loadedCdcName) loadedCdcName = teachData.cdcs.name;
+      }
+    } catch {
+      // ignore
+    }
+
+    // 3. Fallback matching with realTeachersList if still blank
+    if (!loadedBarangay || !loadedCdcName) {
+      const match = realTeachersList.find(
+        (t) =>
+          t.id === currentUserId ||
+          (t.email && profile?.email && t.email.toLowerCase() === profile.email.toLowerCase()) ||
+          (t.full_name && loadedName && t.full_name.toLowerCase().includes(loadedName.toLowerCase()))
+      );
+      if (match) {
+        if (!loadedName) loadedName = match.full_name;
+        if (!loadedBarangay) loadedBarangay = match.barangay;
+        if (!loadedCdcName) loadedCdcName = match.cdc_name;
+        if (!loadedContact) loadedContact = match.contact_number;
+        if (!loadedEmail) loadedEmail = match.email;
+        if (match.designation && !loadedSpec) loadedSpec = match.designation;
+      }
+    }
+
+    setMyFullName(loadedName);
+    setMyBarangay(loadedBarangay);
+    setMyContact(loadedContact);
+    setMyEmail(loadedEmail);
+    setMyCdcId(loadedCdcId);
+    setMyCdcName(loadedCdcName);
+    setMySpecialization(loadedSpec);
+    setMyYearsService(loadedYears);
+    setMyBio(loadedBio);
+  }, [currentUserId, profile]);
+
+  // Handle Save & Sync Teacher Profile (updates Supabase + local overrides + broadcasts to Admin)
+  async function handleSaveTeacherProfile(e) {
+    if (e) e.preventDefault();
+    if (!myFullName.trim()) {
+      setProfileMsg({ text: '⚠️ Please enter your full name.', type: 'error' });
       return;
     }
-    const { error } = await supabase
-      .from('profiles')
-      .update({ barangay: myBarangay })
-      .eq('id', currentUserId);
-    if (error) setProfileMsg({ text: '❌ ' + error.message, type: 'error' });
-    else setProfileMsg({ text: '✅ Barangay saved!', type: 'ok' });
+    if (!myBarangay) {
+      setProfileMsg({ text: '⚠️ Please select your assigned barangay.', type: 'error' });
+      return;
+    }
+
+    const finalCdc = customCdcMode && customCdcInput.trim() ? customCdcInput.trim() : myCdcName;
+    if (!finalCdc) {
+      setProfileMsg({ text: '⚠️ Please select or specify your Child Development Center (CDC).', type: 'error' });
+      return;
+    }
+
+    setProfileSaving(true);
+    setProfileMsg({ text: '', type: '' });
+
+    const updatedTeacher = {
+      id: currentUserId,
+      full_name: myFullName.trim(),
+      email: myEmail.trim() || profile?.email || '',
+      barangay: myBarangay,
+      cdc_id: myCdcId || null,
+      cdc_name: finalCdc,
+      contact_number: myContact.trim() || null,
+      specialization: mySpecialization.trim() || null,
+      years_service: myYearsService.trim() || null,
+      bio: myBio.trim() || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    // 1. Update Supabase profiles
+    try {
+      await supabase
+        .from('profiles')
+        .update({
+          full_name: updatedTeacher.full_name,
+          barangay: updatedTeacher.barangay,
+        })
+        .eq('id', currentUserId);
+    } catch (err) {
+      console.warn('Note on Supabase profiles update:', err);
+    }
+
+    // 2. Upsert Supabase teachers table
+    try {
+      await supabase.from('teachers').upsert({
+        id: currentUserId,
+        full_name: updatedTeacher.full_name,
+        email: updatedTeacher.email,
+        barangay: updatedTeacher.barangay,
+        cdc_id: updatedTeacher.cdc_id,
+        contact_number: updatedTeacher.contact_number,
+      });
+    } catch (err) {
+      console.warn('Note on Supabase teachers upsert:', err);
+    }
+
+    // 3. Save to localStorage overrides so it's always reliable across tabs
+    try {
+      const overrides = JSON.parse(localStorage.getItem('earlylearn_teacher_profiles_override') || '{}');
+      overrides[currentUserId] = updatedTeacher;
+      if (updatedTeacher.email) overrides[updatedTeacher.email.toLowerCase()] = updatedTeacher;
+      if (updatedTeacher.full_name) overrides[updatedTeacher.full_name.toLowerCase()] = updatedTeacher;
+      localStorage.setItem('earlylearn_teacher_profiles_override', JSON.stringify(overrides));
+      localStorage.setItem('earlylearn_active_teacher_profile', JSON.stringify(updatedTeacher));
+    } catch (err) {
+      console.warn('Failed saving local overrides:', err);
+    }
+
+    // 4. Update component state and profile object
+    if (profile) {
+      profile.full_name = updatedTeacher.full_name;
+      profile.barangay = updatedTeacher.barangay;
+      profile.cdc_name = updatedTeacher.cdc_name;
+    }
+    setMyCdcName(finalCdc);
+
+    // 5. Broadcast to Admin Dashboard & other tabs
+    window.dispatchEvent(new CustomEvent('earlylearn_teachers_updated', { detail: updatedTeacher }));
+    window.dispatchEvent(new CustomEvent('earlylearn_teacher_profile_saved', { detail: updatedTeacher }));
+
+    // 6. Reload learners for newly assigned CDC
+    loadMyLearners();
+
+    setProfileSaving(false);
+    setProfileMsg({
+      text: `✅ Profile successfully updated! Your updated name, CDC Center ("${finalCdc}"), and Barangay ("${myBarangay}") are now automatically recorded in the MSWDO Admin Dashboard.`,
+      type: 'ok',
+    });
   }
 
   // --- My Learners: find this teacher's CDC and Barangay, then list learners in that jurisdiction ---
@@ -617,6 +789,17 @@ export default function TeacherDashboard({ profile }) {
       // ignore
     }
 
+    // Check local profile override first
+    let override = null;
+    try {
+      const overrides = JSON.parse(localStorage.getItem('earlylearn_teacher_profiles_override') || '{}');
+      override =
+        overrides[currentUserId] ||
+        (profile?.email && overrides[profile.email.toLowerCase()]);
+    } catch {
+      // ignore
+    }
+
     const teacherName = profile?.full_name || '';
     const cleanTeacherName = teacherName.replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase();
 
@@ -630,14 +813,17 @@ export default function TeacherDashboard({ profile }) {
 
     const effectiveBarangay =
       myBarangay ||
+      override?.barangay ||
       dbTeacher?.barangay ||
       profile?.barangay ||
       baselineMatch?.barangay ||
       '';
 
-    const effectiveCdcId = dbTeacher?.cdc_id || null;
+    const effectiveCdcId = override?.cdc_id || dbTeacher?.cdc_id || null;
 
     let effectiveCdcName =
+      override?.cdc_name ||
+      myCdcName ||
       dbTeacher?.cdcs?.name ||
       baselineMatch?.cdc_name ||
       '';
@@ -696,12 +882,7 @@ export default function TeacherDashboard({ profile }) {
         e.type === 'earlylearn_assignments_updated' ||
         (e.type === 'storage' && e.key === 'earlylearn_curriculum_assignments')
       ) {
-        try {
-          const saved = localStorage.getItem('earlylearn_curriculum_assignments');
-          if (saved) setAssignments(JSON.parse(saved));
-        } catch (err) {
-          console.warn('Failed syncing assignments:', err);
-        }
+        setAssignments(getCleanCurriculumAssignments());
       }
       if (
         e.type === 'earlylearn_modules_updated' ||
@@ -726,29 +907,31 @@ export default function TeacherDashboard({ profile }) {
     };
   }, []);
 
-  // Filter assignments targeted to this logged-in teacher / CDC / Barangay
+  // Filter assignments targeted to this logged-in teacher / CDC / Barangay (Real MSWDO deployments only)
   const myAssignedTopics = useMemo(() => {
-    const teacherName = (profile?.full_name || '').toLowerCase();
+    const teacherName = (myFullName || profile?.full_name || '').toLowerCase();
     const cleanName = teacherName.replace(/\s*\(.*?\)\s*/g, '').trim();
     const brgy = (myBarangay || profile?.barangay || '').toLowerCase();
     const cdc = (myCdcName || profile?.cdc_name || '').toLowerCase();
 
-    const matched = assignments.filter((a) => {
+    return assignments.filter((a) => {
       const aTeacher = (a.teacherName || '').toLowerCase();
       const aBrgy = (a.barangay || '').toLowerCase();
       const aCdc = (a.cdcName || '').toLowerCase();
 
-      const idMatch = a.teacherId && a.teacherId === currentUserId;
+      const idMatch = a.teacherId && (a.teacherId === currentUserId || a.teacherId === profile?.id);
       const nameMatch = cleanName && (aTeacher.includes(cleanName) || cleanName.includes(aTeacher));
       const cdcMatch = cdc && (aCdc.includes(cdc) || cdc.includes(aCdc));
       const brgyMatch = brgy && (aBrgy.includes(brgy) || brgy.includes(aBrgy));
-      const isUniversal = a.targetType === 'all' || a.barangay === 'all' || a.cdcName === 'All CDCs' || a.teacherName === 'All Teachers';
+      const isUniversal =
+        a.targetType === 'all' ||
+        a.barangay === 'all' ||
+        a.cdcName === 'All CDCs' ||
+        a.teacherName === 'All Teachers';
 
       return idMatch || nameMatch || cdcMatch || brgyMatch || isUniversal;
     });
-
-    return matched.length > 0 ? matched : assignments;
-  }, [assignments, profile, currentUserId, myBarangay, myCdcName]);
+  }, [assignments, profile, currentUserId, myFullName, myBarangay, myCdcName]);
 
   // Enriched topics with deadline calculation and active filter matching
   const filteredAssignedTopics = useMemo(() => {
@@ -1247,26 +1430,32 @@ export default function TeacherDashboard({ profile }) {
             })}
 
             {filteredAssignedTopics.length === 0 && (
-              <div className="bg-white p-8 rounded-2xl border border-card-border text-center space-y-2">
-                <div className="text-2xl">📋</div>
-                <div className="font-bold text-slate-800 text-sm">
-                  No assigned topics found matching your criteria.
+              <div className="bg-white p-10 rounded-2xl border border-card-border text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-2xl flex items-center justify-center mx-auto">
+                  📋
                 </div>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  Try adjusting your status filter or search query. When the MSWDO Admin assigns a topic with a deadline, it will appear here immediately.
+                <div className="font-fraunces font-bold text-slate-800 text-base">
+                  {myAssignedTopics.length === 0 ? 'No Topics or Tasks Assigned by MSWD Yet' : 'No Matching Assigned Topics Found'}
+                </div>
+                <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                  {myAssignedTopics.length === 0
+                    ? 'When MSWDO Manolo Fortich deploys a curriculum topic, lesson plan requirement, or submission task with a deadline for you or your Day Care Center, it will automatically appear here in real time.'
+                    : 'Try adjusting your status filter or search query.'}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTopicStatusFilter('all');
-                    setTopicLevelFilter('all');
-                    setTopicQuarterFilter('all');
-                    setTopicSearchQuery('');
-                  }}
-                  className="text-xs text-accent font-bold hover:underline cursor-pointer pt-2 inline-block"
-                >
-                  Reset Filters
-                </button>
+                {myAssignedTopics.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTopicStatusFilter('all');
+                      setTopicLevelFilter('all');
+                      setTopicQuarterFilter('all');
+                      setTopicSearchQuery('');
+                    }}
+                    className="text-xs text-accent font-bold hover:underline cursor-pointer pt-1 inline-block"
+                  >
+                    Reset Filters
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1926,29 +2115,336 @@ export default function TeacherDashboard({ profile }) {
         </div>
       )}
 
-      {/* MY PROFILE */}
+      {/* MY PROFILE — Comprehensive Editor with Auto-Sync to MSWDO Admin */}
       {activeTab === 'profile' && (
-        <div className={cardBox}>
-          <h3 className={cardBoxTitle}>My Profile</h3>
-          <label className={label}>Barangay</label>
-          <select
-            value={myBarangay}
-            onChange={(e) => setMyBarangay(e.target.value)}
-            className={input}
-          >
-            <option value="">— select your barangay —</option>
-            {barangays.map((b) => (
-              <option key={b} value={b}>
-                {b}
-              </option>
-            ))}
-          </select>
-          <button onClick={saveBarangay} className={btnPrimary}>
-            Save
-          </button>
+        <div className="space-y-6">
+          {/* Educator Identity Header Card */}
+          <div className="bg-white p-5 sm:p-6 rounded-2xl border border-card-border shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-[#FFF5EE] border border-accent/20 text-accent flex items-center justify-center font-bold text-2xl shadow-xs shrink-0">
+                👩‍🏫
+              </div>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-xl font-bold text-slate-900 m-0">
+                    {myFullName || profile?.full_name || 'Teacher Profile'}
+                  </h3>
+                  <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-[#DCEBDD] text-[#2E6B38] border border-emerald-300">
+                    Active Educator
+                  </span>
+                </div>
+                <div className="text-xs text-slate-500 flex flex-wrap items-center gap-2">
+                  <span className="font-semibold text-accent">{mySpecialization}</span>
+                  <span>•</span>
+                  <span>{myYearsService} of service</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#8C6200] bg-[#FFF3D6] px-2.5 py-0.5 rounded-md">
+                    <IconBuilding className="w-3 h-3 text-amber-700" />
+                    <span>{myCdcName || 'Day Care Center Unassigned'}</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-md">
+                    <IconPin className="w-3 h-3 text-slate-500" />
+                    <span>Brgy. {myBarangay || 'Not specified'}</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 text-xs text-amber-900 max-w-sm">
+              <span className="font-bold block text-amber-800 mb-0.5">🔄 Live MSWDO Admin Sync</span>
+              Your personal information, assigned Day Care Center, and Barangay update automatically in the MSWDO Admin Dashboard Teacher Directory in real time.
+            </div>
+          </div>
+
+          {/* Feedback Status Alert */}
           {profileMsg.text && (
-            <p className={profileMsg.type === 'error' ? msgError : msgOk}>{profileMsg.text}</p>
+            <div
+              className={`p-4 rounded-2xl text-xs font-bold flex items-center justify-between shadow-xs animate-fadeIn ${
+                profileMsg.type === 'error'
+                  ? 'bg-rose-50 border border-rose-300 text-rose-800'
+                  : 'bg-[#DCEBDD] border border-emerald-300 text-[#2E6B38]'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-base">{profileMsg.type === 'error' ? '⚠️' : '✅'}</span>
+                <span>{profileMsg.text}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setProfileMsg({ text: '', type: '' })}
+                className="text-slate-500 hover:text-slate-900 font-bold px-2 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
           )}
+
+          {/* Main Edit Form */}
+          <form onSubmit={handleSaveTeacherProfile} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {/* Card 1: Personal & Educator Information */}
+              <div className="bg-white p-5 rounded-2xl border border-card-border shadow-xs space-y-4">
+                <div className="border-b border-slate-100 pb-3">
+                  <h4 className="font-fraunces text-base font-bold text-slate-900 m-0 flex items-center gap-2">
+                    <span>👤</span>
+                    <span>Personal &amp; Professional Info</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Your official teacher identity recorded in the EarlyLearn Hub.
+                  </p>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Full Legal Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={myFullName}
+                      onChange={(e) => setMyFullName(e.target.value)}
+                      placeholder="e.g. Miche Tamayon Ladao"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-[#FFFDF8] font-bold text-slate-800 outline-none focus:border-accent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Mobile / Contact Number
+                    </label>
+                    <input
+                      type="text"
+                      value={myContact}
+                      onChange={(e) => setMyContact(e.target.value)}
+                      placeholder="e.g. 0917-889-2345"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-[#FFFDF8] font-medium text-slate-800 outline-none focus:border-accent font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Email Address (Account Login)
+                    </label>
+                    <input
+                      type="email"
+                      value={myEmail}
+                      onChange={(e) => setMyEmail(e.target.value)}
+                      placeholder="e.g. teacher@earlylearn.ph"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-[#FFFDF8] font-medium text-slate-800 outline-none focus:border-accent"
+                    />
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">
+                      Used for portal sign-in and system notifications.
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">
+                        Professional Position
+                      </label>
+                      <input
+                        type="text"
+                        value={mySpecialization}
+                        onChange={(e) => setMySpecialization(e.target.value)}
+                        placeholder="e.g. Child Development Teacher (CDT)"
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-[#FFFDF8] font-medium text-slate-800 outline-none focus:border-accent"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">
+                        Years of Service
+                      </label>
+                      <input
+                        type="text"
+                        value={myYearsService}
+                        onChange={(e) => setMyYearsService(e.target.value)}
+                        placeholder="e.g. 4 years"
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-[#FFFDF8] font-medium text-slate-800 outline-none focus:border-accent"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Jurisdiction, Barangay & Child Development Center */}
+              <div className="bg-white p-5 rounded-2xl border border-card-border shadow-xs space-y-4">
+                <div className="border-b border-slate-100 pb-3">
+                  <h4 className="font-fraunces text-base font-bold text-slate-900 m-0 flex items-center gap-2">
+                    <span>🏫</span>
+                    <span>Day Care Center &amp; Jurisdiction</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Your assigned Child Development Center (CDC) and Barangay in Manolo Fortich.
+                  </p>
+                </div>
+
+                <div className="space-y-3.5 text-xs">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Assigned Barangay <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={myBarangay}
+                      onChange={(e) => {
+                        const newBrgy = e.target.value;
+                        setMyBarangay(newBrgy);
+                        // Auto-select the first CDC in the new barangay if available
+                        const matchingCdcs = realCdcsList.filter(
+                          (c) => c.barangay?.toLowerCase() === newBrgy?.toLowerCase()
+                        );
+                        if (matchingCdcs.length > 0) {
+                          setMyCdcName(matchingCdcs[0].name);
+                          setMyCdcId(matchingCdcs[0].id);
+                          setCustomCdcMode(false);
+                        } else if (newBrgy) {
+                          setMyCdcName(`${newBrgy} Child Development Center`);
+                          setMyCdcId(null);
+                        }
+                      }}
+                      required
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-[#FFFDF8] font-bold text-slate-800 outline-none focus:border-accent cursor-pointer"
+                    >
+                      <option value="">-- Choose Assigned Barangay (22 Barangays) --</option>
+                      {barangays.map((b) => (
+                        <option key={b} value={b}>
+                          {b}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="font-bold text-slate-700">
+                        Specific Child Development Center (CDC) <span className="text-red-500">*</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setCustomCdcMode(!customCdcMode)}
+                        className="text-[11px] text-accent font-bold hover:underline cursor-pointer"
+                      >
+                        {customCdcMode ? '← Choose from CDC list' : '➕ Enter Custom CDC Name'}
+                      </button>
+                    </div>
+
+                    {!customCdcMode ? (
+                      <select
+                        value={myCdcName || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setMyCdcName(val);
+                          const found = realCdcsList.find((c) => c.name === val);
+                          if (found) setMyCdcId(found.id);
+                        }}
+                        required
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-[#FFFDF8] font-bold text-slate-800 outline-none focus:border-accent cursor-pointer"
+                      >
+                        <option value="">-- Choose Specific Day Care Center --</option>
+                        {realCdcsList
+                          .filter(
+                            (c) => !myBarangay || c.barangay?.toLowerCase() === myBarangay?.toLowerCase()
+                          )
+                          .map((c) => (
+                            <option key={c.id} value={c.name}>
+                              {c.name} (Brgy. {c.barangay})
+                            </option>
+                          ))}
+                        {/* Option to view all CDCs if needed */}
+                        <optgroup label="Other Centers in Manolo Fortich">
+                          {realCdcsList
+                            .filter(
+                              (c) => myBarangay && c.barangay?.toLowerCase() !== myBarangay?.toLowerCase()
+                            )
+                            .map((c) => (
+                              <option key={c.id} value={c.name}>
+                                {c.name} — Brgy. {c.barangay}
+                              </option>
+                            ))}
+                        </optgroup>
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        required
+                        placeholder="Type exact Day Care Center name..."
+                        value={customCdcInput}
+                        onChange={(e) => setCustomCdcInput(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-[#FFFDF8] font-bold text-slate-800 outline-none focus:border-accent"
+                      />
+                    )}
+                    <span className="text-[10px] text-slate-500 mt-1 block">
+                      Enrolled learners in &quot;My Learners&quot; and ECCD developmental assessments will connect to this center.
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Teaching Philosophy &amp; Notes to MSWDO
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={myBio}
+                      onChange={(e) => setMyBio(e.target.value)}
+                      placeholder="Share your early childhood teaching approach, classroom schedule notes, or parent communication guidelines..."
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-[#FFFDF8] font-medium text-slate-800 outline-none focus:border-accent resize-none text-xs leading-relaxed"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Admin Live Sync Preview Card */}
+            <div className="bg-[#FFFDF9] p-4.5 rounded-2xl border border-card-border shadow-xs space-y-2">
+              <div className="text-[11px] font-bold text-accent uppercase tracking-wider flex items-center gap-1.5">
+                <span>📋</span>
+                <span>MSWDO Admin Directory Card Preview</span>
+              </div>
+              <div className="p-3 rounded-xl bg-white border border-[#EBE1CF] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="space-y-0.5">
+                  <div className="font-bold text-slate-900 text-sm">
+                    {myFullName || '(Full Name)'}
+                  </div>
+                  <div className="text-slate-600 flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-emerald-800">
+                      🏫 {customCdcMode && customCdcInput.trim() ? customCdcInput.trim() : myCdcName || '(Day Care Center)'}
+                    </span>
+                    <span>•</span>
+                    <span className="font-medium text-slate-500">
+                      📍 Brgy. {myBarangay || '(Barangay)'}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-left sm:text-right text-[11px] text-slate-500">
+                  <div>Contact: <b>{myContact || '(No contact)'}</b></div>
+                  <div>Email: <b>{myEmail || '(No email)'}</b></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Form Action Controls */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={loadMyProfile}
+                className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <IconRefresh className="w-3.5 h-3.5" />
+                <span>Reset to Saved</span>
+              </button>
+
+              <button
+                type="submit"
+                disabled={profileSaving}
+                className="px-6 py-2.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-2"
+              >
+                <span>💾</span>
+                <span>{profileSaving ? 'Saving & Syncing...' : 'Save & Sync Profile to MSWDO Admin'}</span>
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </DashboardLayout>

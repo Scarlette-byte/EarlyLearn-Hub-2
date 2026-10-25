@@ -146,22 +146,66 @@ export default function AdminDashboard({ profile }) {
     }
   }, []);
 
-  // --- Load Teachers / CDWs merging with realTeachersList ---
+  // --- Load Teachers / CDWs merging with realTeachersList and real-time profile edits ---
   const loadTeachers = useCallback(async () => {
     try {
       const { data } = await supabase
         .from('teachers')
         .select('id, full_name, barangay, contact_number, email, cdc_id, cdcs(name)')
         .order('full_name');
+
+      let combined = [];
       if (data && data.length > 0) {
         const existingNames = new Set(data.map((t) => (t.full_name || '').toLowerCase()));
         const nonDuplicateBaseline = realTeachersList.filter(
           (b) => !existingNames.has((b.full_name || '').toLowerCase())
         );
-        setTeachers([...data, ...nonDuplicateBaseline]);
+        combined = [...data, ...nonDuplicateBaseline];
       } else {
-        setTeachers(realTeachersList);
+        combined = [...realTeachersList];
       }
+
+      try {
+        const overrides = JSON.parse(localStorage.getItem('earlylearn_teacher_profiles_override') || '{}');
+        combined = combined.map((t) => {
+          const override =
+            overrides[t.id] ||
+            (t.email && overrides[t.email.toLowerCase()]) ||
+            (t.full_name && overrides[t.full_name.toLowerCase()]);
+          if (override) {
+            return {
+              ...t,
+              full_name: override.full_name || t.full_name,
+              barangay: override.barangay || t.barangay,
+              cdc_name: override.cdc_name || t.cdc_name,
+              cdc_id: override.cdc_id || t.cdc_id,
+              cdcs: override.cdc_name ? { name: override.cdc_name, barangay: override.barangay } : t.cdcs,
+              contact_number: override.contact_number || t.contact_number,
+              email: override.email || t.email,
+            };
+          }
+          return t;
+        });
+
+        Object.values(overrides).forEach((ov) => {
+          if (ov && ov.id && !combined.some((t) => t.id === ov.id || (ov.email && t.email === ov.email))) {
+            combined.unshift({
+              id: ov.id,
+              full_name: ov.full_name,
+              barangay: ov.barangay,
+              cdc_name: ov.cdc_name,
+              cdc_id: ov.cdc_id,
+              cdcs: { name: ov.cdc_name, barangay: ov.barangay },
+              contact_number: ov.contact_number,
+              email: ov.email,
+            });
+          }
+        });
+      } catch {
+        // ignore
+      }
+
+      setTeachers(combined);
     } catch {
       setTeachers(realTeachersList);
     }
@@ -338,7 +382,7 @@ export default function AdminDashboard({ profile }) {
     );
   }
 
-  // Live synchronization: auto-reload when learners register or teachers record assessments
+  // Live synchronization: auto-reload when learners register or teachers record assessments or profile updates
   useEffect(() => {
     function handleSync(e) {
       if (
@@ -358,16 +402,27 @@ export default function AdminDashboard({ profile }) {
           // ignore
         }
       }
+      if (
+        e.type === 'earlylearn_teachers_updated' ||
+        e.type === 'earlylearn_teacher_profile_saved' ||
+        (e.type === 'storage' && e.key === 'earlylearn_teacher_profiles_override')
+      ) {
+        loadTeachers();
+      }
     }
     window.addEventListener('storage', handleSync);
     window.addEventListener('earlylearn_learners_updated', handleSync);
     window.addEventListener('earlylearn_assessments_updated', handleSync);
+    window.addEventListener('earlylearn_teachers_updated', handleSync);
+    window.addEventListener('earlylearn_teacher_profile_saved', handleSync);
     return () => {
       window.removeEventListener('storage', handleSync);
       window.removeEventListener('earlylearn_learners_updated', handleSync);
       window.removeEventListener('earlylearn_assessments_updated', handleSync);
+      window.removeEventListener('earlylearn_teachers_updated', handleSync);
+      window.removeEventListener('earlylearn_teacher_profile_saved', handleSync);
     };
-  }, [loadLearners]);
+  }, [loadLearners, loadTeachers]);
 
   useEffect(() => {
     loadCdcs();

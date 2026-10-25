@@ -329,184 +329,33 @@ export const realTeachersList = [
   { id: 'tch-84', full_name: 'Lourdes Cayomoc Magdaleno', designation: 'Child Development Teacher (CDT)', barangay: 'Ticala', cdc_name: 'Upper Bunga Supervised Neighborhood Play', contact_number: '0922-763-8744', email: 'lourdes.magdaleno@earlylearn.ph' },
 ];
 
-// Baseline Initial Curriculum Assignments to Teachers with Topic, Deadline & Status
-export const initialCurriculumAssignments = [
-  {
-    id: 'asg-01',
-    teacherId: 'tch-01',
-    teacherName: 'Miche Tamayon Ladao',
-    barangay: 'Agusan Canyon',
-    cdcName: 'Balanban Child Development Center',
-    level: 'Pre-K1',
-    quarters: [1],
-    quarter: 1,
-    weeks: ['Week 1'],
-    week: 'Week 1',
-    topicTitle: 'I HAVE A NAME',
-    subTheme: 'I HAVE A NAME',
-    theme: 'TELL ME ABOUT YOURSELF',
-    suggestedContent: 'Name recognition, saying own full name, finding personal name cubby/tag.',
-    suggestedActivities: 'Name badge crafting, sensory glitter name tracing on board.',
-    schoolYear: '2026-2027',
-    status: 'Completed',
-    deadline: '2026-10-25',
-    assignedDate: '2026-10-01',
-    completedDate: '2026-10-02',
-    submissionTitle: 'Pre-K1 W1: My Name Rainbow Writing & Badge Craft',
-  },
-  {
-    id: 'asg-02',
-    teacherId: 'tch-02',
-    teacherName: 'Remedios Anora Soliva',
-    barangay: 'Agusan Canyon',
-    cdcName: 'Agusan Canyon Child Development Center',
-    level: 'Pre-K1',
-    quarters: [1],
-    quarter: 1,
-    weeks: ['Week 2 & 3'],
-    week: 'Week 2 & 3',
-    topicTitle: 'I HAVE A BIRTHDAY',
-    subTheme: 'I HAVE A BIRTHDAY',
-    theme: 'TELL ME ABOUT YOURSELF',
-    suggestedContent: 'Stating age and birth month, counting candles matching age.',
-    suggestedActivities: 'Playdough birthday cake counting, colorful birthday crown cutting.',
-    schoolYear: '2026-2027',
-    status: 'Completed',
-    deadline: '2026-10-26',
-    assignedDate: '2026-10-01',
-    completedDate: '2026-10-04',
-    submissionTitle: 'Pre-K1 W2: Birthday Candle Counting & Cupcake Coloring Sheet',
-  },
-  {
-    id: 'asg-07',
-    teacherId: 'tch-17',
-    teacherName: 'Juliet Paduhilag Pastrano',
-    barangay: 'Dalirig',
-    cdcName: 'Dalirig Child Development Center',
-    level: 'Pre-K1',
-    quarters: [1],
-    quarter: 1,
-    weeks: ['Week 1'],
-    week: 'Week 1',
-    topicTitle: 'I HAVE A NAME',
-    subTheme: 'I HAVE A NAME',
-    theme: 'TELL ME ABOUT YOURSELF',
-    suggestedContent: 'Learning own first & last name, identifying beginning sounds and letters.',
-    suggestedActivities: 'My Name Rainbow Writing, tactile yarn letter pasting on name card.',
-    schoolYear: '2026-2027',
-    status: 'Pending',
-    deadline: '2026-10-31',
-    assignedDate: '2026-10-15',
-    notes: 'Please post guided worksheet and photo activity for toddlers.',
-  },
-  {
-    id: 'asg-07-past',
-    teacherId: 'tch-17',
-    teacherName: 'Juliet Paduhilag Pastrano',
-    barangay: 'Dalirig',
-    cdcName: 'Dalirig Child Development Center',
-    level: 'Pre-K1',
-    quarters: [1],
-    quarter: 1,
-    weeks: ['Week 2 & 3'],
-    week: 'Week 2 & 3',
-    topicTitle: 'I HAVE A BIRTHDAY (Age & Gender)',
-    subTheme: 'I HAVE A BIRTHDAY',
-    theme: 'TELL ME ABOUT YOURSELF',
-    suggestedContent: 'Counting 1 to 4 with fingers and candles, naming gender identity.',
-    suggestedActivities: 'Birthday cake candle stick craft, singing Happy Birthday in Bisaya/English.',
-    schoolYear: '2026-2027',
-    status: 'Pending',
-    deadline: '2026-10-10',
-    assignedDate: '2026-10-01',
-    notes: 'Prior quarter competency submission.',
-  },
-  {
-    id: 'asg-07-q2',
-    teacherId: 'tch-17',
-    teacherName: 'Juliet Paduhilag Pastrano',
-    barangay: 'Dalirig',
-    cdcName: 'Dalirig Child Development Center',
-    level: 'Pre-K2',
-    quarters: [2],
-    quarter: 2,
-    weeks: ['Week 1 & 2'],
-    week: 'Week 1 & 2',
-    topicTitle: 'WHO ARE THE PEOPLE IN MY FAMILY?',
-    subTheme: 'WHO ARE THE PEOPLE IN MY FAMILY?',
-    theme: 'MY FAMILY AND OUR HOME',
-    suggestedContent: 'Naming family members (Nanay, Tatay, Ate, Kuya), family roles and love.',
-    suggestedActivities: 'Popsicle stick family puppet tree, drawing family portrait.',
-    schoolYear: '2026-2027',
-    status: 'Pending',
-    deadline: '2026-11-15',
-    assignedDate: '2026-10-16',
-    notes: 'Pre-K 2 collaborative activity guide.',
-  },
-  {
-    id: 'asg-04',
-    teacherId: 'tch-06',
-    teacherName: 'Mary Lou Abobo Villegas (CDT)',
-    barangay: 'Alae',
-    cdcName: 'Alae Child Development Center',
-    level: 'Pre-K1',
-    quarters: [1],
-    quarter: 1,
-    weeks: ['Week 4'],
-    week: 'Week 4',
-    topicTitle: 'WHAT I WEAR (Clothing)',
-    subTheme: 'WHAT I WEAR',
-    theme: 'TELL ME ABOUT YOURSELF',
-    suggestedContent: 'Naming everyday clothing items, sorting clothes for sunny/rainy weather.',
-    suggestedActivities: 'Paper doll clothing dressing, texture sorting of fabrics.',
-    schoolYear: '2026-2027',
-    status: 'Pending',
-    deadline: '2026-10-30',
-    assignedDate: '2026-10-10',
-  },
-  {
-    id: 'asg-06',
-    teacherId: 'tch-12',
-    teacherName: 'Maricris Pacanza Anasco (CDT)',
-    barangay: 'Dahilayan',
-    cdcName: 'Dahilayan Child Development Center',
-    level: 'Pre-K1',
-    quarters: [1],
-    quarter: 1,
-    weeks: ['Week 1'],
-    week: 'Week 1',
-    topicTitle: 'I HAVE A NAME',
-    subTheme: 'I HAVE A NAME',
-    theme: 'TELL ME ABOUT YOURSELF',
-    suggestedContent: 'Name recognition and sensory name sign making.',
-    suggestedActivities: 'Clay molding first letter of name.',
-    schoolYear: '2026-2027',
-    status: 'Pending',
-    deadline: '2026-10-29',
-    assignedDate: '2026-10-12',
-  },
-  {
-    id: 'asg-15',
-    teacherId: 'tch-51',
-    teacherName: 'Lovey Guinevere Angeles Tion',
-    barangay: 'Maluko',
-    cdcName: 'Maluko Child Development Center',
-    level: 'Pre-K1',
-    quarters: [1],
-    quarter: 1,
-    weeks: ['Week 1'],
-    week: 'Week 1',
-    topicTitle: 'I HAVE A NAME',
-    subTheme: 'I HAVE A NAME',
-    theme: 'TELL ME ABOUT YOURSELF',
-    suggestedContent: 'Introducing self with polite greetings, pointing to name card.',
-    suggestedActivities: 'Name badge coloring and sticker decoration.',
-    schoolYear: '2026-2027',
-    status: 'Pending',
-    deadline: '2026-10-27',
-    assignedDate: '2026-10-10',
-  },
-];
+// Baseline Initial Curriculum Assignments (Empty by default: only real deployments from MSWDO appear)
+export const initialCurriculumAssignments = [];
+
+/**
+ * Helper to retrieve authentic curriculum assignments deployed by MSWD,
+ * purging any legacy dummy assignments (asg-01 through asg-15, etc.).
+ */
+export function getCleanCurriculumAssignments() {
+  try {
+    const saved = localStorage.getItem('earlylearn_curriculum_assignments');
+    if (!saved) return [];
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return [];
+    const filtered = parsed.filter(
+      (a) =>
+        a &&
+        a.id &&
+        !/^asg-0[1-9]|^asg-1[0-5]|^asg-07-.*$/.test(a.id)
+    );
+    if (filtered.length !== parsed.length) {
+      localStorage.setItem('earlylearn_curriculum_assignments', JSON.stringify(filtered));
+    }
+    return filtered;
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Formats assigned quarters and weeks into human-readable text

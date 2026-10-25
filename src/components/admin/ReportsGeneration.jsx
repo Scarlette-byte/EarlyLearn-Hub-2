@@ -36,9 +36,12 @@ export default function ReportsGeneration({
   const activeAssignments = useMemo(() => {
     try {
       const saved = localStorage.getItem('earlylearn_curriculum_assignments');
-      return saved ? JSON.parse(saved) : initialCurriculumAssignments;
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((a) => a && a.id && !/^asg-0[1-9]|^asg-1[0-5]|^asg-07-.*$/.test(a.id));
     } catch {
-      return initialCurriculumAssignments;
+      return [];
     }
   }, []);
 
