@@ -53,7 +53,7 @@ const TABS = [
   { key: 'announcements', label: 'Announcements', icon: '📢' },
   { key: 'submissions', label: 'Check Submissions', icon: '📝' },
   { key: 'progress', label: 'Student Progress', icon: '📈' },
-  { key: 'profile', label: 'My Profile', icon: '🙍' },
+  { key: 'profile', label: 'My Profile', icon: '👩‍🏫' },
 ];
 
 export default function TeacherDashboard({ profile }) {
@@ -146,43 +146,9 @@ export default function TeacherDashboard({ profile }) {
   const [myCdcName, setMyCdcName] = useState(profile?.cdc_name || null);
   const [customCdcMode, setCustomCdcMode] = useState(false);
   const [customCdcInput, setCustomCdcInput] = useState('');
-  const [mySpecialization, setMySpecialization] = useState('Child Development Teacher (CDT) / Worker');
-  const [myYearsService, setMyYearsService] = useState('3 years');
   const [myBio, setMyBio] = useState('');
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMsg, setProfileMsg] = useState({ text: '', type: '' });
-
-  // Extended Teacher Profile Credentials: Education, Certifications, Sessions, and Custom Details
-  const [myEducation, setMyEducation] = useState([]);
-  const [myCertifications, setMyCertifications] = useState([]);
-  const [myClassSessions, setMyClassSessions] = useState([]);
-  const [myCustomDetails, setMyCustomDetails] = useState([]);
-
-  // Modal / Editor dialog states for Profile credential additions & edits
-  const [showAddEducationModal, setShowAddEducationModal] = useState(false);
-  const [editingEducation, setEditingEducation] = useState(null);
-  const [eduDegree, setEduDegree] = useState('');
-  const [eduSchool, setEduSchool] = useState('');
-  const [eduYear, setEduYear] = useState('');
-  const [eduHonors, setEduHonors] = useState('');
-
-  const [showAddCertModal, setShowAddCertModal] = useState(false);
-  const [editingCert, setEditingCert] = useState(null);
-  const [certTitle, setCertTitle] = useState('');
-  const [certIssuer, setCertIssuer] = useState('');
-  const [certYear, setCertYear] = useState('');
-
-  const [showAddSessionModal, setShowAddSessionModal] = useState(false);
-  const [editingSession, setEditingSession] = useState(null);
-  const [sessionName, setSessionName] = useState('');
-  const [sessionSchedule, setSessionSchedule] = useState('');
-  const [sessionRoom, setSessionRoom] = useState('');
-  const [sessionCapacity, setSessionCapacity] = useState('');
-
-  const [showAddCustomModal, setShowAddCustomModal] = useState(false);
-  const [editingCustom, setEditingCustom] = useState(null);
-  const [customLabel, setCustomLabel] = useState('');
-  const [customValue, setCustomValue] = useState('');
 
   // My Learners tab — auto-filtered by this teacher's assigned CDC
   const [myLearners, setMyLearners] = useState([]);
@@ -707,74 +673,7 @@ export default function TeacherDashboard({ profile }) {
     setProgressRows(rows);
   }, []);
 
-  // Fallback defaults for teacher credentials
-  const defaultInitialEducation = useMemo(() => [
-    {
-      id: 'edu-1',
-      degree: 'Bachelor of Early Childhood Education (BECEd)',
-      school: 'Bukidnon State University - Main Campus',
-      year: '2020',
-      honors: 'With Academic Distinction',
-    },
-  ], []);
-
-  const defaultInitialCertifications = useMemo(() => [
-    {
-      id: 'cert-1',
-      title: 'DepEd ECCD Curriculum & Assessment Implementation',
-      issuer: 'DepEd Region X / MSWDO Bukidnon',
-      year: '2023',
-    },
-    {
-      id: 'cert-2',
-      title: 'Standard First Aid & Basic Life Support (BLS)',
-      issuer: 'Philippine Red Cross - Bukidnon Chapter',
-      year: '2024',
-    },
-    {
-      id: 'cert-3',
-      title: 'Positive Discipline & Child Protection Policy',
-      issuer: 'MSWDO Manolo Fortich',
-      year: '2024',
-    },
-  ], []);
-
-  const defaultInitialSessions = useMemo(() => [
-    {
-      id: 'sess-1',
-      sessionName: 'Morning Pre-K1 Session (Ages 3 - 3.11)',
-      schedule: 'Monday to Friday, 8:00 AM - 10:30 AM',
-      room: 'Room 1 - Main Activity Room',
-      maxLearners: '20 Learners',
-    },
-    {
-      id: 'sess-2',
-      sessionName: 'Afternoon Pre-K2 Session (Ages 4 - 4.11)',
-      schedule: 'Monday to Friday, 1:00 PM - 3:30 PM',
-      room: 'Room 1 - Main Activity Room',
-      maxLearners: '25 Learners',
-    },
-  ], []);
-
-  const defaultInitialCustomDetails = useMemo(() => [
-    {
-      id: 'cust-1',
-      label: 'Emergency Contact Person',
-      value: 'Roberto Ladao (Spouse) - 0917-555-0192',
-    },
-    {
-      id: 'cust-2',
-      label: 'Languages of Instruction',
-      value: 'Bisaya / Cebuano & English',
-    },
-    {
-      id: 'cust-3',
-      label: 'Teaching Specialization',
-      value: 'Early Literacy, Storytelling & ECCD Fine Motor Arts',
-    },
-  ], []);
-
-  // --- My Profile ---
+  // --- My Profile (Only Essential Volunteer Teacher Information) ---
   const loadMyProfile = useCallback(async () => {
     let loadedName = profile?.full_name || '';
     let loadedBarangay = profile?.barangay || '';
@@ -782,13 +681,7 @@ export default function TeacherDashboard({ profile }) {
     let loadedEmail = profile?.email || '';
     let loadedCdcId = profile?.cdc_id || '';
     let loadedCdcName = profile?.cdc_name || '';
-    let loadedSpec = 'Child Development Teacher (CDT) / Worker';
-    let loadedYears = '3 years';
     let loadedBio = '';
-    let loadedEdu = defaultInitialEducation;
-    let loadedCerts = defaultInitialCertifications;
-    let loadedSess = defaultInitialSessions;
-    let loadedCust = defaultInitialCustomDetails;
 
     // 1. Check local storage overrides first
     try {
@@ -804,13 +697,7 @@ export default function TeacherDashboard({ profile }) {
         if (ov.email) loadedEmail = ov.email;
         if (ov.cdc_id) loadedCdcId = ov.cdc_id;
         if (ov.cdc_name) loadedCdcName = ov.cdc_name;
-        if (ov.specialization) loadedSpec = ov.specialization;
-        if (ov.years_service) loadedYears = ov.years_service;
         if (ov.bio) loadedBio = ov.bio;
-        if (Array.isArray(ov.education)) loadedEdu = ov.education;
-        if (Array.isArray(ov.certifications)) loadedCerts = ov.certifications;
-        if (Array.isArray(ov.sessions)) loadedSess = ov.sessions;
-        if (Array.isArray(ov.custom_details)) loadedCust = ov.custom_details;
       }
     } catch {
       // ignore
@@ -857,7 +744,6 @@ export default function TeacherDashboard({ profile }) {
         if (!loadedCdcName) loadedCdcName = match.cdc_name;
         if (!loadedContact) loadedContact = match.contact_number;
         if (!loadedEmail) loadedEmail = match.email;
-        if (match.designation && !loadedSpec) loadedSpec = match.designation;
       }
     }
 
@@ -867,30 +753,24 @@ export default function TeacherDashboard({ profile }) {
     setMyEmail(loadedEmail);
     setMyCdcId(loadedCdcId);
     setMyCdcName(loadedCdcName);
-    setMySpecialization(loadedSpec);
-    setMyYearsService(loadedYears);
     setMyBio(loadedBio);
-    setMyEducation(loadedEdu);
-    setMyCertifications(loadedCerts);
-    setMyClassSessions(loadedSess);
-    setMyCustomDetails(loadedCust);
-  }, [currentUserId, profile, defaultInitialEducation, defaultInitialCertifications, defaultInitialSessions, defaultInitialCustomDetails]);
+  }, [currentUserId, profile]);
 
   // Handle Save & Sync Teacher Profile (updates Supabase + local overrides + broadcasts to Admin)
   async function handleSaveTeacherProfile(e) {
     if (e) e.preventDefault();
     if (!myFullName.trim()) {
-      setProfileMsg({ text: '⚠️ Please enter your full name.', type: 'error' });
+      setProfileMsg({ text: '⚠️ Palihug isulat ang imong kompleto nga Pangalan (Full Name).', type: 'error' });
       return;
     }
     if (!myBarangay) {
-      setProfileMsg({ text: '⚠️ Please select your assigned barangay.', type: 'error' });
+      setProfileMsg({ text: '⚠️ Palihug pilia ang imong Barangay nga gisilbihan.', type: 'error' });
       return;
     }
 
     const finalCdc = customCdcMode && customCdcInput.trim() ? customCdcInput.trim() : myCdcName;
     if (!finalCdc) {
-      setProfileMsg({ text: '⚠️ Please select or specify your Child Development Center (CDC).', type: 'error' });
+      setProfileMsg({ text: '⚠️ Palihug pilia o isulat ang ngalan sa imong Child Development Center (CDC).', type: 'error' });
       return;
     }
 
@@ -905,13 +785,7 @@ export default function TeacherDashboard({ profile }) {
       cdc_id: myCdcId || null,
       cdc_name: finalCdc,
       contact_number: myContact.trim() || null,
-      specialization: mySpecialization.trim() || null,
-      years_service: myYearsService.trim() || null,
       bio: myBio.trim() || null,
-      education: myEducation,
-      certifications: myCertifications,
-      sessions: myClassSessions,
-      custom_details: myCustomDetails,
       updated_at: new Date().toISOString(),
     };
 
@@ -959,6 +833,7 @@ export default function TeacherDashboard({ profile }) {
       profile.full_name = updatedTeacher.full_name;
       profile.barangay = updatedTeacher.barangay;
       profile.cdc_name = updatedTeacher.cdc_name;
+      profile.contact_number = updatedTeacher.contact_number;
     }
     setMyCdcName(finalCdc);
 
@@ -971,212 +846,10 @@ export default function TeacherDashboard({ profile }) {
 
     setProfileSaving(false);
     setProfileMsg({
-      text: `✅ Profile successfully updated! Your credentials, CDC Center ("${finalCdc}"), and Barangay ("${myBarangay}") are synchronized with the MSWDO Admin Dashboard.`,
+      text: `✅ Malampusong na-save ang imong profile! Na-update na sa MSWDO Admin: ${finalCdc}, Brgy. ${myBarangay}.`,
       type: 'ok',
     });
   }
-
-  // --- Profile Credential Handlers (Add, Edit, Delete) ---
-  const handleOpenAddEducation = () => {
-    setEditingEducation(null);
-    setEduDegree('');
-    setEduSchool('');
-    setEduYear(new Date().getFullYear().toString());
-    setEduHonors('');
-    setShowAddEducationModal(true);
-  };
-
-  const handleOpenEditEducation = (item) => {
-    setEditingEducation(item);
-    setEduDegree(item.degree || '');
-    setEduSchool(item.school || '');
-    setEduYear(item.year || '');
-    setEduHonors(item.honors || '');
-    setShowAddEducationModal(true);
-  };
-
-  const handleSaveEducation = (e) => {
-    if (e) e.preventDefault();
-    if (!eduDegree.trim() || !eduSchool.trim()) return;
-
-    if (editingEducation) {
-      setMyEducation(
-        myEducation.map((ed) =>
-          ed.id === editingEducation.id
-            ? { ...ed, degree: eduDegree.trim(), school: eduSchool.trim(), year: eduYear.trim(), honors: eduHonors.trim() }
-            : ed
-        )
-      );
-    } else {
-      const newItem = {
-        id: 'edu-' + Date.now(),
-        degree: eduDegree.trim(),
-        school: eduSchool.trim(),
-        year: eduYear.trim() || new Date().getFullYear().toString(),
-        honors: eduHonors.trim(),
-      };
-      setMyEducation([...myEducation, newItem]);
-    }
-    setShowAddEducationModal(false);
-  };
-
-  const handleDeleteEducation = (id) => {
-    if (!confirm('Are you sure you want to delete this educational attainment record?')) return;
-    setMyEducation(myEducation.filter((ed) => ed.id !== id));
-  };
-
-  // Certifications Handlers
-  const handleOpenAddCert = () => {
-    setEditingCert(null);
-    setCertTitle('');
-    setCertIssuer('');
-    setCertYear(new Date().getFullYear().toString());
-    setShowAddCertModal(true);
-  };
-
-  const handleOpenEditCert = (item) => {
-    setEditingCert(item);
-    setCertTitle(item.title || '');
-    setCertIssuer(item.issuer || '');
-    setCertYear(item.year || '');
-    setShowAddCertModal(true);
-  };
-
-  const handleSaveCert = (e) => {
-    if (e) e.preventDefault();
-    if (!certTitle.trim() || !certIssuer.trim()) return;
-
-    if (editingCert) {
-      setMyCertifications(
-        myCertifications.map((c) =>
-          c.id === editingCert.id
-            ? { ...c, title: certTitle.trim(), issuer: certIssuer.trim(), year: certYear.trim() }
-            : c
-        )
-      );
-    } else {
-      const newItem = {
-        id: 'cert-' + Date.now(),
-        title: certTitle.trim(),
-        issuer: certIssuer.trim(),
-        year: certYear.trim() || new Date().getFullYear().toString(),
-      };
-      setMyCertifications([...myCertifications, newItem]);
-    }
-    setShowAddCertModal(false);
-  };
-
-  const handleDeleteCert = (id) => {
-    if (!confirm('Are you sure you want to delete this certification record?')) return;
-    setMyCertifications(myCertifications.filter((c) => c.id !== id));
-  };
-
-  // Class Sessions Handlers
-  const handleOpenAddSession = () => {
-    setEditingSession(null);
-    setSessionName('');
-    setSessionSchedule('Monday - Friday, 8:00 AM - 10:30 AM');
-    setSessionRoom('Room 1 - Main Activity Room');
-    setSessionCapacity('20 Learners');
-    setShowAddSessionModal(true);
-  };
-
-  const handleOpenEditSession = (item) => {
-    setEditingSession(item);
-    setSessionName(item.sessionName || '');
-    setSessionSchedule(item.schedule || '');
-    setSessionRoom(item.room || '');
-    setSessionCapacity(item.maxLearners || '');
-    setShowAddSessionModal(true);
-  };
-
-  const handleSaveSession = (e) => {
-    if (e) e.preventDefault();
-    if (!sessionName.trim()) return;
-
-    if (editingSession) {
-      setMyClassSessions(
-        myClassSessions.map((s) =>
-          s.id === editingSession.id
-            ? {
-                ...s,
-                sessionName: sessionName.trim(),
-                schedule: sessionSchedule.trim(),
-                room: sessionRoom.trim(),
-                maxLearners: sessionCapacity.trim(),
-              }
-            : s
-        )
-      );
-    } else {
-      const newItem = {
-        id: 'sess-' + Date.now(),
-        sessionName: sessionName.trim(),
-        schedule: sessionSchedule.trim(),
-        room: sessionRoom.trim(),
-        maxLearners: sessionCapacity.trim() || '20 Learners',
-      };
-      setMyClassSessions([...myClassSessions, newItem]);
-    }
-    setShowAddSessionModal(false);
-  };
-
-  const handleDeleteSession = (id) => {
-    if (!confirm('Are you sure you want to delete this class session?')) return;
-    setMyClassSessions(myClassSessions.filter((s) => s.id !== id));
-  };
-
-  // Custom Details Handlers
-  const handleOpenAddCustom = () => {
-    setEditingCustom(null);
-    setCustomLabel('');
-    setCustomValue('');
-    setShowAddCustomModal(true);
-  };
-
-  const handleOpenEditCustom = (item) => {
-    setEditingCustom(item);
-    setCustomLabel(item.label || '');
-    setCustomValue(item.value || '');
-    setShowAddCustomModal(true);
-  };
-
-  const handleSaveCustom = (e) => {
-    if (e) e.preventDefault();
-    if (!customLabel.trim() || !customValue.trim()) return;
-
-    if (editingCustom) {
-      setMyCustomDetails(
-        myCustomDetails.map((d) =>
-          d.id === editingCustom.id
-            ? { ...d, label: customLabel.trim(), value: customValue.trim() }
-            : d
-        )
-      );
-    } else {
-      const newItem = {
-        id: 'cust-' + Date.now(),
-        label: customLabel.trim(),
-        value: customValue.trim(),
-      };
-      setMyCustomDetails([...myCustomDetails, newItem]);
-    }
-    setShowAddCustomModal(false);
-  };
-
-  const handleDeleteCustom = (id) => {
-    if (!confirm('Are you sure you want to delete this profile info item?')) return;
-    setMyCustomDetails(myCustomDetails.filter((d) => d.id !== id));
-  };
-
-  // Clear / Reset All Custom Added Credentials
-  const handleClearAllAddedCredentials = () => {
-    if (!confirm('Are you sure you want to clear all added education degrees, certifications, sessions, and custom details?')) return;
-    setMyEducation([]);
-    setMyCertifications([]);
-    setMyClassSessions([]);
-    setMyCustomDetails([]);
-  };
 
   // --- My Learners: find this teacher's CDC and Barangay, then list learners in that jurisdiction ---
   const loadMyLearners = useCallback(async () => {
@@ -2676,7 +2349,7 @@ export default function TeacherDashboard({ profile }) {
         </div>
       )}
 
-      {/* MY PROFILE — Comprehensive Editor with Auto-Sync to MSWDO Admin */}
+      {/* MY PROFILE — Simplified & Volunteer-Friendly for Child Development Workers */}
       {activeTab === 'profile' && (
         <div className="space-y-6">
           {/* Educator Identity Header Card */}
@@ -2688,33 +2361,34 @@ export default function TeacherDashboard({ profile }) {
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-xl font-bold text-slate-900 m-0">
-                    {myFullName || profile?.full_name || 'Teacher Profile'}
+                    {myFullName || profile?.full_name || 'Volunteer Teacher / Day Care Worker'}
                   </h3>
-                  <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-[#DCEBDD] text-[#2E6B38] border border-emerald-300">
-                    Active Educator
+                  <span className="text-[10.5px] px-2.5 py-0.5 rounded-full font-bold bg-[#DCEBDD] text-[#2E6B38] border border-emerald-300">
+                    Child Development Worker (CDW)
                   </span>
                 </div>
-                <div className="text-xs text-slate-500 flex flex-wrap items-center gap-2">
-                  <span className="font-semibold text-accent">{mySpecialization}</span>
-                  <span>•</span>
-                  <span>{myYearsService} of service</span>
+                <div className="text-xs text-slate-500">
+                  <span>Community Volunteer Educator • Municipality of Manolo Fortich</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 pt-0.5">
                   <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#8C6200] bg-[#FFF3D6] px-2.5 py-0.5 rounded-md">
                     <IconBuilding className="w-3 h-3 text-amber-700" />
-                    <span>{myCdcName || 'Day Care Center Unassigned'}</span>
+                    <span>{myCdcName || 'Child Development Center'}</span>
                   </span>
                   <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-md">
                     <IconPin className="w-3 h-3 text-slate-500" />
-                    <span>Brgy. {myBarangay || 'Not specified'}</span>
+                    <span>Brgy. {myBarangay || 'Manolo Fortich'}</span>
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 text-xs text-amber-900 max-w-sm">
-              <span className="font-bold block text-amber-800 mb-0.5">🔄 Live MSWDO Admin Sync</span>
-              Your personal information, assigned Day Care Center, and Barangay update automatically in the MSWDO Admin Dashboard Teacher Directory in real time.
+            <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 max-w-sm">
+              <span className="font-bold flex items-center gap-1.5 text-amber-900 mb-1">
+                <span>🌸</span>
+                <span>Pahinumdom para sa Magtutudlo</span>
+              </span>
+              Kini nga profile dali ug yano ra gamiton. Siguroa lang nga insakto ang imong pangalan, numero sa selpon, ug ang sentro nga imong gisilbihan aron dali ka makontak sa MSWDO ug sa mga ginikanan.
             </div>
           </div>
 
@@ -2741,25 +2415,25 @@ export default function TeacherDashboard({ profile }) {
             </div>
           )}
 
-          {/* Main Edit Form */}
+          {/* Clean & Essential Profile Form */}
           <form onSubmit={handleSaveTeacherProfile} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {/* Card 1: Personal & Educator Information */}
+              {/* Card 1: Personal & Contact Information */}
               <div className="bg-white p-5 rounded-2xl border border-card-border shadow-xs space-y-4">
                 <div className="border-b border-slate-100 pb-3">
                   <h4 className="font-fraunces text-base font-bold text-slate-900 m-0 flex items-center gap-2">
                     <span>👤</span>
-                    <span>Personal &amp; Professional Info</span>
+                    <span>1. Imong Impormasyon (Personal Details)</span>
                   </h4>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    Your official teacher identity recorded in the EarlyLearn Hub.
+                    Kompleto nga pangalan ug contact number para sa komunikasyon.
                   </p>
                 </div>
 
-                <div className="space-y-3 text-xs">
+                <div className="space-y-3.5 text-xs">
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">
-                      Full Legal Name <span className="text-red-500">*</span>
+                    <label className="font-bold text-slate-800 block mb-1">
+                      Kompleto nga Pangalan (Full Legal Name) <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -2767,36 +2441,43 @@ export default function TeacherDashboard({ profile }) {
                       value={myFullName}
                       onChange={(e) => setMyFullName(e.target.value)}
                       placeholder="e.g. Miche Tamayon Ladao"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-[#FFFDF8] font-bold text-slate-800 outline-none focus:border-accent"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-[#FFFDF8] font-bold text-slate-800 outline-none focus:border-accent text-sm"
                     />
+                    <span className="text-[10.5px] text-slate-500 mt-1 block">
+                      Kini ang makita sa MSWDO Admin ug sa records sa imong mga estudyante.
+                    </span>
                   </div>
 
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="font-bold text-slate-700">
-                        Mobile / Contact Number
+                      <label className="font-bold text-slate-800">
+                        Numero sa Selpon (Mobile / Phone Number) <span className="text-red-500">*</span>
                       </label>
                       {myContact && (
                         <button
                           type="button"
                           onClick={() => setMyContact('')}
-                          className="text-[11px] text-rose-600 hover:text-rose-700 font-bold hover:underline cursor-pointer"
+                          className="text-[10.5px] text-rose-600 hover:underline cursor-pointer"
                         >
-                          ✕ Clear
+                          ✕ Hawani
                         </button>
                       )}
                     </div>
                     <input
                       type="text"
+                      required
                       value={myContact}
                       onChange={(e) => setMyContact(e.target.value)}
                       placeholder="e.g. 0917-889-2345"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-[#FFFDF8] font-medium text-slate-800 outline-none focus:border-accent font-mono"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-[#FFFDF8] font-semibold text-slate-800 outline-none focus:border-accent font-mono text-sm"
                     />
+                    <span className="text-[10.5px] text-slate-500 mt-1 block">
+                      Importante kini aron makatawag o makatext ang MSWDO ug mga ginikanan.
+                    </span>
                   </div>
 
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">
+                    <label className="font-bold text-slate-800 block mb-1">
                       Email Address (Account Login)
                     </label>
                     <input
@@ -2804,59 +2485,31 @@ export default function TeacherDashboard({ profile }) {
                       value={myEmail}
                       onChange={(e) => setMyEmail(e.target.value)}
                       placeholder="e.g. teacher@earlylearn.ph"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-[#FFFDF8] font-medium text-slate-800 outline-none focus:border-accent"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 font-medium text-slate-700 outline-none focus:border-accent"
                     />
-                    <span className="text-[10px] text-slate-400 mt-0.5 block">
-                      Used for portal sign-in and system notifications.
+                    <span className="text-[10.5px] text-slate-400 mt-1 block">
+                      Gigamit para sa pagsulod sa EarlyLearn Hub (Username/Email).
                     </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 pt-1">
-                    <div>
-                      <label className="font-bold text-slate-700 block mb-1">
-                        Professional Position
-                      </label>
-                      <input
-                        type="text"
-                        value={mySpecialization}
-                        onChange={(e) => setMySpecialization(e.target.value)}
-                        placeholder="e.g. Child Development Teacher (CDT)"
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-[#FFFDF8] font-medium text-slate-800 outline-none focus:border-accent"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="font-bold text-slate-700 block mb-1">
-                        Years of Service
-                      </label>
-                      <input
-                        type="text"
-                        value={myYearsService}
-                        onChange={(e) => setMyYearsService(e.target.value)}
-                        placeholder="e.g. 4 years"
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-[#FFFDF8] font-medium text-slate-800 outline-none focus:border-accent"
-                      />
-                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Card 2: Jurisdiction, Barangay & Child Development Center */}
+              {/* Card 2: Day Care Center & Barangay Assignment */}
               <div className="bg-white p-5 rounded-2xl border border-card-border shadow-xs space-y-4">
                 <div className="border-b border-slate-100 pb-3">
                   <h4 className="font-fraunces text-base font-bold text-slate-900 m-0 flex items-center gap-2">
                     <span>🏫</span>
-                    <span>Day Care Center &amp; Jurisdiction</span>
+                    <span>2. Sentro ug Barangay (Assigned Day Care)</span>
                   </h4>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    Your assigned Child Development Center (CDC) and Barangay in Manolo Fortich.
+                    Ang barangay ug Child Development Center diin ikaw nagtudlo.
                   </p>
                 </div>
 
                 <div className="space-y-3.5 text-xs">
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">
-                      Assigned Barangay <span className="text-red-500">*</span>
+                    <label className="font-bold text-slate-800 block mb-1">
+                      Barangay nga Gisilbihan (Assigned Barangay) <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={myBarangay}
@@ -2876,28 +2529,31 @@ export default function TeacherDashboard({ profile }) {
                         }
                       }}
                       required
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-[#FFFDF8] font-bold text-slate-800 outline-none focus:border-accent cursor-pointer"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-[#FFFDF8] font-bold text-slate-800 outline-none focus:border-accent cursor-pointer text-sm"
                     >
-                      <option value="">-- Choose Assigned Barangay (22 Barangays) --</option>
+                      <option value="">-- Pilia ang Imong Barangay (22 Barangays) --</option>
                       {barangays.map((b) => (
                         <option key={b} value={b}>
-                          {b}
+                          Barangay {b}
                         </option>
                       ))}
                     </select>
+                    <span className="text-[10.5px] text-slate-500 mt-1 block">
+                      Pilia ang barangay sa Manolo Fortich diin nahimutang ang imong sentro.
+                    </span>
                   </div>
 
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="font-bold text-slate-700">
-                        Specific Child Development Center (CDC) <span className="text-red-500">*</span>
+                      <label className="font-bold text-slate-800">
+                        Ngalan sa Sentro / CDC (Day Care Center) <span className="text-red-500">*</span>
                       </label>
                       <button
                         type="button"
                         onClick={() => setCustomCdcMode(!customCdcMode)}
-                        className="text-[11px] text-accent font-bold hover:underline cursor-pointer"
+                        className="text-[10.5px] text-accent font-bold hover:underline cursor-pointer"
                       >
-                        {customCdcMode ? '← Choose from CDC list' : '➕ Enter Custom CDC Name'}
+                        {customCdcMode ? '← Pilia sa Listahan' : '➕ Isulat ang Sentro'}
                       </button>
                     </div>
 
@@ -2911,795 +2567,148 @@ export default function TeacherDashboard({ profile }) {
                           if (found) setMyCdcId(found.id);
                         }}
                         required
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-[#FFFDF8] font-bold text-slate-800 outline-none focus:border-accent cursor-pointer"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-[#FFFDF8] font-bold text-slate-800 outline-none focus:border-accent cursor-pointer text-sm"
                       >
-                        <option value="">-- Choose Specific Day Care Center --</option>
+                        <option value="">-- Pilia ang Child Development Center --</option>
                         {realCdcsList
                           .filter(
                             (c) => !myBarangay || c.barangay?.toLowerCase() === myBarangay?.toLowerCase()
                           )
                           .map((c) => (
                             <option key={c.id} value={c.name}>
-                              {c.name} (Brgy. {c.barangay})
+                              {c.name}
                             </option>
                           ))}
-                        <optgroup label="Other Centers in Manolo Fortich">
-                          {realCdcsList
-                            .filter(
-                              (c) => myBarangay && c.barangay?.toLowerCase() !== myBarangay?.toLowerCase()
-                            )
-                            .map((c) => (
-                              <option key={c.id} value={c.name}>
-                                {c.name} — Brgy. {c.barangay}
-                              </option>
-                            ))}
-                        </optgroup>
+                        {myBarangay && (
+                          <optgroup label="Ubang Sentro sa Manolo Fortich">
+                            {realCdcsList
+                              .filter(
+                                (c) => c.barangay?.toLowerCase() !== myBarangay?.toLowerCase()
+                              )
+                              .map((c) => (
+                                <option key={c.id} value={c.name}>
+                                  {c.name} (Brgy. {c.barangay})
+                                </option>
+                              ))}
+                          </optgroup>
+                        )}
                       </select>
                     ) : (
                       <input
                         type="text"
                         required
-                        placeholder="Type exact Day Care Center name..."
+                        placeholder="e.g. SitIo Impahanong Child Development Center"
                         value={customCdcInput}
                         onChange={(e) => setCustomCdcInput(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-[#FFFDF8] font-bold text-slate-800 outline-none focus:border-accent"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-[#FFFDF8] font-bold text-slate-800 outline-none focus:border-accent text-sm"
                       />
                     )}
-                    <span className="text-[10px] text-slate-500 mt-1 block">
-                      Enrolled learners in &quot;My Learners&quot; and ECCD developmental assessments will connect to this center.
+                    <span className="text-[10.5px] text-slate-500 mt-1 block">
+                      Ang mga bata nga narehistro sa kini nga sentro maoy mogawas sa &quot;My Learners&quot;.
                     </span>
                   </div>
 
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="font-bold text-slate-700">
-                        Teaching Philosophy &amp; Notes to MSWDO
-                      </label>
-                      {myBio && (
-                        <button
-                          type="button"
-                          onClick={() => setMyBio('')}
-                          className="text-[11px] text-rose-600 hover:text-rose-700 font-bold hover:underline cursor-pointer"
-                        >
-                          ✕ Clear
-                        </button>
-                      )}
-                    </div>
+                    <label className="font-bold text-slate-800 block mb-1">
+                      Iskedyul sa Klase o Pahinumdom (Schedule / Short Note)
+                    </label>
                     <textarea
-                      rows={3}
+                      rows={2}
                       value={myBio}
                       onChange={(e) => setMyBio(e.target.value)}
-                      placeholder="Share your early childhood teaching approach, classroom schedule notes, or parent communication guidelines..."
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-[#FFFDF8] font-medium text-slate-800 outline-none focus:border-accent resize-none text-xs leading-relaxed"
+                      placeholder="e.g. Lunes hangtod Biyernes: Morning Session 8:00 AM - 10:30 AM"
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-[#FFFDF8] font-medium text-slate-800 outline-none focus:border-accent resize-none text-xs leading-relaxed"
                     />
+                    <span className="text-[10.5px] text-slate-400 mt-0.5 block">
+                      Opsyonal: Isulat kon unsa nga oras o adlaw ang inyong klase sa day care.
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* SECTION 1: EDUCATIONAL ATTAINMENT & DEGREES (ADD / EDIT / DELETE) */}
-            <div className="bg-white p-5 rounded-2xl border border-card-border shadow-xs space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            {/* Reassuring Summary Card: What MSWDO Admin Sees */}
+            <div className="bg-[#FFFDF9] p-5 rounded-2xl border border-card-border shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>📋</span>
+                  <span>Opisyal nga Impormasyon nga Makita sa MSWDO Admin</span>
+                </div>
+                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/70 px-2.5 py-0.5 rounded-full">
+                  ✓ Naka-konekta sa Sistema
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 p-4 rounded-xl bg-white border border-[#EBE1CF] text-xs">
                 <div>
-                  <h4 className="font-fraunces text-base font-bold text-slate-900 m-0 flex items-center gap-2">
-                    <span>🎓</span>
-                    <span>Educational Attainment &amp; Academic Degrees</span>
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                      {myEducation.length}
-                    </span>
-                  </h4>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Your college degrees, diplomas, and early childhood education credentials.
-                  </p>
+                  <span className="text-[10.5px] text-slate-500 font-bold block uppercase">👤 Kompleto nga Pangalan:</span>
+                  <span className="font-bold text-slate-900 text-sm">
+                    {myFullName || '(Wala pa mabutang)'}
+                  </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleOpenAddEducation}
-                  className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-colors self-start sm:self-auto flex items-center gap-1.5 cursor-pointer"
-                >
-                  <IconPlus className="w-3.5 h-3.5" />
-                  <span>Add Education</span>
-                </button>
-              </div>
 
-              {myEducation.length === 0 ? (
-                <div className="p-6 text-center rounded-xl bg-slate-50 border border-dashed border-slate-200 text-slate-500 text-xs">
-                  <div className="text-xl mb-1">🎓</div>
-                  <div className="font-semibold">No educational attainment records added yet.</div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">
-                    Click &quot;Add Education&quot; to record your degree or college program.
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  {myEducation.map((ed) => (
-                    <div
-                      key={ed.id}
-                      className="p-3.5 rounded-xl border border-slate-200 bg-[#FFFDF9] flex items-start justify-between gap-3 text-xs hover:border-accent/40 transition-colors"
-                    >
-                      <div className="space-y-1 min-w-0">
-                        <div className="font-bold text-slate-900 text-sm">
-                          {ed.degree}
-                        </div>
-                        <div className="text-slate-600 font-medium">
-                          🏫 {ed.school}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 pt-0.5">
-                          <span className="font-bold text-slate-700">Class of {ed.year}</span>
-                          {ed.honors && (
-                            <>
-                              <span>•</span>
-                              <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-bold text-[10.5px]">
-                                🏆 {ed.honors}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditEducation(ed)}
-                          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 cursor-pointer"
-                          title="Edit degree"
-                        >
-                          <IconEdit className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteEducation(ed.id)}
-                          className="p-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-600 cursor-pointer"
-                          title="Delete degree"
-                        >
-                          <IconTrash className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* SECTION 2: ECCD CERTIFICATIONS & TRAINING ACCREDITATIONS (ADD / EDIT / DELETE) */}
-            <div className="bg-white p-5 rounded-2xl border border-card-border shadow-xs space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
                 <div>
-                  <h4 className="font-fraunces text-base font-bold text-slate-900 m-0 flex items-center gap-2">
-                    <span>📜</span>
-                    <span>ECCD Certifications &amp; Accreditations</span>
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                      {myCertifications.length}
-                    </span>
-                  </h4>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Official DepEd, MSWDO, and Red Cross child development trainings &amp; certificates.
-                  </p>
+                  <span className="text-[10.5px] text-slate-500 font-bold block uppercase">📱 Numero sa Selpon:</span>
+                  <span className="font-bold text-slate-800 font-mono">
+                    {myContact || '(Wala pa mabutang)'}
+                  </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleOpenAddCert}
-                  className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-colors self-start sm:self-auto flex items-center gap-1.5 cursor-pointer"
-                >
-                  <IconPlus className="w-3.5 h-3.5" />
-                  <span>Add Certification</span>
-                </button>
-              </div>
 
-              {myCertifications.length === 0 ? (
-                <div className="p-6 text-center rounded-xl bg-slate-50 border border-dashed border-slate-200 text-slate-500 text-xs">
-                  <div className="text-xl mb-1">📜</div>
-                  <div className="font-semibold">No certification records added yet.</div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">
-                    Click &quot;Add Certification&quot; to record your trainings and accreditations.
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {myCertifications.map((c) => (
-                    <div
-                      key={c.id}
-                      className="p-3.5 rounded-xl border border-slate-200 bg-[#FFFDF9] flex items-start justify-between gap-2.5 text-xs hover:border-accent/40 transition-colors"
-                    >
-                      <div className="space-y-1 min-w-0">
-                        <div className="font-bold text-slate-900 leading-snug">
-                          {c.title}
-                        </div>
-                        <div className="text-[11px] text-slate-600 font-medium">
-                          🏛️ {c.issuer}
-                        </div>
-                        <div className="text-[10.5px] text-emerald-800 font-bold">
-                          Year Awarded: {c.year}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditCert(c)}
-                          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 cursor-pointer"
-                          title="Edit certification"
-                        >
-                          <IconEdit className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteCert(c.id)}
-                          className="p-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-600 cursor-pointer"
-                          title="Delete certification"
-                        >
-                          <IconTrash className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* SECTION 3: CLASS SESSIONS & TEACHING SCHEDULE (ADD / EDIT / DELETE) */}
-            <div className="bg-white p-5 rounded-2xl border border-card-border shadow-xs space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
                 <div>
-                  <h4 className="font-fraunces text-base font-bold text-slate-900 m-0 flex items-center gap-2">
-                    <span>🕒</span>
-                    <span>Class Sessions &amp; Teaching Schedule</span>
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                      {myClassSessions.length}
-                    </span>
-                  </h4>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Your scheduled morning and afternoon sessions, assigned rooms, and learner capacities.
-                  </p>
+                  <span className="text-[10.5px] text-slate-500 font-bold block uppercase">📍 Barangay:</span>
+                  <span className="font-bold text-slate-800">
+                    {myBarangay ? `Brgy. ${myBarangay}` : '(Wala pa mapili)'}
+                  </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleOpenAddSession}
-                  className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-colors self-start sm:self-auto flex items-center gap-1.5 cursor-pointer"
-                >
-                  <IconPlus className="w-3.5 h-3.5" />
-                  <span>Add Class Session</span>
-                </button>
-              </div>
 
-              {myClassSessions.length === 0 ? (
-                <div className="p-6 text-center rounded-xl bg-slate-50 border border-dashed border-slate-200 text-slate-500 text-xs">
-                  <div className="text-xl mb-1">🕒</div>
-                  <div className="font-semibold">No class sessions recorded yet.</div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">
-                    Click &quot;Add Class Session&quot; to specify your teaching hours and room.
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  {myClassSessions.map((s) => (
-                    <div
-                      key={s.id}
-                      className="p-3.5 rounded-xl border border-slate-200 bg-[#FFFDF9] flex items-start justify-between gap-3 text-xs hover:border-accent/40 transition-colors"
-                    >
-                      <div className="space-y-1 min-w-0">
-                        <div className="font-bold text-slate-900 text-sm">
-                          {s.sessionName}
-                        </div>
-                        <div className="text-slate-600 font-semibold flex items-center gap-1.5">
-                          <span>⏰</span>
-                          <span>{s.schedule}</span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 pt-0.5">
-                          <span className="inline-flex items-center gap-1 font-medium">
-                            <span>📍</span>
-                            <span>{s.room}</span>
-                          </span>
-                          <span>•</span>
-                          <span className="inline-flex items-center gap-1 font-bold text-emerald-800">
-                            <span>👥</span>
-                            <span>{s.maxLearners}</span>
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditSession(s)}
-                          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 cursor-pointer"
-                          title="Edit session"
-                        >
-                          <IconEdit className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteSession(s.id)}
-                          className="p-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-600 cursor-pointer"
-                          title="Delete session"
-                        >
-                          <IconTrash className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* SECTION 4: ADDITIONAL DETAILS & EMERGENCY CONTACT (ADD / EDIT / DELETE) */}
-            <div className="bg-white p-5 rounded-2xl border border-card-border shadow-xs space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
                 <div>
-                  <h4 className="font-fraunces text-base font-bold text-slate-900 m-0 flex items-center gap-2">
-                    <span>📌</span>
-                    <span>Additional Profile Details &amp; Custom Information</span>
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                      {myCustomDetails.length}
-                    </span>
-                  </h4>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Emergency contacts, languages spoken, specialized skills, or classroom reminders.
-                  </p>
+                  <span className="text-[10.5px] text-slate-500 font-bold block uppercase">🏫 Day Care Center (CDC):</span>
+                  <span className="font-bold text-emerald-900">
+                    {customCdcMode && customCdcInput.trim()
+                      ? customCdcInput.trim()
+                      : myCdcName || '(Wala pa mapili)'}
+                  </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleOpenAddCustom}
-                  className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-colors self-start sm:self-auto flex items-center gap-1.5 cursor-pointer"
-                >
-                  <IconPlus className="w-3.5 h-3.5" />
-                  <span>Add Custom Info</span>
-                </button>
-              </div>
 
-              {myCustomDetails.length === 0 ? (
-                <div className="p-6 text-center rounded-xl bg-slate-50 border border-dashed border-slate-200 text-slate-500 text-xs">
-                  <div className="text-xl mb-1">📌</div>
-                  <div className="font-semibold">No custom details recorded yet.</div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">
-                    Click &quot;Add Custom Info&quot; to add emergency contacts or special notes.
-                  </div>
+                <div>
+                  <span className="text-[10.5px] text-slate-500 font-bold block uppercase">📧 Account Email:</span>
+                  <span className="font-medium text-slate-700">
+                    {myEmail || profile?.email || '(Default)'}
+                  </span>
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {myCustomDetails.map((d) => (
-                    <div
-                      key={d.id}
-                      className="p-3.5 rounded-xl border border-slate-200 bg-[#FFFDF9] flex items-start justify-between gap-2.5 text-xs hover:border-accent/40 transition-colors"
-                    >
-                      <div className="space-y-0.5 min-w-0">
-                        <div className="text-[11px] uppercase font-bold text-slate-500 tracking-wider">
-                          {d.label}
-                        </div>
-                        <div className="font-bold text-slate-900 text-xs">
-                          {d.value}
-                        </div>
-                      </div>
 
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditCustom(d)}
-                          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 cursor-pointer"
-                          title="Edit detail"
-                        >
-                          <IconEdit className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteCustom(d.id)}
-                          className="p-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-600 cursor-pointer"
-                          title="Delete detail"
-                        >
-                          <IconTrash className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Admin Live Sync Preview Card */}
-            <div className="bg-[#FFFDF9] p-4.5 rounded-2xl border border-card-border shadow-xs space-y-2">
-              <div className="text-[11px] font-bold text-accent uppercase tracking-wider flex items-center gap-1.5">
-                <span>📋</span>
-                <span>MSWDO Admin Directory Card Preview</span>
-              </div>
-              <div className="p-3.5 rounded-xl bg-white border border-[#EBE1CF] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                <div className="space-y-0.5">
-                  <div className="font-bold text-slate-900 text-sm">
-                    {myFullName || '(Full Name)'}
-                  </div>
-                  <div className="text-slate-600 flex flex-wrap items-center gap-2">
-                    <span className="font-semibold text-emerald-800">
-                      🏫 {customCdcMode && customCdcInput.trim() ? customCdcInput.trim() : myCdcName || '(Day Care Center)'}
-                    </span>
-                    <span>•</span>
-                    <span className="font-medium text-slate-500">
-                      📍 Brgy. {myBarangay || '(Barangay)'}
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-slate-500 pt-0.5 flex flex-wrap items-center gap-2">
-                    <span>{myEducation.length} Degree(s)</span>
-                    <span>•</span>
-                    <span>{myCertifications.length} Certifications</span>
-                    <span>•</span>
-                    <span>{myClassSessions.length} Active Sessions</span>
-                  </div>
-                </div>
-                <div className="text-left sm:text-right text-[11px] text-slate-500">
-                  <div>Contact: <b>{myContact || '(No contact)'}</b></div>
-                  <div>Email: <b>{myEmail || '(No email)'}</b></div>
+                <div>
+                  <span className="text-[10.5px] text-slate-500 font-bold block uppercase">🕒 Iskedyul / Note:</span>
+                  <span className="font-medium text-slate-700 truncate block">
+                    {myBio || 'Regular Morning Session'}
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* Form Action Controls */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={loadMyProfile}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-1.5"
-                >
-                  <IconRefresh className="w-3.5 h-3.5" />
-                  <span>Reset to Saved</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleClearAllAddedCredentials}
-                  className="px-3.5 py-2 rounded-xl border border-rose-200 text-rose-600 font-bold text-xs hover:bg-rose-50 transition-colors cursor-pointer flex items-center gap-1.5"
-                  title="Clear all added education, certifications, sessions, and custom details"
-                >
-                  <IconTrash className="w-3.5 h-3.5" />
-                  <span>Clear All Added Credentials</span>
-                </button>
-              </div>
+            {/* Simple Save & Reset Actions */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+              <button
+                type="button"
+                onClick={loadMyProfile}
+                className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <IconRefresh className="w-3.5 h-3.5" />
+                <span>I-balik sa Na-save (Reset)</span>
+              </button>
 
               <button
                 type="submit"
                 disabled={profileSaving}
-                className="px-6 py-2.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-2"
+                className="px-6 py-3 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs sm:text-sm shadow-md transition-all cursor-pointer flex items-center gap-2 hover:scale-[1.01]"
               >
                 <span>💾</span>
-                <span>{profileSaving ? 'Saving & Syncing...' : 'Save & Sync Profile to MSWDO Admin'}</span>
+                <span>
+                  {profileSaving ? 'Ginasave pa ang impormasyon...' : 'I-save ang Akong Impormasyon (Save Profile)'}
+                </span>
               </button>
             </div>
           </form>
-
-          {/* MODAL 1: ADD / EDIT EDUCATION */}
-          {showAddEducationModal && (
-            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-5 space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <h3 className="text-base font-bold text-slate-900 m-0 flex items-center gap-2">
-                    <span>🎓</span>
-                    <span>{editingEducation ? 'Edit Educational Attainment' : 'Add Educational Attainment / Degree'}</span>
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddEducationModal(false)}
-                    className="p-1 rounded-md text-slate-400 hover:text-slate-600 cursor-pointer"
-                  >
-                    <IconClose className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <form onSubmit={handleSaveEducation} className="space-y-3 text-xs">
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">
-                      Degree / Diploma Title <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Bachelor of Early Childhood Education (BECEd)"
-                      value={eduDegree}
-                      onChange={(e) => setEduDegree(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold text-slate-800 outline-none focus:border-accent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">
-                      School / University / College <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Bukidnon State University - Main Campus"
-                      value={eduSchool}
-                      onChange={(e) => setEduSchool(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-800 outline-none focus:border-accent"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="font-bold text-slate-700 block mb-1">
-                        Year Graduated
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. 2021"
-                        value={eduYear}
-                        onChange={(e) => setEduYear(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-800 outline-none focus:border-accent"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="font-bold text-slate-700 block mb-1">
-                        Honors / Distinction
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Cum Laude"
-                        value={eduHonors}
-                        onChange={(e) => setEduHonors(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-800 outline-none focus:border-accent"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => setShowAddEducationModal(false)}
-                      className="px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold cursor-pointer"
-                    >
-                      {editingEducation ? 'Update Degree' : 'Add Degree'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* MODAL 2: ADD / EDIT CERTIFICATION */}
-          {showAddCertModal && (
-            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-5 space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <h3 className="text-base font-bold text-slate-900 m-0 flex items-center gap-2">
-                    <span>📜</span>
-                    <span>{editingCert ? 'Edit Certification / Training' : 'Add ECCD Certification / Training'}</span>
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddCertModal(false)}
-                    className="p-1 rounded-md text-slate-400 hover:text-slate-600 cursor-pointer"
-                  >
-                    <IconClose className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <form onSubmit={handleSaveCert} className="space-y-3 text-xs">
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">
-                      Certificate / Seminar Title <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. DepEd ECCD Foundational Training"
-                      value={certTitle}
-                      onChange={(e) => setCertTitle(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold text-slate-800 outline-none focus:border-accent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">
-                      Issuing Agency / Organization <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. MSWDO Manolo Fortich / DepEd Region X"
-                      value={certIssuer}
-                      onChange={(e) => setCertIssuer(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-800 outline-none focus:border-accent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">
-                      Year Issued / Completed
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 2024"
-                      value={certYear}
-                      onChange={(e) => setCertYear(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-800 outline-none focus:border-accent"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => setShowAddCertModal(false)}
-                      className="px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold cursor-pointer"
-                    >
-                      {editingCert ? 'Update Certificate' : 'Add Certificate'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* MODAL 3: ADD / EDIT CLASS SESSION */}
-          {showAddSessionModal && (
-            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-5 space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <h3 className="text-base font-bold text-slate-900 m-0 flex items-center gap-2">
-                    <span>🕒</span>
-                    <span>{editingSession ? 'Edit Class Session' : 'Add Class Session & Schedule'}</span>
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddSessionModal(false)}
-                    className="p-1 rounded-md text-slate-400 hover:text-slate-600 cursor-pointer"
-                  >
-                    <IconClose className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <form onSubmit={handleSaveSession} className="space-y-3 text-xs">
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">
-                      Session Name &amp; Level <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Morning Pre-K1 Session (Ages 3 - 3.11)"
-                      value={sessionName}
-                      onChange={(e) => setSessionName(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold text-slate-800 outline-none focus:border-accent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">
-                      Days &amp; Time Schedule <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Monday - Friday, 8:00 AM - 10:30 AM"
-                      value={sessionSchedule}
-                      onChange={(e) => setSessionSchedule(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-800 outline-none focus:border-accent"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="font-bold text-slate-700 block mb-1">
-                        Classroom / Area
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Room 1 - Main Center"
-                        value={sessionRoom}
-                        onChange={(e) => setSessionRoom(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-800 outline-none focus:border-accent"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="font-bold text-slate-700 block mb-1">
-                        Learner Capacity
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. 20 Learners"
-                        value={sessionCapacity}
-                        onChange={(e) => setSessionCapacity(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-800 outline-none focus:border-accent"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => setShowAddSessionModal(false)}
-                      className="px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold cursor-pointer"
-                    >
-                      {editingSession ? 'Update Session' : 'Add Session'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* MODAL 4: ADD / EDIT CUSTOM DETAIL */}
-          {showAddCustomModal && (
-            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-5 space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <h3 className="text-base font-bold text-slate-900 m-0 flex items-center gap-2">
-                    <span>📌</span>
-                    <span>{editingCustom ? 'Edit Profile Detail' : 'Add Custom Detail / Info'}</span>
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddCustomModal(false)}
-                    className="p-1 rounded-md text-slate-400 hover:text-slate-600 cursor-pointer"
-                  >
-                    <IconClose className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <form onSubmit={handleSaveCustom} className="space-y-3 text-xs">
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">
-                      Information Field Label <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Emergency Contact Person, Special Skill, Language"
-                      value={customLabel}
-                      onChange={(e) => setCustomLabel(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold text-slate-800 outline-none focus:border-accent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">
-                      Information Value / Details <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Roberto Ladao - 0917-555-0192"
-                      value={customValue}
-                      onChange={(e) => setCustomValue(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-800 outline-none focus:border-accent"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => setShowAddCustomModal(false)}
-                      className="px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold cursor-pointer"
-                    >
-                      {editingCustom ? 'Update Detail' : 'Add Detail'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </DashboardLayout>
