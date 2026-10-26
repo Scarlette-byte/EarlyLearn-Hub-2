@@ -43,10 +43,10 @@ import {
 
 const TABS = [
   { key: 'overview', label: 'MSWD Overview', icon: <IconOverview className="w-4 h-4" /> },
-  { key: 'enrollees', label: '1. Enrollee Population', icon: <IconLearners className="w-4 h-4" /> },
-  { key: 'centers', label: '2. Daycare Centers', icon: <IconTeachers className="w-4 h-4" /> },
-  { key: 'reports', label: '3. Reports Generation', icon: <IconMaterials className="w-4 h-4" /> },
-  { key: 'programs', label: '4. Activity Monitoring', icon: <IconOverview className="w-4 h-4" /> },
+  { key: 'enrollees', label: 'Enrollee Population', icon: <IconLearners className="w-4 h-4" /> },
+  { key: 'centers', label: 'Daycare Centers', icon: <IconTeachers className="w-4 h-4" /> },
+  { key: 'reports', label: 'Reports Generation', icon: <IconMaterials className="w-4 h-4" /> },
+  { key: 'programs', label: 'Activity Monitoring', icon: <IconOverview className="w-4 h-4" /> },
   { key: 'curriculum', label: 'Curriculum Guides', icon: <IconMaterials className="w-4 h-4" /> },
   { key: 'teachers', label: 'Manage Teachers', icon: <IconTeachers className="w-4 h-4" /> },
   { key: 'categories', label: 'Categories', icon: <IconCategories className="w-4 h-4" /> },

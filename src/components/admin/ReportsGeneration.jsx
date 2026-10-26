@@ -423,12 +423,12 @@ export default function ReportsGeneration({
               onChange={(e) => setReportType(e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] text-xs font-bold text-dash-ink outline-none focus:border-accent"
             >
-              <option value="curriculum">1. Curriculum Guide Teacher Assignments</option>
-              <option value="modules">2. Teacher Uploaded Modules &amp; Activity Monitoring</option>
-              <option value="teachers">3. Daycare Centers &amp; Teacher Staffing Roster</option>
-              <option value="enrollment">4. Child Enrollee Population Census (3,091 Total)</option>
-              <option value="attendance">5. Daycare Center Operations &amp; Attendance</option>
-              <option value="development">6. ECCD Child Developmental Milestones</option>
+              <option value="curriculum">Curriculum Guide Teacher Assignments</option>
+              <option value="modules">Teacher Uploaded Modules &amp; Activity Monitoring</option>
+              <option value="teachers">Daycare Centers &amp; Teacher Staffing Roster</option>
+              <option value="enrollment">Child Enrollee Population Census (3,091 Total)</option>
+              <option value="attendance">Daycare Center Operations &amp; Attendance</option>
+              <option value="development">ECCD Child Developmental Milestones</option>
             </select>
           </div>
 
