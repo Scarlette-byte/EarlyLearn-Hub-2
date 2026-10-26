@@ -521,6 +521,7 @@ export default function AdminDashboard({ profile }) {
           cdcs={cdcs}
           teachers={teachers}
           assessments={assessments}
+          activityReports={activityReports}
         />
       )}
 
