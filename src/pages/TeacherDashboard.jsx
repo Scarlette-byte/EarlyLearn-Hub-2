@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { supabase, barangays } from '../lib/supabaseClient';
 import DashboardLayout from '../components/DashboardLayout.jsx';
 import {
@@ -22,6 +22,9 @@ import {
   IconBuilding,
   IconPin,
   IconRefresh,
+  IconUpload,
+  IconTrash,
+  IconEdit,
 } from '../components/Icons.jsx';
 import {
   cardBox,
@@ -106,6 +109,15 @@ export default function TeacherDashboard({ profile }) {
   const [uploadDescription, setUploadDescription] = useState('');
   const [uploadUrl, setUploadUrl] = useState('');
 
+  // Choose file & Drag file upload state
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadFileName, setUploadFileName] = useState('');
+  const [uploadFileSize, setUploadFileSize] = useState('');
+  const [uploadFileType, setUploadFileType] = useState('');
+  const [uploadFilePreview, setUploadFilePreview] = useState(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const fileInputRef = useRef(null);
+
   // Uploaded Materials tab filters
   const [uploadedFilterLevel, setUploadedFilterLevel] = useState('all');
   const [uploadedFilterQuarter, setUploadedFilterQuarter] = useState('all');
@@ -139,6 +151,38 @@ export default function TeacherDashboard({ profile }) {
   const [myBio, setMyBio] = useState('');
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMsg, setProfileMsg] = useState({ text: '', type: '' });
+
+  // Extended Teacher Profile Credentials: Education, Certifications, Sessions, and Custom Details
+  const [myEducation, setMyEducation] = useState([]);
+  const [myCertifications, setMyCertifications] = useState([]);
+  const [myClassSessions, setMyClassSessions] = useState([]);
+  const [myCustomDetails, setMyCustomDetails] = useState([]);
+
+  // Modal / Editor dialog states for Profile credential additions & edits
+  const [showAddEducationModal, setShowAddEducationModal] = useState(false);
+  const [editingEducation, setEditingEducation] = useState(null);
+  const [eduDegree, setEduDegree] = useState('');
+  const [eduSchool, setEduSchool] = useState('');
+  const [eduYear, setEduYear] = useState('');
+  const [eduHonors, setEduHonors] = useState('');
+
+  const [showAddCertModal, setShowAddCertModal] = useState(false);
+  const [editingCert, setEditingCert] = useState(null);
+  const [certTitle, setCertTitle] = useState('');
+  const [certIssuer, setCertIssuer] = useState('');
+  const [certYear, setCertYear] = useState('');
+
+  const [showAddSessionModal, setShowAddSessionModal] = useState(false);
+  const [editingSession, setEditingSession] = useState(null);
+  const [sessionName, setSessionName] = useState('');
+  const [sessionSchedule, setSessionSchedule] = useState('');
+  const [sessionRoom, setSessionRoom] = useState('');
+  const [sessionCapacity, setSessionCapacity] = useState('');
+
+  const [showAddCustomModal, setShowAddCustomModal] = useState(false);
+  const [editingCustom, setEditingCustom] = useState(null);
+  const [customLabel, setCustomLabel] = useState('');
+  const [customValue, setCustomValue] = useState('');
 
   // My Learners tab — auto-filtered by this teacher's assigned CDC
   const [myLearners, setMyLearners] = useState([]);
@@ -197,6 +241,13 @@ export default function TeacherDashboard({ profile }) {
     return list;
   }, [curriculumLevel, curriculumQuarter, curriculumSearch]);
 
+  // Available weeks for Upload Modal based on level & quarter
+  const availableWeeksForUploadModal = useMemo(() => {
+    const curr = uploadCurriculumLevel === 'PRE-K1' ? preK1Curriculum : preK2Curriculum;
+    const qObj = curr.find((q) => q.quarterNumber === parseInt(uploadQuarter, 10)) || curr[0];
+    return qObj || { weeks: [] };
+  }, [uploadCurriculumLevel, uploadQuarter]);
+
   // Combined uploaded materials list
   const combinedUploadedMaterials = useMemo(() => {
     const teacherMods = (localTeacherModules || []).map((m) => ({
@@ -213,6 +264,10 @@ export default function TeacherDashboard({ profile }) {
       status: m.status || 'Approved',
       created_at: m.upload_date,
       content_text: m.description,
+      file_name: m.file_name || null,
+      file_size: m.file_size || null,
+      file_type: m.file_type || null,
+      content_url: m.content_url || null,
       isLocal: true,
     }));
 
@@ -236,6 +291,10 @@ export default function TeacherDashboard({ profile }) {
         status: m.status || 'Approved',
         created_at: 'Recently',
         content_text: m.content_text,
+        file_name: m.file_name || null,
+        file_size: m.file_size || null,
+        file_type: m.file_type || null,
+        content_url: m.content_url || null,
         isLocal: false,
       };
     });
@@ -272,6 +331,57 @@ export default function TeacherDashboard({ profile }) {
     });
   }, [combinedUploadedMaterials, uploadedFilterLevel, uploadedFilterQuarter, uploadedFilterType, uploadedSearch]);
 
+  // Handle File Chosen / Dropped for Upload
+  const handleFileSelected = (file) => {
+    if (!file) return;
+    setUploadFile(file);
+    setUploadFileName(file.name);
+
+    const sizeFormatted =
+      file.size > 1024 * 1024
+        ? (file.size / (1024 * 1024)).toFixed(1) + ' MB'
+        : (file.size / 1024).toFixed(0) + ' KB';
+    setUploadFileSize(sizeFormatted);
+
+    const ext = file.name.split('.').pop()?.toUpperCase() || 'FILE';
+    setUploadFileType(ext);
+
+    // Auto-detect format type
+    const lowerExt = ext.toLowerCase();
+    if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(lowerExt)) {
+      setUploadType('image');
+    } else if (['mp4', 'mov', 'webm', 'avi', 'mkv'].includes(lowerExt)) {
+      setUploadType('video');
+    } else if (['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'].includes(lowerExt)) {
+      setUploadType('file');
+    }
+
+    // Auto-fill title if currently blank or standard prefix
+    const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+    if (!uploadTitle.trim() || uploadTitle.match(/^\[.*\]\s*$/)) {
+      setUploadTitle(`[${uploadCurriculumLevel} Q${uploadQuarter} ${uploadWeek}] ${cleanName}`);
+    }
+
+    // Read file for preview / download URL
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      setUploadFilePreview(dataUrl);
+      setUploadUrl(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveSelectedFile = () => {
+    setUploadFile(null);
+    setUploadFileName('');
+    setUploadFileSize('');
+    setUploadFileType('');
+    setUploadFilePreview(null);
+    setIsDraggingFile(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   // Open upload modal linked specifically to an admin assigned topic
   const handleOpenUploadForAssignedTopic = (asg) => {
     const isPast = Boolean(asg.deadline && new Date(asg.deadline + 'T23:59:59') < new Date());
@@ -280,6 +390,7 @@ export default function TeacherDashboard({ profile }) {
       return;
     }
 
+    handleRemoveSelectedFile();
     setActiveAssignmentId(asg.id);
     setActiveAssignmentDeadline(asg.deadline || null);
 
@@ -305,6 +416,7 @@ export default function TeacherDashboard({ profile }) {
 
   // Open upload modal with pre-filled curriculum data
   const handleOpenUploadFromCurriculum = (item) => {
+    handleRemoveSelectedFile();
     setActiveAssignmentId(null);
     setActiveAssignmentDeadline(null);
     setUploadCurriculumLevel(item.level);
@@ -323,6 +435,7 @@ export default function TeacherDashboard({ profile }) {
 
   // Open clean new upload modal
   const handleOpenNewUpload = () => {
+    handleRemoveSelectedFile();
     setActiveAssignmentId(null);
     setActiveAssignmentDeadline(null);
     const curr = preK1Curriculum[0];
@@ -385,6 +498,11 @@ export default function TeacherDashboard({ profile }) {
       return;
     }
 
+    const effectiveUrl = uploadFilePreview || uploadUrl.trim() || null;
+    const effectiveFileName = uploadFileName || null;
+    const effectiveFileSize = uploadFileSize || '2.4 MB';
+    const effectiveFileType = uploadFileType || (uploadType === 'video' ? 'MP4' : uploadType === 'file' ? 'PDF' : uploadType.toUpperCase());
+
     // 1. Insert to Supabase materials
     const catId = categoryOptions.length > 0 ? categoryOptions[0].id : null;
     try {
@@ -393,7 +511,7 @@ export default function TeacherDashboard({ profile }) {
         type: uploadType,
         title: uploadTitle.trim(),
         age_range: uploadCurriculumLevel === 'PRE-K1' ? '3.11' : '4.11',
-        content_url: uploadUrl.trim() || null,
+        content_url: effectiveUrl,
         content_text: uploadDescription.trim() || null,
         created_by: currentUserId,
       });
@@ -416,14 +534,15 @@ export default function TeacherDashboard({ profile }) {
       sub_theme: uploadSubTheme,
       theme: uploadTheme,
       module_type: uploadType === 'activity' ? 'Activity Worksheet' : uploadType === 'file' ? 'Official PDF Document' : uploadType === 'video' ? 'Video Lesson' : uploadType === 'image' ? 'Worksheet Image' : 'Reading Story',
-      file_type: uploadType === 'video' ? 'MP4' : uploadType === 'file' ? 'PDF' : uploadType.toUpperCase(),
-      file_size: '2.4 MB',
+      file_type: effectiveFileType,
+      file_size: effectiveFileSize,
+      file_name: effectiveFileName,
       upload_date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
       status: 'Pending Review',
       verified_by_mswd: false,
       mswd_comments: '',
       description: uploadDescription.trim() || `${uploadCurriculumLevel} ${uploadWeek} ECCD learning activity on ${uploadSubTheme}`,
-      content_url: uploadUrl.trim() || null,
+      content_url: effectiveUrl,
       content_text: uploadDescription.trim() || null,
       downloads_count: 0,
       type: uploadType,
@@ -466,6 +585,7 @@ export default function TeacherDashboard({ profile }) {
       setUploadMsg({ text: '', type: '' });
       setActiveAssignmentId(null);
       setActiveAssignmentDeadline(null);
+      handleRemoveSelectedFile();
     }, 1200);
   }
 
@@ -587,6 +707,73 @@ export default function TeacherDashboard({ profile }) {
     setProgressRows(rows);
   }, []);
 
+  // Fallback defaults for teacher credentials
+  const defaultInitialEducation = useMemo(() => [
+    {
+      id: 'edu-1',
+      degree: 'Bachelor of Early Childhood Education (BECEd)',
+      school: 'Bukidnon State University - Main Campus',
+      year: '2020',
+      honors: 'With Academic Distinction',
+    },
+  ], []);
+
+  const defaultInitialCertifications = useMemo(() => [
+    {
+      id: 'cert-1',
+      title: 'DepEd ECCD Curriculum & Assessment Implementation',
+      issuer: 'DepEd Region X / MSWDO Bukidnon',
+      year: '2023',
+    },
+    {
+      id: 'cert-2',
+      title: 'Standard First Aid & Basic Life Support (BLS)',
+      issuer: 'Philippine Red Cross - Bukidnon Chapter',
+      year: '2024',
+    },
+    {
+      id: 'cert-3',
+      title: 'Positive Discipline & Child Protection Policy',
+      issuer: 'MSWDO Manolo Fortich',
+      year: '2024',
+    },
+  ], []);
+
+  const defaultInitialSessions = useMemo(() => [
+    {
+      id: 'sess-1',
+      sessionName: 'Morning Pre-K1 Session (Ages 3 - 3.11)',
+      schedule: 'Monday to Friday, 8:00 AM - 10:30 AM',
+      room: 'Room 1 - Main Activity Room',
+      maxLearners: '20 Learners',
+    },
+    {
+      id: 'sess-2',
+      sessionName: 'Afternoon Pre-K2 Session (Ages 4 - 4.11)',
+      schedule: 'Monday to Friday, 1:00 PM - 3:30 PM',
+      room: 'Room 1 - Main Activity Room',
+      maxLearners: '25 Learners',
+    },
+  ], []);
+
+  const defaultInitialCustomDetails = useMemo(() => [
+    {
+      id: 'cust-1',
+      label: 'Emergency Contact Person',
+      value: 'Roberto Ladao (Spouse) - 0917-555-0192',
+    },
+    {
+      id: 'cust-2',
+      label: 'Languages of Instruction',
+      value: 'Bisaya / Cebuano & English',
+    },
+    {
+      id: 'cust-3',
+      label: 'Teaching Specialization',
+      value: 'Early Literacy, Storytelling & ECCD Fine Motor Arts',
+    },
+  ], []);
+
   // --- My Profile ---
   const loadMyProfile = useCallback(async () => {
     let loadedName = profile?.full_name || '';
@@ -598,6 +785,10 @@ export default function TeacherDashboard({ profile }) {
     let loadedSpec = 'Child Development Teacher (CDT) / Worker';
     let loadedYears = '3 years';
     let loadedBio = '';
+    let loadedEdu = defaultInitialEducation;
+    let loadedCerts = defaultInitialCertifications;
+    let loadedSess = defaultInitialSessions;
+    let loadedCust = defaultInitialCustomDetails;
 
     // 1. Check local storage overrides first
     try {
@@ -616,6 +807,10 @@ export default function TeacherDashboard({ profile }) {
         if (ov.specialization) loadedSpec = ov.specialization;
         if (ov.years_service) loadedYears = ov.years_service;
         if (ov.bio) loadedBio = ov.bio;
+        if (Array.isArray(ov.education)) loadedEdu = ov.education;
+        if (Array.isArray(ov.certifications)) loadedCerts = ov.certifications;
+        if (Array.isArray(ov.sessions)) loadedSess = ov.sessions;
+        if (Array.isArray(ov.custom_details)) loadedCust = ov.custom_details;
       }
     } catch {
       // ignore
@@ -675,7 +870,11 @@ export default function TeacherDashboard({ profile }) {
     setMySpecialization(loadedSpec);
     setMyYearsService(loadedYears);
     setMyBio(loadedBio);
-  }, [currentUserId, profile]);
+    setMyEducation(loadedEdu);
+    setMyCertifications(loadedCerts);
+    setMyClassSessions(loadedSess);
+    setMyCustomDetails(loadedCust);
+  }, [currentUserId, profile, defaultInitialEducation, defaultInitialCertifications, defaultInitialSessions, defaultInitialCustomDetails]);
 
   // Handle Save & Sync Teacher Profile (updates Supabase + local overrides + broadcasts to Admin)
   async function handleSaveTeacherProfile(e) {
@@ -709,6 +908,10 @@ export default function TeacherDashboard({ profile }) {
       specialization: mySpecialization.trim() || null,
       years_service: myYearsService.trim() || null,
       bio: myBio.trim() || null,
+      education: myEducation,
+      certifications: myCertifications,
+      sessions: myClassSessions,
+      custom_details: myCustomDetails,
       updated_at: new Date().toISOString(),
     };
 
@@ -768,10 +971,212 @@ export default function TeacherDashboard({ profile }) {
 
     setProfileSaving(false);
     setProfileMsg({
-      text: `✅ Profile successfully updated! Your updated name, CDC Center ("${finalCdc}"), and Barangay ("${myBarangay}") are now automatically recorded in the MSWDO Admin Dashboard.`,
+      text: `✅ Profile successfully updated! Your credentials, CDC Center ("${finalCdc}"), and Barangay ("${myBarangay}") are synchronized with the MSWDO Admin Dashboard.`,
       type: 'ok',
     });
   }
+
+  // --- Profile Credential Handlers (Add, Edit, Delete) ---
+  const handleOpenAddEducation = () => {
+    setEditingEducation(null);
+    setEduDegree('');
+    setEduSchool('');
+    setEduYear(new Date().getFullYear().toString());
+    setEduHonors('');
+    setShowAddEducationModal(true);
+  };
+
+  const handleOpenEditEducation = (item) => {
+    setEditingEducation(item);
+    setEduDegree(item.degree || '');
+    setEduSchool(item.school || '');
+    setEduYear(item.year || '');
+    setEduHonors(item.honors || '');
+    setShowAddEducationModal(true);
+  };
+
+  const handleSaveEducation = (e) => {
+    if (e) e.preventDefault();
+    if (!eduDegree.trim() || !eduSchool.trim()) return;
+
+    if (editingEducation) {
+      setMyEducation(
+        myEducation.map((ed) =>
+          ed.id === editingEducation.id
+            ? { ...ed, degree: eduDegree.trim(), school: eduSchool.trim(), year: eduYear.trim(), honors: eduHonors.trim() }
+            : ed
+        )
+      );
+    } else {
+      const newItem = {
+        id: 'edu-' + Date.now(),
+        degree: eduDegree.trim(),
+        school: eduSchool.trim(),
+        year: eduYear.trim() || new Date().getFullYear().toString(),
+        honors: eduHonors.trim(),
+      };
+      setMyEducation([...myEducation, newItem]);
+    }
+    setShowAddEducationModal(false);
+  };
+
+  const handleDeleteEducation = (id) => {
+    if (!confirm('Are you sure you want to delete this educational attainment record?')) return;
+    setMyEducation(myEducation.filter((ed) => ed.id !== id));
+  };
+
+  // Certifications Handlers
+  const handleOpenAddCert = () => {
+    setEditingCert(null);
+    setCertTitle('');
+    setCertIssuer('');
+    setCertYear(new Date().getFullYear().toString());
+    setShowAddCertModal(true);
+  };
+
+  const handleOpenEditCert = (item) => {
+    setEditingCert(item);
+    setCertTitle(item.title || '');
+    setCertIssuer(item.issuer || '');
+    setCertYear(item.year || '');
+    setShowAddCertModal(true);
+  };
+
+  const handleSaveCert = (e) => {
+    if (e) e.preventDefault();
+    if (!certTitle.trim() || !certIssuer.trim()) return;
+
+    if (editingCert) {
+      setMyCertifications(
+        myCertifications.map((c) =>
+          c.id === editingCert.id
+            ? { ...c, title: certTitle.trim(), issuer: certIssuer.trim(), year: certYear.trim() }
+            : c
+        )
+      );
+    } else {
+      const newItem = {
+        id: 'cert-' + Date.now(),
+        title: certTitle.trim(),
+        issuer: certIssuer.trim(),
+        year: certYear.trim() || new Date().getFullYear().toString(),
+      };
+      setMyCertifications([...myCertifications, newItem]);
+    }
+    setShowAddCertModal(false);
+  };
+
+  const handleDeleteCert = (id) => {
+    if (!confirm('Are you sure you want to delete this certification record?')) return;
+    setMyCertifications(myCertifications.filter((c) => c.id !== id));
+  };
+
+  // Class Sessions Handlers
+  const handleOpenAddSession = () => {
+    setEditingSession(null);
+    setSessionName('');
+    setSessionSchedule('Monday - Friday, 8:00 AM - 10:30 AM');
+    setSessionRoom('Room 1 - Main Activity Room');
+    setSessionCapacity('20 Learners');
+    setShowAddSessionModal(true);
+  };
+
+  const handleOpenEditSession = (item) => {
+    setEditingSession(item);
+    setSessionName(item.sessionName || '');
+    setSessionSchedule(item.schedule || '');
+    setSessionRoom(item.room || '');
+    setSessionCapacity(item.maxLearners || '');
+    setShowAddSessionModal(true);
+  };
+
+  const handleSaveSession = (e) => {
+    if (e) e.preventDefault();
+    if (!sessionName.trim()) return;
+
+    if (editingSession) {
+      setMyClassSessions(
+        myClassSessions.map((s) =>
+          s.id === editingSession.id
+            ? {
+                ...s,
+                sessionName: sessionName.trim(),
+                schedule: sessionSchedule.trim(),
+                room: sessionRoom.trim(),
+                maxLearners: sessionCapacity.trim(),
+              }
+            : s
+        )
+      );
+    } else {
+      const newItem = {
+        id: 'sess-' + Date.now(),
+        sessionName: sessionName.trim(),
+        schedule: sessionSchedule.trim(),
+        room: sessionRoom.trim(),
+        maxLearners: sessionCapacity.trim() || '20 Learners',
+      };
+      setMyClassSessions([...myClassSessions, newItem]);
+    }
+    setShowAddSessionModal(false);
+  };
+
+  const handleDeleteSession = (id) => {
+    if (!confirm('Are you sure you want to delete this class session?')) return;
+    setMyClassSessions(myClassSessions.filter((s) => s.id !== id));
+  };
+
+  // Custom Details Handlers
+  const handleOpenAddCustom = () => {
+    setEditingCustom(null);
+    setCustomLabel('');
+    setCustomValue('');
+    setShowAddCustomModal(true);
+  };
+
+  const handleOpenEditCustom = (item) => {
+    setEditingCustom(item);
+    setCustomLabel(item.label || '');
+    setCustomValue(item.value || '');
+    setShowAddCustomModal(true);
+  };
+
+  const handleSaveCustom = (e) => {
+    if (e) e.preventDefault();
+    if (!customLabel.trim() || !customValue.trim()) return;
+
+    if (editingCustom) {
+      setMyCustomDetails(
+        myCustomDetails.map((d) =>
+          d.id === editingCustom.id
+            ? { ...d, label: customLabel.trim(), value: customValue.trim() }
+            : d
+        )
+      );
+    } else {
+      const newItem = {
+        id: 'cust-' + Date.now(),
+        label: customLabel.trim(),
+        value: customValue.trim(),
+      };
+      setMyCustomDetails([...myCustomDetails, newItem]);
+    }
+    setShowAddCustomModal(false);
+  };
+
+  const handleDeleteCustom = (id) => {
+    if (!confirm('Are you sure you want to delete this profile info item?')) return;
+    setMyCustomDetails(myCustomDetails.filter((d) => d.id !== id));
+  };
+
+  // Clear / Reset All Custom Added Credentials
+  const handleClearAllAddedCredentials = () => {
+    if (!confirm('Are you sure you want to clear all added education degrees, certifications, sessions, and custom details?')) return;
+    setMyEducation([]);
+    setMyCertifications([]);
+    setMyClassSessions([]);
+    setMyCustomDetails([]);
+  };
 
   // --- My Learners: find this teacher's CDC and Barangay, then list learners in that jurisdiction ---
   const loadMyLearners = useCallback(async () => {
@@ -1573,10 +1978,10 @@ export default function TeacherDashboard({ profile }) {
             <button
               type="button"
               onClick={handleOpenNewUpload}
-              className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
             >
-              <IconPlus className="w-4 h-4" />
-              <span>+ Upload New Material</span>
+              <IconUpload className="w-4 h-4" />
+              <span>Upload New Material</span>
             </button>
           </div>
 
@@ -1694,6 +2099,13 @@ export default function TeacherDashboard({ profile }) {
                             Lesson Theme: {m.sub_theme}
                           </div>
                         )}
+                        {m.file_name && (
+                          <div className="text-[11px] text-blue-700 font-medium mt-1 flex items-center gap-1">
+                            <span>📎</span>
+                            <span className="font-semibold">{m.file_name}</span>
+                            {m.file_size && <span className="text-slate-400">({m.file_size})</span>}
+                          </div>
+                        )}
                         {m.content_text && (
                           <div className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
                             {m.content_text}
@@ -1750,13 +2162,28 @@ export default function TeacherDashboard({ profile }) {
                       </td>
 
                       <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteMaterial(m)}
-                          className="px-2.5 py-1 rounded text-red-600 hover:bg-red-50 text-xs font-medium transition-colors cursor-pointer"
-                        >
-                          Delete
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {m.content_url && (
+                            <a
+                              href={m.content_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              download={m.file_name || undefined}
+                              className="px-2.5 py-1 rounded text-emerald-700 hover:bg-emerald-50 text-xs font-semibold transition-colors inline-flex items-center gap-1 cursor-pointer"
+                              title="View / Download Material File"
+                            >
+                              <span>👁️</span>
+                              <span>View File</span>
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMaterial(m)}
+                            className="px-2.5 py-1 rounded text-red-600 hover:bg-red-50 text-xs font-medium transition-colors cursor-pointer"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1766,7 +2193,7 @@ export default function TeacherDashboard({ profile }) {
                         <div className="text-2xl mb-1">📂</div>
                         <div className="font-semibold text-xs">No uploaded materials match your filter</div>
                         <div className="text-[11px] text-slate-400 mt-0.5">
-                          Click "+ Upload New Material" or browse the Curriculum Guide to create one.
+                          Click "Upload New Material" or browse the Curriculum Guide to create one.
                         </div>
                       </td>
                     </tr>
@@ -1776,7 +2203,7 @@ export default function TeacherDashboard({ profile }) {
             </div>
           </div>
 
-          {/* Simple Upload Modal */}
+          {/* Simple Upload Modal with Drag & Drop and Choose File */}
           {isUploadModalOpen && (
             <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
               <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full p-5 space-y-4 my-8">
@@ -1815,6 +2242,140 @@ export default function TeacherDashboard({ profile }) {
                       </span>
                     </div>
                   )}
+
+                  {/* PROMINENT CHOOSE FILE & DRAG FILE DROPZONE */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                        <span>📎</span>
+                        <span>Upload File (Choose File &amp; Drag File)</span>
+                      </label>
+                      {uploadFileName && (
+                        <button
+                          type="button"
+                          onClick={handleRemoveSelectedFile}
+                          className="text-[11px] text-rose-600 hover:text-rose-700 font-bold hover:underline cursor-pointer"
+                        >
+                          ✕ Remove File
+                        </button>
+                      )}
+                    </div>
+
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.mp4,.zip"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          handleFileSelected(e.target.files[0]);
+                        }
+                      }}
+                      className="hidden"
+                    />
+
+                    {!uploadFileName ? (
+                      <div
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setIsDraggingFile(true);
+                        }}
+                        onDragEnter={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setIsDraggingFile(true);
+                        }}
+                        onDragLeave={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setIsDraggingFile(false);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setIsDraggingFile(false);
+                          if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                            handleFileSelected(e.dataTransfer.files[0]);
+                          }
+                        }}
+                        onClick={() => fileInputRef.current?.click()}
+                        className={`border-2 border-dashed rounded-xl p-5 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-2 ${
+                          isDraggingFile
+                            ? 'border-accent bg-amber-50/70 scale-[1.01]'
+                            : 'border-slate-300 bg-slate-50/80 hover:bg-slate-100 hover:border-slate-400'
+                        }`}
+                      >
+                        <div className="w-12 h-12 rounded-2xl bg-white shadow-xs border border-slate-200 flex items-center justify-center text-2xl text-accent">
+                          {isDraggingFile ? '📥' : '☁️'}
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-800 text-xs sm:text-sm m-0">
+                            Drag &amp; drop file here, or{' '}
+                            <span className="text-accent underline font-extrabold">choose file</span>
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-1 mb-0">
+                            PDF, Word, Excel, PowerPoint, Images (PNG/JPG), MP4 Video, Worksheets
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            fileInputRef.current?.click();
+                          }}
+                          className="mt-1 px-4 py-1.5 rounded-lg bg-white border border-slate-300 hover:border-slate-400 text-slate-800 font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <span>📁</span>
+                          <span>Choose File</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="p-3.5 rounded-xl border border-emerald-300 bg-emerald-50/60 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          {uploadFilePreview && ['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF'].includes(uploadFileType) ? (
+                            <img
+                              src={uploadFilePreview}
+                              alt="Preview"
+                              className="w-12 h-12 object-cover rounded-lg border border-emerald-200 shadow-xs shrink-0"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-lg bg-emerald-700 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                              {uploadFileType || 'FILE'}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-900 text-xs truncate max-w-xs">
+                              {uploadFileName}
+                            </div>
+                            <div className="text-[11px] text-emerald-800 font-medium flex items-center gap-2 mt-0.5">
+                              <span>{uploadFileSize}</span>
+                              <span>•</span>
+                              <span className="font-bold text-emerald-700">✓ Ready to upload</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="px-2.5 py-1 rounded-md bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs cursor-pointer"
+                          >
+                            Change
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleRemoveSelectedFile}
+                            className="p-1 rounded-md hover:bg-rose-100 text-rose-600 cursor-pointer"
+                            title="Remove file"
+                          >
+                            <IconClose className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Step 1: Curriculum Level */}
                   <div>
@@ -1933,7 +2494,7 @@ export default function TeacherDashboard({ profile }) {
                   {/* Step 5: Content URL */}
                   <div>
                     <label className="font-semibold text-slate-700 block mb-1">
-                      6. Resource / Video / Worksheet Link <span className="text-slate-400 font-normal">(optional)</span>
+                      6. Resource / Video / Worksheet Link <span className="text-slate-400 font-normal">(optional if file is attached)</span>
                     </label>
                     <input
                       type="url"
@@ -2211,9 +2772,20 @@ export default function TeacherDashboard({ profile }) {
                   </div>
 
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">
-                      Mobile / Contact Number
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="font-bold text-slate-700">
+                        Mobile / Contact Number
+                      </label>
+                      {myContact && (
+                        <button
+                          type="button"
+                          onClick={() => setMyContact('')}
+                          className="text-[11px] text-rose-600 hover:text-rose-700 font-bold hover:underline cursor-pointer"
+                        >
+                          ✕ Clear
+                        </button>
+                      )}
+                    </div>
                     <input
                       type="text"
                       value={myContact}
@@ -2291,7 +2863,6 @@ export default function TeacherDashboard({ profile }) {
                       onChange={(e) => {
                         const newBrgy = e.target.value;
                         setMyBarangay(newBrgy);
-                        // Auto-select the first CDC in the new barangay if available
                         const matchingCdcs = realCdcsList.filter(
                           (c) => c.barangay?.toLowerCase() === newBrgy?.toLowerCase()
                         );
@@ -2352,7 +2923,6 @@ export default function TeacherDashboard({ profile }) {
                               {c.name} (Brgy. {c.barangay})
                             </option>
                           ))}
-                        {/* Option to view all CDCs if needed */}
                         <optgroup label="Other Centers in Manolo Fortich">
                           {realCdcsList
                             .filter(
@@ -2381,9 +2951,20 @@ export default function TeacherDashboard({ profile }) {
                   </div>
 
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">
-                      Teaching Philosophy &amp; Notes to MSWDO
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="font-bold text-slate-700">
+                        Teaching Philosophy &amp; Notes to MSWDO
+                      </label>
+                      {myBio && (
+                        <button
+                          type="button"
+                          onClick={() => setMyBio('')}
+                          className="text-[11px] text-rose-600 hover:text-rose-700 font-bold hover:underline cursor-pointer"
+                        >
+                          ✕ Clear
+                        </button>
+                      )}
+                    </div>
                     <textarea
                       rows={3}
                       value={myBio}
@@ -2396,13 +2977,331 @@ export default function TeacherDashboard({ profile }) {
               </div>
             </div>
 
+            {/* SECTION 1: EDUCATIONAL ATTAINMENT & DEGREES (ADD / EDIT / DELETE) */}
+            <div className="bg-white p-5 rounded-2xl border border-card-border shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <div>
+                  <h4 className="font-fraunces text-base font-bold text-slate-900 m-0 flex items-center gap-2">
+                    <span>🎓</span>
+                    <span>Educational Attainment &amp; Academic Degrees</span>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                      {myEducation.length}
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Your college degrees, diplomas, and early childhood education credentials.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenAddEducation}
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-colors self-start sm:self-auto flex items-center gap-1.5 cursor-pointer"
+                >
+                  <IconPlus className="w-3.5 h-3.5" />
+                  <span>Add Education</span>
+                </button>
+              </div>
+
+              {myEducation.length === 0 ? (
+                <div className="p-6 text-center rounded-xl bg-slate-50 border border-dashed border-slate-200 text-slate-500 text-xs">
+                  <div className="text-xl mb-1">🎓</div>
+                  <div className="font-semibold">No educational attainment records added yet.</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">
+                    Click &quot;Add Education&quot; to record your degree or college program.
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {myEducation.map((ed) => (
+                    <div
+                      key={ed.id}
+                      className="p-3.5 rounded-xl border border-slate-200 bg-[#FFFDF9] flex items-start justify-between gap-3 text-xs hover:border-accent/40 transition-colors"
+                    >
+                      <div className="space-y-1 min-w-0">
+                        <div className="font-bold text-slate-900 text-sm">
+                          {ed.degree}
+                        </div>
+                        <div className="text-slate-600 font-medium">
+                          🏫 {ed.school}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 pt-0.5">
+                          <span className="font-bold text-slate-700">Class of {ed.year}</span>
+                          {ed.honors && (
+                            <>
+                              <span>•</span>
+                              <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-bold text-[10.5px]">
+                                🏆 {ed.honors}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditEducation(ed)}
+                          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 cursor-pointer"
+                          title="Edit degree"
+                        >
+                          <IconEdit className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteEducation(ed.id)}
+                          className="p-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-600 cursor-pointer"
+                          title="Delete degree"
+                        >
+                          <IconTrash className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* SECTION 2: ECCD CERTIFICATIONS & TRAINING ACCREDITATIONS (ADD / EDIT / DELETE) */}
+            <div className="bg-white p-5 rounded-2xl border border-card-border shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <div>
+                  <h4 className="font-fraunces text-base font-bold text-slate-900 m-0 flex items-center gap-2">
+                    <span>📜</span>
+                    <span>ECCD Certifications &amp; Accreditations</span>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                      {myCertifications.length}
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Official DepEd, MSWDO, and Red Cross child development trainings &amp; certificates.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenAddCert}
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-colors self-start sm:self-auto flex items-center gap-1.5 cursor-pointer"
+                >
+                  <IconPlus className="w-3.5 h-3.5" />
+                  <span>Add Certification</span>
+                </button>
+              </div>
+
+              {myCertifications.length === 0 ? (
+                <div className="p-6 text-center rounded-xl bg-slate-50 border border-dashed border-slate-200 text-slate-500 text-xs">
+                  <div className="text-xl mb-1">📜</div>
+                  <div className="font-semibold">No certification records added yet.</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">
+                    Click &quot;Add Certification&quot; to record your trainings and accreditations.
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {myCertifications.map((c) => (
+                    <div
+                      key={c.id}
+                      className="p-3.5 rounded-xl border border-slate-200 bg-[#FFFDF9] flex items-start justify-between gap-2.5 text-xs hover:border-accent/40 transition-colors"
+                    >
+                      <div className="space-y-1 min-w-0">
+                        <div className="font-bold text-slate-900 leading-snug">
+                          {c.title}
+                        </div>
+                        <div className="text-[11px] text-slate-600 font-medium">
+                          🏛️ {c.issuer}
+                        </div>
+                        <div className="text-[10.5px] text-emerald-800 font-bold">
+                          Year Awarded: {c.year}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditCert(c)}
+                          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 cursor-pointer"
+                          title="Edit certification"
+                        >
+                          <IconEdit className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCert(c.id)}
+                          className="p-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-600 cursor-pointer"
+                          title="Delete certification"
+                        >
+                          <IconTrash className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* SECTION 3: CLASS SESSIONS & TEACHING SCHEDULE (ADD / EDIT / DELETE) */}
+            <div className="bg-white p-5 rounded-2xl border border-card-border shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <div>
+                  <h4 className="font-fraunces text-base font-bold text-slate-900 m-0 flex items-center gap-2">
+                    <span>🕒</span>
+                    <span>Class Sessions &amp; Teaching Schedule</span>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                      {myClassSessions.length}
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Your scheduled morning and afternoon sessions, assigned rooms, and learner capacities.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenAddSession}
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-colors self-start sm:self-auto flex items-center gap-1.5 cursor-pointer"
+                >
+                  <IconPlus className="w-3.5 h-3.5" />
+                  <span>Add Class Session</span>
+                </button>
+              </div>
+
+              {myClassSessions.length === 0 ? (
+                <div className="p-6 text-center rounded-xl bg-slate-50 border border-dashed border-slate-200 text-slate-500 text-xs">
+                  <div className="text-xl mb-1">🕒</div>
+                  <div className="font-semibold">No class sessions recorded yet.</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">
+                    Click &quot;Add Class Session&quot; to specify your teaching hours and room.
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {myClassSessions.map((s) => (
+                    <div
+                      key={s.id}
+                      className="p-3.5 rounded-xl border border-slate-200 bg-[#FFFDF9] flex items-start justify-between gap-3 text-xs hover:border-accent/40 transition-colors"
+                    >
+                      <div className="space-y-1 min-w-0">
+                        <div className="font-bold text-slate-900 text-sm">
+                          {s.sessionName}
+                        </div>
+                        <div className="text-slate-600 font-semibold flex items-center gap-1.5">
+                          <span>⏰</span>
+                          <span>{s.schedule}</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 pt-0.5">
+                          <span className="inline-flex items-center gap-1 font-medium">
+                            <span>📍</span>
+                            <span>{s.room}</span>
+                          </span>
+                          <span>•</span>
+                          <span className="inline-flex items-center gap-1 font-bold text-emerald-800">
+                            <span>👥</span>
+                            <span>{s.maxLearners}</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditSession(s)}
+                          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 cursor-pointer"
+                          title="Edit session"
+                        >
+                          <IconEdit className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSession(s.id)}
+                          className="p-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-600 cursor-pointer"
+                          title="Delete session"
+                        >
+                          <IconTrash className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* SECTION 4: ADDITIONAL DETAILS & EMERGENCY CONTACT (ADD / EDIT / DELETE) */}
+            <div className="bg-white p-5 rounded-2xl border border-card-border shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <div>
+                  <h4 className="font-fraunces text-base font-bold text-slate-900 m-0 flex items-center gap-2">
+                    <span>📌</span>
+                    <span>Additional Profile Details &amp; Custom Information</span>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                      {myCustomDetails.length}
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Emergency contacts, languages spoken, specialized skills, or classroom reminders.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenAddCustom}
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-colors self-start sm:self-auto flex items-center gap-1.5 cursor-pointer"
+                >
+                  <IconPlus className="w-3.5 h-3.5" />
+                  <span>Add Custom Info</span>
+                </button>
+              </div>
+
+              {myCustomDetails.length === 0 ? (
+                <div className="p-6 text-center rounded-xl bg-slate-50 border border-dashed border-slate-200 text-slate-500 text-xs">
+                  <div className="text-xl mb-1">📌</div>
+                  <div className="font-semibold">No custom details recorded yet.</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">
+                    Click &quot;Add Custom Info&quot; to add emergency contacts or special notes.
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {myCustomDetails.map((d) => (
+                    <div
+                      key={d.id}
+                      className="p-3.5 rounded-xl border border-slate-200 bg-[#FFFDF9] flex items-start justify-between gap-2.5 text-xs hover:border-accent/40 transition-colors"
+                    >
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="text-[11px] uppercase font-bold text-slate-500 tracking-wider">
+                          {d.label}
+                        </div>
+                        <div className="font-bold text-slate-900 text-xs">
+                          {d.value}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditCustom(d)}
+                          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 cursor-pointer"
+                          title="Edit detail"
+                        >
+                          <IconEdit className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCustom(d.id)}
+                          className="p-1.5 rounded-lg border border-rose-200 hover:bg-rose-50 text-rose-600 cursor-pointer"
+                          title="Delete detail"
+                        >
+                          <IconTrash className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Admin Live Sync Preview Card */}
             <div className="bg-[#FFFDF9] p-4.5 rounded-2xl border border-card-border shadow-xs space-y-2">
               <div className="text-[11px] font-bold text-accent uppercase tracking-wider flex items-center gap-1.5">
                 <span>📋</span>
                 <span>MSWDO Admin Directory Card Preview</span>
               </div>
-              <div className="p-3 rounded-xl bg-white border border-[#EBE1CF] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="p-3.5 rounded-xl bg-white border border-[#EBE1CF] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                 <div className="space-y-0.5">
                   <div className="font-bold text-slate-900 text-sm">
                     {myFullName || '(Full Name)'}
@@ -2416,6 +3315,13 @@ export default function TeacherDashboard({ profile }) {
                       📍 Brgy. {myBarangay || '(Barangay)'}
                     </span>
                   </div>
+                  <div className="text-[11px] text-slate-500 pt-0.5 flex flex-wrap items-center gap-2">
+                    <span>{myEducation.length} Degree(s)</span>
+                    <span>•</span>
+                    <span>{myCertifications.length} Certifications</span>
+                    <span>•</span>
+                    <span>{myClassSessions.length} Active Sessions</span>
+                  </div>
                 </div>
                 <div className="text-left sm:text-right text-[11px] text-slate-500">
                   <div>Contact: <b>{myContact || '(No contact)'}</b></div>
@@ -2426,14 +3332,26 @@ export default function TeacherDashboard({ profile }) {
 
             {/* Form Action Controls */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200">
-              <button
-                type="button"
-                onClick={loadMyProfile}
-                className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-1.5"
-              >
-                <IconRefresh className="w-3.5 h-3.5" />
-                <span>Reset to Saved</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={loadMyProfile}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <IconRefresh className="w-3.5 h-3.5" />
+                  <span>Reset to Saved</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleClearAllAddedCredentials}
+                  className="px-3.5 py-2 rounded-xl border border-rose-200 text-rose-600 font-bold text-xs hover:bg-rose-50 transition-colors cursor-pointer flex items-center gap-1.5"
+                  title="Clear all added education, certifications, sessions, and custom details"
+                >
+                  <IconTrash className="w-3.5 h-3.5" />
+                  <span>Clear All Added Credentials</span>
+                </button>
+              </div>
 
               <button
                 type="submit"
@@ -2445,6 +3363,343 @@ export default function TeacherDashboard({ profile }) {
               </button>
             </div>
           </form>
+
+          {/* MODAL 1: ADD / EDIT EDUCATION */}
+          {showAddEducationModal && (
+            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-5 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <h3 className="text-base font-bold text-slate-900 m-0 flex items-center gap-2">
+                    <span>🎓</span>
+                    <span>{editingEducation ? 'Edit Educational Attainment' : 'Add Educational Attainment / Degree'}</span>
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddEducationModal(false)}
+                    className="p-1 rounded-md text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <IconClose className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveEducation} className="space-y-3 text-xs">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Degree / Diploma Title <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Bachelor of Early Childhood Education (BECEd)"
+                      value={eduDegree}
+                      onChange={(e) => setEduDegree(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold text-slate-800 outline-none focus:border-accent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      School / University / College <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Bukidnon State University - Main Campus"
+                      value={eduSchool}
+                      onChange={(e) => setEduSchool(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-800 outline-none focus:border-accent"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">
+                        Year Graduated
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 2021"
+                        value={eduYear}
+                        onChange={(e) => setEduYear(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-800 outline-none focus:border-accent"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">
+                        Honors / Distinction
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Cum Laude"
+                        value={eduHonors}
+                        onChange={(e) => setEduHonors(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-800 outline-none focus:border-accent"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddEducationModal(false)}
+                      className="px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold cursor-pointer"
+                    >
+                      {editingEducation ? 'Update Degree' : 'Add Degree'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL 2: ADD / EDIT CERTIFICATION */}
+          {showAddCertModal && (
+            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-5 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <h3 className="text-base font-bold text-slate-900 m-0 flex items-center gap-2">
+                    <span>📜</span>
+                    <span>{editingCert ? 'Edit Certification / Training' : 'Add ECCD Certification / Training'}</span>
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddCertModal(false)}
+                    className="p-1 rounded-md text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <IconClose className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveCert} className="space-y-3 text-xs">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Certificate / Seminar Title <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. DepEd ECCD Foundational Training"
+                      value={certTitle}
+                      onChange={(e) => setCertTitle(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold text-slate-800 outline-none focus:border-accent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Issuing Agency / Organization <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. MSWDO Manolo Fortich / DepEd Region X"
+                      value={certIssuer}
+                      onChange={(e) => setCertIssuer(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-800 outline-none focus:border-accent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Year Issued / Completed
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 2024"
+                      value={certYear}
+                      onChange={(e) => setCertYear(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-800 outline-none focus:border-accent"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddCertModal(false)}
+                      className="px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold cursor-pointer"
+                    >
+                      {editingCert ? 'Update Certificate' : 'Add Certificate'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL 3: ADD / EDIT CLASS SESSION */}
+          {showAddSessionModal && (
+            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-5 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <h3 className="text-base font-bold text-slate-900 m-0 flex items-center gap-2">
+                    <span>🕒</span>
+                    <span>{editingSession ? 'Edit Class Session' : 'Add Class Session & Schedule'}</span>
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddSessionModal(false)}
+                    className="p-1 rounded-md text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <IconClose className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveSession} className="space-y-3 text-xs">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Session Name &amp; Level <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Morning Pre-K1 Session (Ages 3 - 3.11)"
+                      value={sessionName}
+                      onChange={(e) => setSessionName(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold text-slate-800 outline-none focus:border-accent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Days &amp; Time Schedule <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Monday - Friday, 8:00 AM - 10:30 AM"
+                      value={sessionSchedule}
+                      onChange={(e) => setSessionSchedule(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-800 outline-none focus:border-accent"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">
+                        Classroom / Area
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Room 1 - Main Center"
+                        value={sessionRoom}
+                        onChange={(e) => setSessionRoom(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-800 outline-none focus:border-accent"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">
+                        Learner Capacity
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 20 Learners"
+                        value={sessionCapacity}
+                        onChange={(e) => setSessionCapacity(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-800 outline-none focus:border-accent"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddSessionModal(false)}
+                      className="px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold cursor-pointer"
+                    >
+                      {editingSession ? 'Update Session' : 'Add Session'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL 4: ADD / EDIT CUSTOM DETAIL */}
+          {showAddCustomModal && (
+            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-5 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <h3 className="text-base font-bold text-slate-900 m-0 flex items-center gap-2">
+                    <span>📌</span>
+                    <span>{editingCustom ? 'Edit Profile Detail' : 'Add Custom Detail / Info'}</span>
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddCustomModal(false)}
+                    className="p-1 rounded-md text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <IconClose className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveCustom} className="space-y-3 text-xs">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Information Field Label <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Emergency Contact Person, Special Skill, Language"
+                      value={customLabel}
+                      onChange={(e) => setCustomLabel(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold text-slate-800 outline-none focus:border-accent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">
+                      Information Value / Details <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Roberto Ladao - 0917-555-0192"
+                      value={customValue}
+                      onChange={(e) => setCustomValue(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium text-slate-800 outline-none focus:border-accent"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddCustomModal(false)}
+                      className="px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold cursor-pointer"
+                    >
+                      {editingCustom ? 'Update Detail' : 'Add Detail'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </DashboardLayout>
