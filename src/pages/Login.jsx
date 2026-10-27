@@ -37,7 +37,7 @@ export default function Login() {
     const user = data.user;
     let { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('role, full_name, barangay')
+      .select('*')
       .eq('id', user.id)
       .single();
 
@@ -46,6 +46,8 @@ export default function Login() {
       const metaRole = user.user_metadata?.role || 'student';
       const metaName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
       const metaBarangay = user.user_metadata?.barangay || null;
+      const metaCdc = user.user_metadata?.cdc_name || null;
+      const metaAdviser = user.user_metadata?.adviser_name || user.user_metadata?.teacher_name || null;
       const dbRole = metaRole === 'teacher' ? 'teacher' : (metaRole === 'admin' || metaRole === 'superadmin' ? 'admin' : 'student');
 
       const { data: createdProf } = await supabase
@@ -55,14 +57,18 @@ export default function Login() {
           full_name: metaName,
           role: dbRole,
           barangay: metaBarangay,
+          cdc_name: metaCdc,
+          adviser_name: metaAdviser,
         })
-        .select('role, full_name, barangay')
+        .select('*')
         .single();
 
       profile = createdProf || {
         role: dbRole,
         full_name: metaName,
         barangay: metaBarangay,
+        cdc_name: metaCdc,
+        adviser_name: metaAdviser,
       };
     }
 

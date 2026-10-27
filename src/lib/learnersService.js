@@ -162,16 +162,25 @@ export async function recordRegisteredLearner(learnerData) {
 
   // Best effort sync to Supabase learners table
   try {
-    await supabase.from('learners').upsert({
+    const payload = {
       full_name: record.full_name,
       birthdate: record.birthdate?.includes('-') ? record.birthdate : null,
       barangay: record.barangay,
       cdc_id: record.cdc_id || null,
       parent_name: record.parent_name || null,
       parent_contact: record.parent_contact || null,
-    });
-  } catch {
-    // Ignore RLS policy errors on learners table
+      teacher_id: record.teacher_id ? String(record.teacher_id) : null,
+      adviser_name: record.adviser_name || null,
+    };
+    if (record.id && !String(record.id).startsWith('lrn-')) {
+      payload.id = record.id;
+    }
+    const { error: sbError } = await supabase.from('learners').upsert(payload);
+    if (sbError) {
+      console.warn('Note on Supabase learners upsert:', sbError.message);
+    }
+  } catch (err) {
+    console.warn('Failed syncing learner to Supabase:', err);
   }
 
   return record;
@@ -273,10 +282,11 @@ export async function syncStudentLogin(user, profile) {
 /**
  * Returns all learners that belong to a specific teacher's barangay, CDC, or direct advisership.
  */
-export async function getLearnersForTeacher({ teacherName, barangay, cdcName, cdcId }) {
+export async function getLearnersForTeacher({ teacherId, teacherName, barangay, cdcName, cdcId }) {
   const normBarangay = (barangay || '').trim().toLowerCase();
   const normTeacherName = (teacherName || '').trim().toLowerCase();
   const normCdcName = (cdcName || '').trim().toLowerCase();
+  const strTeacherId = teacherId ? String(teacherId).trim() : '';
 
   // 1. Gather from local registered learners
   const stored = getStoredLearners();
@@ -291,14 +301,25 @@ export async function getLearnersForTeacher({ teacherName, barangay, cdcName, cd
   let dbLearners = [];
   try {
     let query = supabase.from('learners').select('*');
-    if (cdcId) {
+    if (strTeacherId && cdcId) {
+      query = query.or(`teacher_id.eq.${strTeacherId},cdc_id.eq.${cdcId}`);
+    } else if (strTeacherId && barangay) {
+      query = query.or(`teacher_id.eq.${strTeacherId},barangay.ilike.${barangay}`);
+    } else if (strTeacherId) {
+      query = query.eq('teacher_id', strTeacherId);
+    } else if (cdcId) {
       query = query.eq('cdc_id', cdcId);
     } else if (barangay) {
       query = query.ilike('barangay', barangay);
     }
+
     const { data, error } = await query;
     if (!error && data) {
       dbLearners = data;
+    } else {
+      // Fallback query if column or specific filter failed
+      const { data: allLearners } = await supabase.from('learners').select('*');
+      if (allLearners) dbLearners = allLearners;
     }
   } catch {
     // Ignore fetch error
@@ -307,7 +328,7 @@ export async function getLearnersForTeacher({ teacherName, barangay, cdcName, cd
   const combined = [...stored, ...dbLearners, ...baseline];
 
   // Filter based on teacher's scope:
-  // Match by teacher's assigned barangay OR teacher's adviser name OR CDC
+  // Match by teacher's ID OR assigned barangay OR teacher's adviser name OR CDC
   const seenKeys = new Set();
   const results = [];
 
@@ -318,30 +339,31 @@ export async function getLearnersForTeacher({ teacherName, barangay, cdcName, cd
     const lBarangay = (learner.barangay || '').trim().toLowerCase();
     const lAdviser = (learner.adviser_name || '').trim().toLowerCase();
     const lCdc = (learner.cdc_name || '').trim().toLowerCase();
+    const lTeacherId = learner.teacher_id ? String(learner.teacher_id).trim() : '';
 
-    // Check if learner matches this teacher
-    const matchesBarangay = normBarangay && lBarangay === normBarangay;
-    const matchesAdviser =
+    // Direct teacher ID link (highest priority)
+    const matchesTeacherId = Boolean(strTeacherId && lTeacherId && lTeacherId === strTeacherId);
+
+    // Name matching
+    const matchesAdviser = Boolean(
       normTeacherName &&
-      lAdviser &&
-      (lAdviser === normTeacherName ||
-        lAdviser.includes(normTeacherName) ||
-        normTeacherName.includes(lAdviser));
-    const matchesCdc =
-      (cdcId && learner.cdc_id && String(learner.cdc_id) === String(cdcId)) ||
-      (normCdcName && lCdc && lCdc === normCdcName);
+        lAdviser &&
+        (lAdviser === normTeacherName ||
+          lAdviser.includes(normTeacherName) ||
+          normTeacherName.includes(lAdviser))
+    );
 
-    // Strict barangay isolation: if teacher belongs to a barangay, learner must belong to that barangay or be directly advised by teacher
-    if (normBarangay) {
-      if (matchesBarangay || matchesAdviser || (matchesCdc && (!lBarangay || lBarangay === normBarangay))) {
-        const dedupKey = `${lName}|${lBarangay}`;
-        if (!seenKeys.has(dedupKey)) {
-          seenKeys.add(dedupKey);
-          results.push(learner);
-        }
-      }
-    } else if (matchesAdviser || matchesCdc) {
-      const dedupKey = `${lName}|${lBarangay}`;
+    // Barangay matching
+    const matchesBarangay = Boolean(normBarangay && lBarangay === normBarangay);
+
+    // CDC matching
+    const matchesCdc = Boolean(
+      (cdcId && learner.cdc_id && String(learner.cdc_id) === String(cdcId)) ||
+        (normCdcName && lCdc && lCdc === normCdcName)
+    );
+
+    if (matchesTeacherId || matchesAdviser || matchesBarangay || matchesCdc) {
+      const dedupKey = `${lName}|${lBarangay}|${lTeacherId}`;
       if (!seenKeys.has(dedupKey)) {
         seenKeys.add(dedupKey);
         results.push(learner);

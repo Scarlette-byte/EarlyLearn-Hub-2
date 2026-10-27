@@ -796,6 +796,8 @@ export default function TeacherDashboard({ profile }) {
         .update({
           full_name: updatedTeacher.full_name,
           barangay: updatedTeacher.barangay,
+          cdc_name: updatedTeacher.cdc_name || null,
+          contact_number: updatedTeacher.contact_number || null,
         })
         .eq('id', currentUserId);
     } catch (err) {
@@ -902,6 +904,7 @@ export default function TeacherDashboard({ profile }) {
     let effectiveCdcName =
       override?.cdc_name ||
       myCdcName ||
+      profile?.cdc_name ||
       dbTeacher?.cdcs?.name ||
       baselineMatch?.cdc_name ||
       '';

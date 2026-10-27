@@ -180,12 +180,17 @@ export default function SignUp() {
     // Step 2: Ensure profile row is upserted
     const user = data.user;
     if (user) {
-      const { error: profileError } = await supabase.from('profiles').upsert({
+      const profilePayload = {
         id: user.id,
         full_name: displayName,
         role: dbRole,
         barangay: barangay,
-      });
+        contact_number: isPhone ? display : null,
+        cdc_name: isTeacher ? cdcName.trim() : (selectedTeacherCdc || null),
+        adviser_name: isTeacher ? null : (selectedTeacherName || null),
+      };
+
+      const { error: profileError } = await supabase.from('profiles').upsert(profilePayload);
 
       if (profileError) {
         setMsg({
@@ -203,6 +208,8 @@ export default function SignUp() {
             full_name: teacherName.trim(),
             email: authEmail,
             barangay: barangay,
+            contact_number: isPhone ? display : null,
+            cdc_name: cdcName.trim() || null,
           });
         } catch {
           // Ignore if teachers table has custom RLS policies
