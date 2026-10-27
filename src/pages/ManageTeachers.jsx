@@ -71,19 +71,64 @@ export default function ManageTeachers() {
   const loadTeachers = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // 1. Fetch from Supabase teachers table
+      const { data: teachersData } = await supabase
         .from('teachers')
         .select('id, full_name, barangay, contact_number, email, cdc_id, cdcs(id, name, barangay)')
         .order('full_name');
 
+      // 2. Fetch registered teachers from Supabase profiles table
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('role', 'teacher')
+        .order('full_name');
+
+      let dbList = [...(teachersData || [])];
+
+      // Merge registered teacher accounts from Supabase profiles
+      if (profilesData && profilesData.length > 0) {
+        profilesData.forEach((prof) => {
+          const cleanProfName = (prof.full_name || '').replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase();
+          const existing = dbList.find(
+            (t) =>
+              t.id === prof.id ||
+              (t.full_name && cleanProfName && t.full_name.toLowerCase().includes(cleanProfName)) ||
+              (cleanProfName && t.full_name && cleanProfName.includes(t.full_name.toLowerCase()))
+          );
+          if (existing) {
+            existing.full_name = prof.full_name || existing.full_name;
+            existing.barangay = prof.barangay || existing.barangay;
+            if (prof.contact_number) existing.contact_number = prof.contact_number;
+            if (prof.cdc_name) {
+              existing.cdc_name = prof.cdc_name;
+              existing.cdcs = { name: prof.cdc_name, barangay: prof.barangay };
+            }
+          } else {
+            dbList.push({
+              id: prof.id,
+              full_name: prof.full_name,
+              barangay: prof.barangay,
+              contact_number: prof.contact_number || null,
+              email: prof.email || null,
+              cdc_name: prof.cdc_name || null,
+              cdcs: prof.cdc_name ? { name: prof.cdc_name, barangay: prof.barangay } : null,
+              designation: 'Child Development Teacher (CDT)',
+            });
+          }
+        });
+      }
+
       let combined = [];
-      if (!error && data && data.length > 0) {
-        // Merge Supabase teachers with realTeachersList baseline
-        const existingNames = new Set(data.map((t) => (t.full_name || '').toLowerCase()));
-        const nonDuplicateBaseline = realTeachersList.filter(
-          (b) => !existingNames.has((b.full_name || '').toLowerCase())
+      if (dbList.length > 0) {
+        const existingNames = new Set(
+          dbList.map((t) => (t.full_name || '').replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase())
         );
-        combined = [...data, ...nonDuplicateBaseline];
+        const nonDuplicateBaseline = realTeachersList.filter((b) => {
+          const bName = (b.full_name || '').toLowerCase();
+          return !Array.from(existingNames).some((e) => e && (bName.includes(e) || e.includes(bName)));
+        });
+        combined = [...dbList, ...nonDuplicateBaseline];
       } else {
         combined = [...realTeachersList];
       }

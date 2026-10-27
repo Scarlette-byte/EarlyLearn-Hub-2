@@ -329,12 +329,12 @@ export const realTeachersList = [
   { id: 'tch-84', full_name: 'Lourdes Cayomoc Magdaleno', designation: 'Child Development Teacher (CDT)', barangay: 'Ticala', cdc_name: 'Upper Bunga Supervised Neighborhood Play', contact_number: '0922-763-8744', email: 'lourdes.magdaleno@earlylearn.ph' },
 ];
 
-// Baseline Initial Curriculum Assignments (Empty by default: only real deployments from MSWDO appear)
+// Baseline Initial Curriculum Assignments (Strictly empty: no assigned topics appear until MSWDO uploads/assigns an activity from the curriculum guide)
 export const initialCurriculumAssignments = [];
 
 /**
  * Helper to retrieve authentic curriculum assignments deployed by MSWD,
- * purging any legacy dummy assignments (asg-01 through asg-15, etc.).
+ * purging any legacy dummy, placeholder, or test assignments.
  */
 export function getCleanCurriculumAssignments() {
   try {
@@ -346,7 +346,12 @@ export function getCleanCurriculumAssignments() {
       (a) =>
         a &&
         a.id &&
-        !/^asg-0[1-9]|^asg-1[0-5]|^asg-07-.*$/.test(a.id)
+        a.topicTitle &&
+        a.topicTitle !== 'Prescribed ECCD Topic' &&
+        a.topicTitle !== 'Curriculum Learning Topic' &&
+        a.assignedDate !== '2026-10-17' &&
+        !/^asg-0[1-9]|^asg-1[0-5]|^asg-07-.*|^asg-test-.*$/.test(a.id) &&
+        !a.isDummy
     );
     if (filtered.length !== parsed.length) {
       localStorage.setItem('earlylearn_curriculum_assignments', JSON.stringify(filtered));

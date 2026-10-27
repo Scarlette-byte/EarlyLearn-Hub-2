@@ -9,7 +9,7 @@ import {
   initialTeacherModules,
   formatAssignmentCoverage,
 } from '../../lib/curriculumData.js';
-import { barangays } from '../../lib/supabaseClient';
+import { supabase, barangays } from '../../lib/supabaseClient';
 import {
   cardBox,
   cardBoxTitle,
@@ -40,15 +40,62 @@ export default function CurriculumGuides({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBarangayFilter, setSelectedBarangayFilter] = useState('all');
   const [teacherUpdateTick, setTeacherUpdateTick] = useState(0);
+  const [dbTeachers, setDbTeachers] = useState([]);
 
   // Curriculum assignments state (persisted to localStorage)
   const [assignments, setAssignments] = useState(getCleanCurriculumAssignments);
 
   // Sync when teacher profiles or assignments update
   useEffect(() => {
+    async function fetchSupabaseTeachers() {
+      try {
+        const { data: teachersData } = await supabase
+          .from('teachers')
+          .select('id, full_name, barangay, contact_number, email, cdc_id, cdcs(name)');
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('role', 'teacher');
+
+        const list = [...(teachersData || [])];
+        if (profilesData && profilesData.length > 0) {
+          profilesData.forEach((prof) => {
+            const cleanProfName = (prof.full_name || '').replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase();
+            const existing = list.find(
+              (t) =>
+                t.id === prof.id ||
+                (t.full_name && cleanProfName && t.full_name.toLowerCase().includes(cleanProfName)) ||
+                (cleanProfName && t.full_name && cleanProfName.includes(t.full_name.toLowerCase()))
+            );
+            if (existing) {
+              existing.full_name = prof.full_name || existing.full_name;
+              existing.barangay = prof.barangay || existing.barangay;
+              if (prof.contact_number) existing.contact_number = prof.contact_number;
+              if (prof.cdc_name) existing.cdc_name = prof.cdc_name;
+            } else {
+              list.push({
+                id: prof.id,
+                full_name: prof.full_name,
+                barangay: prof.barangay,
+                contact_number: prof.contact_number || null,
+                email: prof.email || null,
+                cdc_name: prof.cdc_name || null,
+              });
+            }
+          });
+        }
+        setDbTeachers(list);
+      } catch {
+        // ignore
+      }
+    }
+
+    fetchSupabaseTeachers();
+
     const handleSync = () => {
       setTeacherUpdateTick((prev) => prev + 1);
       setAssignments(getCleanCurriculumAssignments());
+      fetchSupabaseTeachers();
     };
     window.addEventListener('storage', handleSync);
     window.addEventListener('earlylearn_teachers_updated', handleSync);
@@ -60,11 +107,23 @@ export default function CurriculumGuides({
     };
   }, []);
 
-  // Real active teachers list merged with teacher-edited profile overrides
+  // Real active teachers list merged with Supabase and local overrides
   const activeTeachersList = useMemo(() => {
+    let base = [...realTeachersList];
+    if (dbTeachers.length > 0) {
+      const existingNames = new Set(
+        dbTeachers.map((t) => (t.full_name || '').replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase())
+      );
+      const nonDuplicateBaseline = base.filter((b) => {
+        const bName = (b.full_name || '').toLowerCase();
+        return !Array.from(existingNames).some((e) => e && (bName.includes(e) || e.includes(bName)));
+      });
+      base = [...dbTeachers, ...nonDuplicateBaseline];
+    }
+
     try {
       const overrides = JSON.parse(localStorage.getItem('earlylearn_teacher_profiles_override') || '{}');
-      return realTeachersList.map((t) => {
+      return base.map((t) => {
         const ov =
           overrides[t.id] ||
           (t.email && overrides[t.email.toLowerCase()]) ||
@@ -81,9 +140,9 @@ export default function CurriculumGuides({
         return t;
       });
     } catch {
-      return realTeachersList;
+      return base;
     }
-  }, [teacherUpdateTick]);
+  }, [teacherUpdateTick, dbTeachers]);
 
   // Modal State for Assigning Curriculum
   const [assignModalOpen, setAssignModalOpen] = useState(false);

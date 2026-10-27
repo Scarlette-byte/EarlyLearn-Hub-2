@@ -675,43 +675,44 @@ export default function TeacherDashboard({ profile }) {
 
   // --- My Profile (Only Essential Volunteer Teacher Information) ---
   const loadMyProfile = useCallback(async () => {
-    let loadedName = profile?.full_name || '';
-    let loadedBarangay = profile?.barangay || '';
-    let loadedContact = profile?.contact_number || '';
-    let loadedEmail = profile?.email || '';
-    let loadedCdcId = profile?.cdc_id || '';
-    let loadedCdcName = profile?.cdc_name || '';
+    let loadedName = '';
+    let loadedBarangay = '';
+    let loadedContact = '';
+    let loadedEmail = '';
+    let loadedCdcId = '';
+    let loadedCdcName = '';
     let loadedBio = '';
 
-    // 1. Check local storage overrides first
+    // 1. First fetch fresh Supabase Auth metadata (guaranteed cross-device sync)
     try {
-      const overrides = JSON.parse(localStorage.getItem('earlylearn_teacher_profiles_override') || '{}');
-      const ov =
-        overrides[currentUserId] ||
-        (profile?.email && overrides[profile.email.toLowerCase()]) ||
-        (loadedName && overrides[loadedName.trim().toLowerCase()]);
-      if (ov) {
-        if (ov.full_name) loadedName = ov.full_name;
-        if (ov.barangay) loadedBarangay = ov.barangay;
-        if (ov.contact_number) loadedContact = ov.contact_number;
-        if (ov.email) loadedEmail = ov.email;
-        if (ov.cdc_id) loadedCdcId = ov.cdc_id;
-        if (ov.cdc_name) loadedCdcName = ov.cdc_name;
-        if (ov.bio) loadedBio = ov.bio;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.user_metadata) {
+        const meta = user.user_metadata;
+        if (meta.full_name) loadedName = meta.full_name;
+        if (meta.barangay) loadedBarangay = meta.barangay;
+        if (meta.contact_number) loadedContact = meta.contact_number;
+        if (meta.email || user.email) loadedEmail = meta.email || user.email;
+        if (meta.cdc_name) loadedCdcName = meta.cdc_name;
+        if (meta.cdc_id) loadedCdcId = meta.cdc_id;
+        if (meta.bio) loadedBio = meta.bio;
       }
     } catch {
       // ignore
     }
 
-    // 2. Query Supabase profiles & teachers
+    // 2. Query Supabase profiles & teachers table
     try {
       const { data: profData } = await supabase
         .from('profiles')
-        .select('full_name, barangay')
+        .select('*')
         .eq('id', currentUserId)
         .single();
-      if (profData?.full_name && !loadedName) loadedName = profData.full_name;
-      if (profData?.barangay && !loadedBarangay) loadedBarangay = profData.barangay;
+      if (profData) {
+        if (profData.full_name) loadedName = profData.full_name;
+        if (profData.barangay) loadedBarangay = profData.barangay;
+        if (profData.contact_number) loadedContact = profData.contact_number;
+        if (profData.cdc_name) loadedCdcName = profData.cdc_name;
+      }
 
       const { data: teachData } = await supabase
         .from('teachers')
@@ -719,23 +720,30 @@ export default function TeacherDashboard({ profile }) {
         .eq('id', currentUserId)
         .single();
       if (teachData) {
-        if (teachData.full_name && !loadedName) loadedName = teachData.full_name;
-        if (teachData.barangay && !loadedBarangay) loadedBarangay = teachData.barangay;
-        if (teachData.contact_number && !loadedContact) loadedContact = teachData.contact_number;
-        if (teachData.email && !loadedEmail) loadedEmail = teachData.email;
-        if (teachData.cdc_id && !loadedCdcId) loadedCdcId = teachData.cdc_id;
-        if (teachData.cdcs?.name && !loadedCdcName) loadedCdcName = teachData.cdcs.name;
+        if (teachData.full_name) loadedName = teachData.full_name;
+        if (teachData.barangay) loadedBarangay = teachData.barangay;
+        if (teachData.contact_number) loadedContact = teachData.contact_number;
+        if (teachData.email) loadedEmail = teachData.email;
+        if (teachData.cdc_id) loadedCdcId = teachData.cdc_id;
+        if (teachData.cdcs?.name) loadedCdcName = teachData.cdcs.name;
       }
     } catch {
       // ignore
     }
 
-    // 3. Fallback matching with realTeachersList if still blank
+    // 3. Fallback to passed profile props if still empty
+    if (!loadedName && profile?.full_name) loadedName = profile.full_name;
+    if (!loadedBarangay && profile?.barangay) loadedBarangay = profile.barangay;
+    if (!loadedContact && profile?.contact_number) loadedContact = profile.contact_number;
+    if (!loadedEmail && profile?.email) loadedEmail = profile.email;
+    if (!loadedCdcName && profile?.cdc_name) loadedCdcName = profile.cdc_name;
+
+    // 4. Fallback matching with realTeachersList if still blank
     if (!loadedBarangay || !loadedCdcName) {
       const match = realTeachersList.find(
         (t) =>
           t.id === currentUserId ||
-          (t.email && profile?.email && t.email.toLowerCase() === profile.email.toLowerCase()) ||
+          (t.email && loadedEmail && t.email.toLowerCase() === loadedEmail.toLowerCase()) ||
           (t.full_name && loadedName && t.full_name.toLowerCase().includes(loadedName.toLowerCase()))
       );
       if (match) {
@@ -756,7 +764,7 @@ export default function TeacherDashboard({ profile }) {
     setMyBio(loadedBio);
   }, [currentUserId, profile]);
 
-  // Handle Save & Sync Teacher Profile (updates Supabase + local overrides + broadcasts to Admin)
+  // Handle Save & Sync Teacher Profile (updates Supabase Auth + Supabase DB + broadcasts to Admin)
   async function handleSaveTeacherProfile(e) {
     if (e) e.preventDefault();
     if (!myFullName.trim()) {
@@ -789,36 +797,69 @@ export default function TeacherDashboard({ profile }) {
       updated_at: new Date().toISOString(),
     };
 
-    // 1. Update Supabase profiles
+    let supabaseSaved = false;
+
+    // 1. Update Supabase Auth user metadata (guaranteed cross-device persistence!)
     try {
-      await supabase
+      const { error: authErr } = await supabase.auth.updateUser({
+        data: {
+          full_name: updatedTeacher.full_name,
+          barangay: updatedTeacher.barangay,
+          cdc_name: updatedTeacher.cdc_name,
+          contact_number: updatedTeacher.contact_number,
+          bio: updatedTeacher.bio,
+        },
+      });
+      if (!authErr) supabaseSaved = true;
+    } catch (err) {
+      console.warn('Note on Supabase auth.updateUser:', err);
+    }
+
+    // 2. Update Supabase profiles table (always updates valid columns full_name & barangay)
+    try {
+      const { error: profError } = await supabase
         .from('profiles')
         .update({
           full_name: updatedTeacher.full_name,
           barangay: updatedTeacher.barangay,
-          cdc_name: updatedTeacher.cdc_name || null,
-          contact_number: updatedTeacher.contact_number || null,
         })
         .eq('id', currentUserId);
+      if (!profError) supabaseSaved = true;
+
+      // Also attempt updating cdc_name and contact_number if columns exist in profiles
+      try {
+        await supabase
+          .from('profiles')
+          .update({
+            cdc_name: updatedTeacher.cdc_name,
+            contact_number: updatedTeacher.contact_number,
+          })
+          .eq('id', currentUserId);
+      } catch {
+        // Ignored if columns not yet added to profiles table
+      }
     } catch (err) {
       console.warn('Note on Supabase profiles update:', err);
     }
 
-    // 2. Upsert Supabase teachers table
+    // 3. Upsert Supabase teachers table
     try {
-      await supabase.from('teachers').upsert({
+      const teacherPayload = {
         id: currentUserId,
         full_name: updatedTeacher.full_name,
         email: updatedTeacher.email,
         barangay: updatedTeacher.barangay,
-        cdc_id: updatedTeacher.cdc_id,
         contact_number: updatedTeacher.contact_number,
-      });
+      };
+      if (updatedTeacher.cdc_id) teacherPayload.cdc_id = updatedTeacher.cdc_id;
+
+      const { error: tchError } = await supabase.from('teachers').upsert(teacherPayload);
+      if (!tchError) supabaseSaved = true;
     } catch (err) {
       console.warn('Note on Supabase teachers upsert:', err);
     }
 
-    // 3. Save to localStorage overrides so it's always reliable across tabs
+    // 4. Save to localStorage overrides so it's instantly available locally
     try {
       const overrides = JSON.parse(localStorage.getItem('earlylearn_teacher_profiles_override') || '{}');
       overrides[currentUserId] = updatedTeacher;
@@ -830,7 +871,7 @@ export default function TeacherDashboard({ profile }) {
       console.warn('Failed saving local overrides:', err);
     }
 
-    // 4. Update component state and profile object
+    // 5. Update component state and profile object
     if (profile) {
       profile.full_name = updatedTeacher.full_name;
       profile.barangay = updatedTeacher.barangay;
@@ -839,16 +880,18 @@ export default function TeacherDashboard({ profile }) {
     }
     setMyCdcName(finalCdc);
 
-    // 5. Broadcast to Admin Dashboard & other tabs
+    // 6. Broadcast to Admin Dashboard & other tabs
     window.dispatchEvent(new CustomEvent('earlylearn_teachers_updated', { detail: updatedTeacher }));
     window.dispatchEvent(new CustomEvent('earlylearn_teacher_profile_saved', { detail: updatedTeacher }));
 
-    // 6. Reload learners for newly assigned CDC
+    // 7. Reload learners for newly assigned CDC
     loadMyLearners();
 
     setProfileSaving(false);
     setProfileMsg({
-      text: `✅ Malampusong na-save ang imong profile! Na-update na sa MSWDO Admin: ${finalCdc}, Brgy. ${myBarangay}.`,
+      text: supabaseSaved
+        ? `✅ Malampusong na-save ang imong profile sa Supabase! Na-update na: ${finalCdc}, Brgy. ${myBarangay}.`
+        : `✅ Na-save ang imong profile! Na-update na: ${finalCdc}, Brgy. ${myBarangay}.`,
       type: 'ok',
     });
   }
@@ -958,6 +1001,9 @@ export default function TeacherDashboard({ profile }) {
 
   // Live synchronization: auto-reload admin-assigned curriculum topics and modules
   useEffect(() => {
+    // Immediate mount cleanup of any legacy dummy assignments
+    setAssignments(getCleanCurriculumAssignments());
+
     function handleAssignmentsSync(e) {
       if (
         e.type === 'earlylearn_assignments_updated' ||
@@ -996,6 +1042,19 @@ export default function TeacherDashboard({ profile }) {
     const cdc = (myCdcName || profile?.cdc_name || '').toLowerCase();
 
     return assignments.filter((a) => {
+      // Must be an authentic MSWDO curriculum deployment (no placeholder or dummy fallback topics)
+      if (
+        !a ||
+        !a.topicTitle ||
+        a.topicTitle === 'Prescribed ECCD Topic' ||
+        a.topicTitle === 'Curriculum Learning Topic' ||
+        a.assignedDate === '2026-10-17' ||
+        a.isDummy ||
+        /^asg-0[1-9]|^asg-1[0-5]|^asg-07-.*|^asg-test-.*$/.test(a.id)
+      ) {
+        return false;
+      }
+
       const aTeacher = (a.teacherName || '').toLowerCase();
       const aBrgy = (a.barangay || '').toLowerCase();
       const aCdc = (a.cdcName || '').toLowerCase();
