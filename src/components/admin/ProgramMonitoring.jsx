@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
-import { barangays } from '../../lib/supabaseClient';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { supabase, barangays } from '../../lib/supabaseClient';
 import {
   initialTeacherModules,
   realTeachersList,
@@ -52,20 +52,124 @@ export default function ProgramMonitoring({
   const [commentText, setCommentText] = useState('');
   const [commentDecision, setCommentDecision] = useState('approve'); // 'approve' | 'revision' | 'keep'
   const [successToast, setSuccessToast] = useState('');
+  const [isLoadingSupabase, setIsLoadingSupabase] = useState(false);
+
+  // --- Load Materials directly from Supabase (Sync across all devices) ---
+  const loadSupabaseModules = useCallback(async () => {
+    setIsLoadingSupabase(true);
+    try {
+      const { data, error } = await supabase
+        .from('materials')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(data)) {
+        const mapped = data.map((m) => {
+          let meta = {};
+          let cleanDescription = m.content_text || '';
+          if (m.content_text && m.content_text.trim().startsWith('{')) {
+            try {
+              const parsed = JSON.parse(m.content_text);
+              if (parsed && parsed.__metadata) {
+                meta = parsed;
+                cleanDescription = parsed.description || '';
+              }
+            } catch {}
+          }
+
+          const isApproved = m.status === 'approved' || m.status === 'Approved';
+          const isNeedsRevision = m.status === 'needs_revision';
+          const displayStatus = isApproved ? 'Approved' : isNeedsRevision ? 'Needs Revision' : 'Pending Review';
+
+          return {
+            id: m.id,
+            title: m.title || 'Curriculum Learning Material',
+            teacher_name: meta.teacher_name || 'CDC Teacher',
+            teacher_id: m.created_by,
+            cdc_name: meta.cdc_name || 'Daycare Center',
+            barangay: meta.barangay || 'Manolo Fortich',
+            level: meta.level || (m.age_range?.includes('3') ? 'Pre-K1' : 'Pre-K2'),
+            quarter: meta.quarter || 1,
+            week: meta.week || 'Week 1',
+            sub_theme: meta.sub_theme || '',
+            theme: meta.theme || 'Early Childhood Learning',
+            module_type: meta.module_type || (m.type === 'video' ? 'Video Lesson' : m.type === 'image' ? 'Worksheet Image' : 'Activity Worksheet'),
+            file_type: meta.file_type || (m.content_url?.startsWith('data:application/pdf') ? 'PDF' : m.type?.toUpperCase() || 'PDF'),
+            file_size: meta.file_size || '2.4 MB',
+            file_name: meta.file_name || (m.content_url?.startsWith('data:application/pdf') ? 'Worksheet File (PDF)' : null),
+            upload_date: m.created_at ? new Date(m.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : 'Recent',
+            status: displayStatus,
+            verified_by_mswd: isApproved,
+            mswd_comments: meta.mswd_comments || '',
+            description: cleanDescription || 'Curriculum activity worksheet for daycare learners.',
+            content_url: m.content_url || null,
+            content_text: cleanDescription,
+            downloads_count: 0,
+            from_supabase: true,
+          };
+        });
+
+        setModules((prev) => {
+          const localOnly = prev.filter((p) => !p.from_supabase && !mapped.some((s) => s.id === p.id));
+          return [...mapped, ...localOnly];
+        });
+      }
+    } catch (err) {
+      console.warn('Could not load Supabase materials:', err);
+    } finally {
+      setIsLoadingSupabase(false);
+    }
+  }, []);
 
   // Real-time synchronization with Teacher Dashboard posts
   useEffect(() => {
+    loadSupabaseModules();
+
     const handleSync = () => {
-      setModules(getCleanTeacherModules());
+      setModules((prev) => {
+        const local = getCleanTeacherModules();
+        const sbOnly = prev.filter((p) => p.from_supabase);
+        const uniqueLocal = local.filter((l) => !sbOnly.some((s) => s.id === l.id));
+        return [...sbOnly, ...uniqueLocal];
+      });
     };
 
     window.addEventListener('storage', handleSync);
     window.addEventListener('earlylearn_modules_updated', handleSync);
+
+    // Supabase Realtime channel for live cross-device sync
+    let channel;
+    try {
+      channel = supabase
+        .channel('program-monitoring-materials')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'materials' }, () => {
+          loadSupabaseModules();
+        })
+        .subscribe();
+    } catch {}
+
     return () => {
       window.removeEventListener('storage', handleSync);
       window.removeEventListener('earlylearn_modules_updated', handleSync);
+      if (channel) supabase.removeChannel(channel);
     };
-  }, []);
+  }, [loadSupabaseModules]);
+
+  // Download or open file attachment helper
+  const handleDownloadFile = (mod) => {
+    if (!mod) return;
+    if (mod.content_url) {
+      const link = document.createElement('a');
+      link.href = mod.content_url;
+      link.download = mod.file_name || `${(mod.title || 'learning_material').replace(/[^a-z0-9]/gi, '_')}.${mod.file_type?.toLowerCase() || 'pdf'}`;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      alert(`No attached file found for "${mod.title}".`);
+    }
+  };
 
   // Open Comment dialog
   const handleOpenComment = (module) => {
@@ -75,7 +179,7 @@ export default function ProgramMonitoring({
   };
 
   // Save MSWD Review Comment & Decision
-  const handleSaveComment = (e) => {
+  const handleSaveComment = async (e) => {
     if (e) e.preventDefault();
     if (!commentingModule) return;
 
@@ -111,6 +215,14 @@ export default function ProgramMonitoring({
       // Ignored
     }
 
+    // Update status in Supabase so other devices see the approval/revision immediately
+    const sbStatus = commentDecision === 'approve' ? 'approved' : commentDecision === 'revision' ? 'needs_revision' : 'pending';
+    try {
+      await supabase.from('materials').update({ status: sbStatus }).eq('id', commentingModule.id);
+    } catch (err) {
+      console.warn('Error updating material status in Supabase:', err);
+    }
+
     if (inspectingModule?.id === commentingModule.id) {
       setInspectingModule(updated.find((m) => m.id === commentingModule.id));
     }
@@ -122,7 +234,7 @@ export default function ProgramMonitoring({
   };
 
   // Handle Verify / Approve Module
-  const handleApproveModule = (moduleId) => {
+  const handleApproveModule = async (moduleId) => {
     const updated = modules.map((m) =>
       m.id === moduleId
         ? {
@@ -139,6 +251,13 @@ export default function ProgramMonitoring({
       window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updated }));
     } catch {
       // Ignored
+    }
+
+    // Sync approval to Supabase materials table so students on any device see it
+    try {
+      await supabase.from('materials').update({ status: 'approved' }).eq('id', moduleId);
+    } catch (err) {
+      console.warn('Error updating approval in Supabase:', err);
     }
 
     if (inspectingModule?.id === moduleId) {
@@ -387,6 +506,17 @@ export default function ProgramMonitoring({
                 🗂️ Cards
               </button>
             </div>
+
+            <button
+              type="button"
+              onClick={loadSupabaseModules}
+              disabled={isLoadingSupabase}
+              className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-300 shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              title="Sync latest teacher uploads directly from Supabase across all devices"
+            >
+              <span className={isLoadingSupabase ? 'animate-spin' : ''}>🔄</span>
+              <span>{isLoadingSupabase ? 'Syncing...' : 'Sync Supabase'}</span>
+            </button>
 
             <button
               onClick={() => setUploadModalOpen(true)}
@@ -1109,7 +1239,7 @@ export default function ProgramMonitoring({
             <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-card-border">
               <button
                 onClick={() => {
-                  alert(`Downloading file for "${inspectingModule.title}" (${inspectingModule.file_size || '2.4 MB'})...`);
+                  handleDownloadFile(inspectingModule);
                 }}
                 className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
               >

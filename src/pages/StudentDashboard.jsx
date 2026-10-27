@@ -221,7 +221,13 @@ export default function StudentDashboard({ profile }) {
         m.type === 'activity' ||
         (m.module_type && m.module_type.toLowerCase().includes('activity'));
 
-      if (isActualTeacherUpload && isActivity && !seenTitles.has(m.title.toLowerCase())) {
+      // STRICT APPROVAL GATE: Admin must approve activity before it appears on student dashboard
+      const isApproved =
+        m.status === 'Approved' ||
+        m.status === 'approved' ||
+        m.verified_by_mswd === true;
+
+      if (isActualTeacherUpload && isActivity && isApproved && !seenTitles.has(m.title.toLowerCase())) {
         seenTitles.add(m.title.toLowerCase());
         list.push({
           id: m.id,
@@ -240,18 +246,32 @@ export default function StudentDashboard({ profile }) {
     });
 
     (dbMaterials || []).forEach((m) => {
+      // dbMaterials is already filtered by status='approved' in loadDbMaterials
       if (m.type === 'activity' && m.created_by && !seenTitles.has(m.title.toLowerCase())) {
         seenTitles.add(m.title.toLowerCase());
+        let meta = {};
+        let cleanDescription = m.content_text || '';
+        if (m.content_text && m.content_text.trim().startsWith('{')) {
+          try {
+            const parsed = JSON.parse(m.content_text);
+            if (parsed && parsed.__metadata) {
+              meta = parsed;
+              cleanDescription = parsed.description || '';
+            }
+          } catch {}
+        }
+
         list.push({
           id: m.id,
           title: m.title,
           category_id: m.category_id,
-          category_name: m.categories?.name || 'Class Activity',
+          category_name: meta.sub_theme || meta.theme || m.categories?.name || 'Class Activity',
           type: 'activity',
           icon: m.categories?.icon || '✏️',
-          content_text: m.content_text || 'Teacher-assigned learning activity.',
+          content_text: cleanDescription || 'Teacher-assigned learning activity.',
           content_url: m.content_url || null,
-          teacher_name: 'CDC Teacher',
+          teacher_name: meta.teacher_name || 'CDC Teacher',
+          cdc_name: meta.cdc_name || '',
           created_at: m.created_at,
         });
       }

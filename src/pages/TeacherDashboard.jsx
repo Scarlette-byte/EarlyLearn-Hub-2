@@ -244,6 +244,17 @@ export default function TeacherDashboard({ profile }) {
     }));
 
     const sbMats = (myMaterials || []).map((m) => {
+      let meta = {};
+      let cleanDescription = m.content_text || '';
+      if (m.content_text && m.content_text.trim().startsWith('{')) {
+        try {
+          const parsed = JSON.parse(m.content_text);
+          if (parsed && parsed.__metadata) {
+            meta = parsed;
+            cleanDescription = parsed.description || '';
+          }
+        } catch {}
+      }
       const tagMatch = m.title?.match(/\[(Pre-K1|Pre-K2)?\s*Q?(\d+)?\s*(W[^\s\]]+|Week\s*[\d&]+)?\]/i);
       const parsedLevel = tagMatch?.[1] || (m.age_range?.includes('3') ? 'Pre-K1' : 'Pre-K2');
       const parsedQuarter = tagMatch?.[2] ? parseInt(tagMatch[2], 10) : 1;
@@ -252,18 +263,18 @@ export default function TeacherDashboard({ profile }) {
       return {
         id: m.id,
         title: m.title,
-        level: parsedLevel,
-        quarter: parsedQuarter,
-        week: parsedWeek,
-        theme: m.categories?.name || 'Curriculum Lesson',
-        sub_theme: '',
+        level: meta.level || parsedLevel,
+        quarter: meta.quarter || parsedQuarter,
+        week: meta.week || parsedWeek,
+        theme: meta.theme || m.categories?.name || 'Curriculum Lesson',
+        sub_theme: meta.sub_theme || '',
         type: m.type,
         formatLabel: m.type === 'activity' ? 'Activity Worksheet / PDF' : m.type === 'video' ? 'Video Lesson' : m.type === 'image' ? 'Visual Worksheet' : 'Reading Story',
         age_range: m.age_range,
         status: m.status === 'approved' ? 'Approved' : m.status === 'needs_revision' ? 'Needs Revision' : 'Pending Review',
         verified_by_mswd: m.status === 'approved',
         created_at: m.created_at ? new Date(m.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : 'Recently',
-        content_text: m.content_text,
+        content_text: cleanDescription,
         file_name: m.content_url?.startsWith('data:application/pdf') ? 'Worksheet File (PDF)' : m.content_url?.startsWith('data:') ? 'Attached Learning Document' : (m.file_name || null),
         file_size: m.file_size || null,
         file_type: m.file_type || (m.content_url?.startsWith('data:application/pdf') ? 'PDF' : m.type?.toUpperCase() || 'FILE'),
@@ -477,6 +488,23 @@ export default function TeacherDashboard({ profile }) {
     const effectiveFileType = uploadFileType || (uploadType === 'video' ? 'MP4' : uploadType === 'file' ? 'PDF' : uploadType.toUpperCase());
 
     // 1. Insert to Supabase materials (with status 'pending' awaiting Admin approval)
+    const metadataPayload = {
+      __metadata: true,
+      description: uploadDescription.trim() || '',
+      teacher_name: profile?.full_name || 'Teacher',
+      cdc_name: myCdcName || profile?.cdc_name || 'Manolo Fortich CDC',
+      barangay: myBarangay || profile?.barangay || 'Manolo Fortich',
+      level: uploadCurriculumLevel === 'PRE-K1' ? 'Pre-K1' : 'Pre-K2',
+      quarter: parseInt(uploadQuarter, 10),
+      week: uploadWeek,
+      sub_theme: uploadSubTheme,
+      theme: uploadTheme,
+      module_type: uploadType === 'activity' ? 'Activity Worksheet' : uploadType === 'file' ? 'Official PDF Document' : uploadType === 'video' ? 'Video Lesson' : uploadType === 'image' ? 'Worksheet Image' : 'Reading Story',
+      file_type: effectiveFileType,
+      file_size: effectiveFileSize,
+      file_name: effectiveFileName,
+    };
+
     const catId = categoryOptions.length > 0 ? categoryOptions[0].id : null;
     const dbType = ['image', 'video', 'text'].includes(uploadType) ? uploadType : 'activity';
     let dbMaterialId = null;
@@ -491,7 +519,7 @@ export default function TeacherDashboard({ profile }) {
           title: uploadTitle.trim(),
           age_range: uploadCurriculumLevel === 'PRE-K1' ? '3-4' : '4-5',
           content_url: effectiveUrl,
-          content_text: uploadDescription.trim() || null,
+          content_text: JSON.stringify(metadataPayload),
           created_by: currentUserId,
           status: 'pending',
         })
@@ -1965,8 +1993,266 @@ export default function TeacherDashboard({ profile }) {
               </table>
             </div>
           </div>
+        </div>
+      )}
 
-          {/* Simple Upload Modal with Drag & Drop and Choose File */}
+      {/* CHILD DEVELOPMENT MONITORING */}
+      {activeTab === 'child_development' && (
+        <TeacherChildDevelopment
+          teacherProfile={profile}
+          teacherBarangay={myBarangay}
+          cdcName={myCdcName}
+          learners={myLearners}
+          onRefreshLearners={loadMyLearners}
+        />
+      )}
+
+      {/* UPLOADED MATERIALS */}
+      {activeTab === 'upload' && (
+        <div className="space-y-5">
+          {/* Header Card */}
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-semibold">
+                <IconMaterials className="w-3.5 h-3.5 text-slate-500" />
+                <span>Child Development Center Materials Repository</span>
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 m-0 mt-2 tracking-tight">
+                Uploaded Materials &amp; Activities
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Curriculum-aligned learning materials, activities, and worksheets created for your learners.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleOpenNewUpload}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
+            >
+              <IconUpload className="w-4 h-4" />
+              <span>Upload New Material</span>
+            </button>
+          </div>
+
+          {/* Quick Metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-white p-4 rounded-xl border border-slate-200">
+              <div className="text-xs font-medium text-slate-500 uppercase">Total Uploaded</div>
+              <div className="text-2xl font-bold text-slate-900 mt-1">
+                {combinedUploadedMaterials.length}
+              </div>
+            </div>
+            <div className="bg-white p-4 rounded-xl border border-slate-200">
+              <div className="text-xs font-medium text-emerald-700 uppercase">Live to Students</div>
+              <div className="text-2xl font-bold text-emerald-800 mt-1">
+                {combinedUploadedMaterials.filter((m) => m.status === 'Approved' || m.status === 'approved').length}
+              </div>
+            </div>
+            <div className="bg-white p-4 rounded-xl border border-slate-200">
+              <div className="text-xs font-medium text-amber-700 uppercase">Pending Review</div>
+              <div className="text-2xl font-bold text-amber-800 mt-1">
+                {combinedUploadedMaterials.filter((m) => m.status !== 'Approved' && m.status !== 'approved').length}
+              </div>
+            </div>
+          </div>
+
+          {/* Filter Bar */}
+          <div className="p-3 bg-white border border-slate-200 rounded-xl flex flex-wrap items-center gap-2.5 text-xs">
+            <span className="font-semibold text-slate-700">Filter Materials:</span>
+
+            {/* Level Filter */}
+            <select
+              value={uploadedFilterLevel}
+              onChange={(e) => setUploadedFilterLevel(e.target.value)}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-700 outline-none"
+            >
+              <option value="all">All Levels</option>
+              <option value="PRE-K1">PRE-K 1 (3.11 y/o)</option>
+              <option value="PRE-K2">PRE-K 2 (4.11 y/o)</option>
+            </select>
+
+            {/* Quarter Filter */}
+            <select
+              value={uploadedFilterQuarter}
+              onChange={(e) => setUploadedFilterQuarter(e.target.value)}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-700 outline-none"
+            >
+              <option value="all">All Quarters</option>
+              <option value="1">Quarter 1</option>
+              <option value="2">Quarter 2</option>
+              <option value="3">Quarter 3</option>
+              <option value="4">Quarter 4</option>
+            </select>
+
+            {/* Type Filter */}
+            <select
+              value={uploadedFilterType}
+              onChange={(e) => setUploadedFilterType(e.target.value)}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-700 outline-none"
+            >
+              <option value="all">All Types</option>
+              <option value="activity">✏️ Activity Worksheet</option>
+              <option value="video">🎬 Video Lesson</option>
+              <option value="image">🖼️ Worksheet / Image</option>
+              <option value="text">📖 Reading Story</option>
+            </select>
+
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[200px]">
+              <input
+                type="text"
+                placeholder="Search uploaded materials or lesson topic..."
+                value={uploadedSearch}
+                onChange={(e) => setUploadedSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs outline-none"
+              />
+              <IconSearch className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            </div>
+
+            {(uploadedFilterLevel !== 'all' || uploadedFilterQuarter !== 'all' || uploadedFilterType !== 'all' || uploadedSearch) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setUploadedFilterLevel('all');
+                  setUploadedFilterQuarter('all');
+                  setUploadedFilterType('all');
+                  setUploadedSearch('');
+                }}
+                className="text-xs text-accent hover:underline font-semibold cursor-pointer"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+
+          {/* Uploaded Materials Table */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
+                    <th className="px-4 py-3">Material Title &amp; ECCD Lesson</th>
+                    <th className="px-4 py-3">Curriculum Level &amp; Week</th>
+                    <th className="px-4 py-3">Format / Type</th>
+                    <th className="px-4 py-3 text-center">Status</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredUploadedMaterials.map((m) => (
+                    <tr key={m.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="px-4 py-3.5">
+                        <div className="font-bold text-slate-900 text-xs">{m.title}</div>
+                        {m.sub_theme && (
+                          <div className="text-[11px] text-amber-900 font-medium mt-0.5">
+                            Lesson Theme: {m.sub_theme}
+                          </div>
+                        )}
+                        {m.file_name && (
+                          <div className="text-[11px] text-blue-700 font-medium mt-1 flex items-center gap-1">
+                            <span>📎</span>
+                            <span className="font-semibold">{m.file_name}</span>
+                            {m.file_size && <span className="text-slate-400">({m.file_size})</span>}
+                          </div>
+                        )}
+                        {m.content_text && (
+                          <div className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
+                            {m.content_text}
+                          </div>
+                        )}
+                        {m.mswd_comments && (
+                          <div className="mt-1.5 p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-900">
+                            <span className="font-bold">💬 MSWD Review Note:</span> {m.mswd_comments}
+                          </div>
+                        )}
+                        {m.revision_notes && (
+                          <div className="mt-1.5 p-2 rounded-lg bg-rose-50 border border-rose-200 text-[11px] text-rose-900">
+                            <span className="font-bold">⚠️ MSWD Revision Note:</span> {m.revision_notes}
+                          </div>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3.5 whitespace-nowrap">
+                        <div className="flex flex-col gap-1">
+                          <span className={`inline-block px-2 py-0.5 rounded text-[10.5px] font-bold w-fit ${
+                            m.level?.toLowerCase().includes('pre-k1')
+                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                              : 'bg-blue-50 text-blue-800 border border-blue-200'
+                          }`}>
+                            {m.level?.toUpperCase().includes('PRE-K') ? m.level : 'Pre-K1'}
+                          </span>
+                          <span className="text-[11px] font-semibold text-slate-700">
+                            Quarter {m.quarter} • {m.week}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3.5 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">
+                          <span>{m.type === 'video' ? '🎬' : m.type === 'image' ? '🖼️' : m.type === 'text' ? '📖' : '✏️'}</span>
+                          <span>{m.formatLabel}</span>
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                          m.status === 'Approved' || m.status === 'approved' || m.verified_by_mswd
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            : m.status === 'Needs Revision'
+                            ? 'bg-rose-50 text-rose-800 border border-rose-200'
+                            : 'bg-amber-50 text-amber-800 border border-amber-200'
+                        }`}>
+                          {m.status === 'Approved' || m.status === 'approved' || m.verified_by_mswd
+                            ? 'Approved by MSWD ✓'
+                            : m.status === 'Needs Revision'
+                            ? 'Needs Revision'
+                            : 'Pending MSWD Review'}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {m.content_url && (
+                            <a
+                              href={m.content_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              download={m.file_name || undefined}
+                              className="px-2.5 py-1 rounded text-emerald-700 hover:bg-emerald-50 text-xs font-semibold transition-colors inline-flex items-center gap-1 cursor-pointer"
+                              title="View / Download Material File"
+                            >
+                              <span>👁️</span>
+                              <span>View File</span>
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMaterial(m)}
+                            className="px-2.5 py-1 rounded text-red-600 hover:bg-red-50 text-xs font-medium transition-colors cursor-pointer"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredUploadedMaterials.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                        <div className="text-2xl mb-1">📂</div>
+                        <div className="font-semibold text-xs">No uploaded materials match your filter</div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">
+                          Click "Upload New Material" or browse the Curriculum Guide to create one.
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {/* Modal moved */}
           {isUploadModalOpen && (
             <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
               <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full p-5 space-y-4 my-8">
@@ -2801,6 +3087,39 @@ export default function TeacherDashboard({ profile }) {
           </form>
         </div>
       )}
+      {/* Global Upload Modal (accessible across tabs like assigned_topics and upload) */}
+      <TeacherUploadModal
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+        activeAssignmentId={activeAssignmentId}
+        activeAssignmentDeadline={activeAssignmentDeadline}
+        uploadCurriculumLevel={uploadCurriculumLevel}
+        uploadQuarter={uploadQuarter}
+        uploadWeek={uploadWeek}
+        uploadTitle={uploadTitle}
+        setUploadTitle={setUploadTitle}
+        uploadDescription={uploadDescription}
+        setUploadDescription={setUploadDescription}
+        uploadType={uploadType}
+        setUploadType={setUploadType}
+        uploadUrl={uploadUrl}
+        setUploadUrl={setUploadUrl}
+        uploadFileName={uploadFileName}
+        uploadFileSize={uploadFileSize}
+        uploadFileType={uploadFileType}
+        uploadFilePreview={uploadFilePreview}
+        isDraggingFile={isDraggingFile}
+        setIsDraggingFile={setIsDraggingFile}
+        fileInputRef={fileInputRef}
+        uploadMsg={uploadMsg}
+        handleFileSelected={handleFileSelected}
+        handleRemoveSelectedFile={handleRemoveSelectedFile}
+        handleModalLevelChange={handleModalLevelChange}
+        handleModalQuarterChange={handleModalQuarterChange}
+        handleModalWeekChange={handleModalWeekChange}
+        handleSaveMaterial={handleSaveMaterial}
+        availableWeeksForUploadModal={availableWeeksForUploadModal}
+      />
     </DashboardLayout>
   );
 }
