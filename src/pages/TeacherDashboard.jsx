@@ -163,13 +163,18 @@ export default function TeacherDashboard({ profile }) {
   }, []);
 
   // --- Load my uploaded materials ---
+  // --- Load my uploaded materials from Supabase ---
   const loadMyMaterials = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('materials')
-      .select('id, title, type, age_range, status, categories(name)')
-      .eq('created_by', currentUserId)
-      .order('created_at', { ascending: false });
-    if (!error && data) setMyMaterials(data);
+    try {
+      const { data, error } = await supabase
+        .from('materials')
+        .select('id, title, type, age_range, status, content_url, content_text, created_at, categories(name)')
+        .eq('created_by', currentUserId)
+        .order('created_at', { ascending: false });
+      if (!error && data) setMyMaterials(data);
+    } catch {
+      // ignore
+    }
   }, [currentUserId]);
 
   // Flatten curriculum weeks for Curriculum Guide tab
@@ -252,14 +257,15 @@ export default function TeacherDashboard({ profile }) {
         theme: m.categories?.name || 'Curriculum Lesson',
         sub_theme: '',
         type: m.type,
-        formatLabel: m.type === 'activity' ? 'Activity Worksheet' : m.type === 'video' ? 'Video Lesson' : m.type === 'image' ? 'Visual Worksheet' : 'Reading Story',
+        formatLabel: m.type === 'activity' ? 'Activity Worksheet / PDF' : m.type === 'video' ? 'Video Lesson' : m.type === 'image' ? 'Visual Worksheet' : 'Reading Story',
         age_range: m.age_range,
-        status: m.status || 'Approved',
-        created_at: 'Recently',
+        status: m.status === 'approved' ? 'Approved' : m.status === 'needs_revision' ? 'Needs Revision' : 'Pending Review',
+        verified_by_mswd: m.status === 'approved',
+        created_at: m.created_at ? new Date(m.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : 'Recently',
         content_text: m.content_text,
-        file_name: m.file_name || null,
+        file_name: m.content_url?.startsWith('data:application/pdf') ? 'Worksheet File (PDF)' : m.content_url?.startsWith('data:') ? 'Attached Learning Document' : (m.file_name || null),
         file_size: m.file_size || null,
-        file_type: m.file_type || null,
+        file_type: m.file_type || (m.content_url?.startsWith('data:application/pdf') ? 'PDF' : m.type?.toUpperCase() || 'FILE'),
         content_url: m.content_url || null,
         isLocal: false,
       };
@@ -469,25 +475,41 @@ export default function TeacherDashboard({ profile }) {
     const effectiveFileSize = uploadFileSize || '2.4 MB';
     const effectiveFileType = uploadFileType || (uploadType === 'video' ? 'MP4' : uploadType === 'file' ? 'PDF' : uploadType.toUpperCase());
 
-    // 1. Insert to Supabase materials
+    // 1. Insert to Supabase materials (with status 'pending' awaiting Admin approval)
     const catId = categoryOptions.length > 0 ? categoryOptions[0].id : null;
+    const dbType = ['image', 'video', 'text'].includes(uploadType) ? uploadType : 'activity';
+    let dbMaterialId = null;
+    let savedToSupabase = false;
+
     try {
-      await supabase.from('materials').insert({
-        category_id: catId,
-        type: uploadType,
-        title: uploadTitle.trim(),
-        age_range: uploadCurriculumLevel === 'PRE-K1' ? '3.11' : '4.11',
-        content_url: effectiveUrl,
-        content_text: uploadDescription.trim() || null,
-        created_by: currentUserId,
-      });
+      const { data: insertedMat, error: matErr } = await supabase
+        .from('materials')
+        .insert({
+          category_id: catId,
+          type: dbType,
+          title: uploadTitle.trim(),
+          age_range: uploadCurriculumLevel === 'PRE-K1' ? '3-4' : '4-5',
+          content_url: effectiveUrl,
+          content_text: uploadDescription.trim() || null,
+          created_by: currentUserId,
+          status: 'pending',
+        })
+        .select()
+        .single();
+
+      if (!matErr && insertedMat) {
+        dbMaterialId = insertedMat.id;
+        savedToSupabase = true;
+      } else if (matErr) {
+        console.warn('Note on Supabase materials insert:', matErr);
+      }
     } catch (err) {
       console.warn('Note on Supabase insert:', err);
     }
 
     // 2. Insert to localTeacherModules for cross-dashboard visibility & activity monitoring
     const newMod = {
-      id: 'mod-' + Date.now(),
+      id: dbMaterialId || ('mod-' + Date.now()),
       assignment_id: activeAssignmentId || null,
       title: uploadTitle.trim(),
       teacher_name: profile?.full_name || 'Teacher',
@@ -545,14 +567,19 @@ export default function TeacherDashboard({ profile }) {
     }
 
     loadMyMaterials();
-    setUploadMsg({ text: '✅ Activity / file posted successfully! Marked topic as completed.', type: 'ok' });
+    setUploadMsg({
+      text: savedToSupabase
+        ? '✅ Malampusong na-upload sa Supabase! Nagpaabot og review ug pag-apruba sa MSWDO Admin una makita sa Student Dashboard.'
+        : '✅ Activity / file posted! Pending MSWDO Admin review & approval before being added to Student Dashboard.',
+      type: 'ok',
+    });
     setTimeout(() => {
       setIsUploadModalOpen(false);
       setUploadMsg({ text: '', type: '' });
       setActiveAssignmentId(null);
       setActiveAssignmentDeadline(null);
       handleRemoveSelectedFile();
-    }, 1200);
+    }, 1500);
   }
 
   // Delete material
