@@ -799,24 +799,43 @@ export default function ProgramMonitoring({
                             <span>{module.mswd_comments ? 'Commented' : 'Comment'}</span>
                           </button>
 
-                          {/* 3. Approve Button */}
+                          {/* 3. Approve / Reject Action Buttons */}
                           {!module.verified_by_mswd ? (
-                            <button
-                              onClick={() => handleApproveModule(module.id)}
-                              className="px-2.5 py-1.5 rounded-lg bg-[#2E6B38] hover:bg-[#23532B] text-white font-bold text-[11px] shadow-xs transition-colors cursor-pointer flex items-center gap-1"
-                              title="Approve and verify this teacher activity"
-                            >
-                              <span>✓</span>
-                              <span>Approve</span>
-                            </button>
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                onClick={() => handleApproveModule(module.id)}
+                                className="px-2.5 py-1.5 rounded-lg bg-[#2E6B38] hover:bg-[#23532B] text-white font-bold text-[11px] shadow-xs transition-colors cursor-pointer flex items-center gap-1"
+                                title="Approve and publish to this teacher's students"
+                              >
+                                <span>✓</span>
+                                <span>Approve</span>
+                              </button>
+                              <button
+                                onClick={() => handleRejectModule(module.id)}
+                                className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] border border-rose-200 transition-colors cursor-pointer flex items-center gap-1"
+                                title="Reject / Request revisions from teacher"
+                              >
+                                <span>✕</span>
+                                <span>Reject</span>
+                              </button>
+                            </div>
                           ) : (
-                            <span
-                              className="px-2.5 py-1.5 rounded-lg bg-[#DCEBDD] text-[#2E6B38] font-bold text-[11px] border border-emerald-300 inline-flex items-center gap-1"
-                              title="Officially approved by MSWD"
-                            >
-                              <span>✓</span>
-                              <span>Approved</span>
-                            </span>
+                            <div className="inline-flex items-center gap-1">
+                              <span
+                                className="px-2.5 py-1.5 rounded-lg bg-[#DCEBDD] text-[#2E6B38] font-bold text-[11px] border border-emerald-300 inline-flex items-center gap-1"
+                                title="Officially approved by MSWD & live on student dashboard"
+                              >
+                                <span>✓</span>
+                                <span>Approved</span>
+                              </span>
+                              <button
+                                onClick={() => handleRejectModule(module.id)}
+                                className="px-2 py-1.5 rounded-lg text-slate-400 hover:text-rose-700 hover:bg-rose-50 text-[10px] font-bold transition-colors cursor-pointer"
+                                title="Revoke approval or reject"
+                              >
+                                <span>Revoke</span>
+                              </button>
+                            </div>
                           )}
                         </div>
                       </td>
@@ -972,21 +991,40 @@ export default function ProgramMonitoring({
                         <span>{module.mswd_comments ? 'Edit Comment' : 'Comment'}</span>
                       </button>
 
-                      {/* 3. Approve Button */}
+                      {/* 3. Approve & Reject Buttons */}
                       {!module.verified_by_mswd ? (
-                        <button
-                          onClick={() => handleApproveModule(module.id)}
-                          className="px-3 py-1.5 rounded-xl bg-[#2E6B38] hover:bg-[#23532B] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1"
-                          title="Approve and verify this teacher activity"
-                        >
-                          <span>✓</span>
-                          <span>Approve</span>
-                        </button>
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleApproveModule(module.id)}
+                            className="px-3 py-1.5 rounded-xl bg-[#2E6B38] hover:bg-[#23532B] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1"
+                            title="Approve and publish to this teacher's students"
+                          >
+                            <span>✓</span>
+                            <span>Approve</span>
+                          </button>
+                          <button
+                            onClick={() => handleRejectModule(module.id)}
+                            className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition-colors cursor-pointer flex items-center gap-1"
+                            title="Reject / Request revisions from teacher"
+                          >
+                            <span>✕</span>
+                            <span>Reject</span>
+                          </button>
+                        </div>
                       ) : (
-                        <span className="px-3 py-1.5 rounded-xl bg-[#DCEBDD] text-[#2E6B38] font-bold text-xs border border-emerald-300 flex items-center gap-1">
-                          <span>✓</span>
-                          <span>Approved</span>
-                        </span>
+                        <div className="inline-flex items-center gap-1.5">
+                          <span className="px-3 py-1.5 rounded-xl bg-[#DCEBDD] text-[#2E6B38] font-bold text-xs border border-emerald-300 flex items-center gap-1">
+                            <span>✓</span>
+                            <span>Approved</span>
+                          </span>
+                          <button
+                            onClick={() => handleRejectModule(module.id)}
+                            className="px-2 py-1.5 rounded-lg text-slate-400 hover:text-rose-700 hover:bg-rose-50 text-[11px] font-bold transition-colors cursor-pointer"
+                            title="Revoke approval or reject"
+                          >
+                            <span>Revoke</span>
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1198,6 +1236,22 @@ export default function ProgramMonitoring({
               </div>
             </div>
 
+            {/* Student linkage notice */}
+            <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-950 flex items-center gap-2.5">
+              <span className="text-base">🏫</span>
+              <div>
+                <span className="font-bold text-amber-900">Student Dashboard Linkage:</span> Upon approval, this activity is strictly delivered to learners enrolled with <span className="font-bold text-slate-900">{inspectingModule.teacher_name}</span> at <span className="font-bold text-slate-900">{inspectingModule.cdc_name || 'Assigned CDC'}</span> (Brgy. {inspectingModule.barangay}).
+              </div>
+            </div>
+
+            {/* Student linkage notice */}
+            <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-950 flex items-center gap-2.5">
+              <span className="text-base">🏫</span>
+              <div>
+                <span className="font-bold text-amber-900">Student Dashboard Linkage:</span> Upon approval, this activity is strictly delivered to learners enrolled with <span className="font-bold text-slate-900">{inspectingModule.teacher_name}</span> at <span className="font-bold text-slate-900">{inspectingModule.cdc_name || 'Assigned CDC'}</span> (Brgy. {inspectingModule.barangay}).
+              </div>
+            </div>
+
             {inspectingModule.content_url && (
               <div className="p-3 rounded-xl bg-sky-50 border border-sky-200 text-xs flex items-center justify-between">
                 <span className="font-bold text-sky-900">Attached Resource Link:</span>
@@ -1252,24 +1306,41 @@ export default function ProgramMonitoring({
                   className="px-3.5 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-900 font-bold text-xs transition-colors cursor-pointer border border-sky-300 flex items-center gap-1.5 shadow-2xs"
                 >
                   <span>💬</span>
-                  <span>{inspectingModule.mswd_comments ? 'Edit MSWD Comment' : 'Add Comment'}</span>
+                  <span>{inspectingModule.mswd_comments ? 'Edit Feedback' : 'Add Note'}</span>
                 </button>
 
                 {!inspectingModule.verified_by_mswd ? (
-                  <button
-                    onClick={() => {
-                      handleApproveModule(inspectingModule.id);
-                    }}
-                    className="px-4 py-2 rounded-xl bg-[#2E6B38] hover:bg-[#23532B] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
-                  >
-                    <span>✓</span>
-                    <span>Approve Activity</span>
-                  </button>
+                  <>
+                    <button
+                      onClick={() => handleRejectModule(inspectingModule.id)}
+                      className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-300 transition-colors cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>✕</span>
+                      <span>Reject Activity</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleApproveModule(inspectingModule.id);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-[#2E6B38] hover:bg-[#23532B] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>✓</span>
+                      <span>Approve & Link to Students</span>
+                    </button>
+                  </>
                 ) : (
-                  <span className="text-xs font-bold text-[#2E6B38] bg-[#DCEBDD] px-3.5 py-2 rounded-xl border border-emerald-300 flex items-center gap-1">
-                    <span>✓</span>
-                    <span>Officially Approved</span>
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-[#2E6B38] bg-[#DCEBDD] px-3.5 py-2 rounded-xl border border-emerald-300 flex items-center gap-1">
+                      <span>✓</span>
+                      <span>Officially Approved</span>
+                    </span>
+                    <button
+                      onClick={() => handleRejectModule(inspectingModule.id)}
+                      className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 cursor-pointer"
+                    >
+                      Revoke Approval
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -1331,8 +1402,8 @@ export default function ProgramMonitoring({
                     }`}
                   >
                     <div className="text-base mb-0.5">✓</div>
-                    <div className="text-[11.5px]">Approve</div>
-                    <div className="text-[9.5px] font-normal opacity-80">Verified &amp; Cleared</div>
+                    <div className="text-[11.5px]">Approve &amp; Link</div>
+                    <div className="text-[9.5px] font-normal opacity-80">Publish to Students</div>
                   </button>
 
                   <button
@@ -1344,9 +1415,9 @@ export default function ProgramMonitoring({
                         : 'bg-white border-[#E5DCC9] text-dash-ink-soft hover:bg-slate-50'
                     }`}
                   >
-                    <div className="text-base mb-0.5">⚠️</div>
-                    <div className="text-[11.5px]">Needs Revision</div>
-                    <div className="text-[9.5px] font-normal opacity-80">Requires Changes</div>
+                    <div className="text-base mb-0.5">✕</div>
+                    <div className="text-[11.5px]">Reject / Revision</div>
+                    <div className="text-[9.5px] font-normal opacity-80">Notify Teacher to Fix</div>
                   </button>
 
                   <button

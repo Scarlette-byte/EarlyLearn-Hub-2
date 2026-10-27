@@ -13,6 +13,7 @@ import {
 import { getLearnersForTeacher, getCdcForBarangay } from '../lib/learnersService.js';
 import TeacherChildDevelopment from '../components/teacher/TeacherChildDevelopment.jsx';
 import TeacherUploadModal from '../components/teacher/TeacherUploadModal.jsx';
+import TeacherActivityNotifications from '../components/teacher/TeacherActivityNotifications.jsx';
 import {
   IconPlus,
   IconSearch,
@@ -177,6 +178,25 @@ export default function TeacherDashboard({ profile }) {
       // ignore
     }
   }, [currentUserId]);
+
+  // Real-time Supabase sync for materials status (notified when Admin approves/rejects)
+  useEffect(() => {
+    loadMyMaterials();
+
+    let channel;
+    try {
+      channel = supabase
+        .channel('teacher-dashboard-materials-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'materials' }, () => {
+          loadMyMaterials();
+        })
+        .subscribe();
+    } catch {}
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, [loadMyMaterials]);
 
   // Flatten curriculum weeks for Curriculum Guide tab
   const flatCurriculumWeeks = useMemo(() => {

@@ -204,11 +204,56 @@ export default function StudentDashboard({ profile }) {
   }, [loadAnnouncements, loadDbMaterials, currentUserId, profile]);
 
   // -------------------------------------------------------------------------
-  // "MY ACTIVITIES": STRICTLY BASED ON WHAT THE TEACHER UPLOADS
+  // "MY ACTIVITIES": STRICTLY BASED ON WHAT THE STUDENT'S TEACHER UPLOADS & ADMIN APPROVES
   // -------------------------------------------------------------------------
   const teacherActivities = useMemo(() => {
     const list = [];
     const seenTitles = new Set();
+
+    const studentTeacherName = (adviserInfo?.adviserName || '').trim().toLowerCase();
+    const studentBarangayLower = (studentBarangay || profile?.barangay || '').trim().toLowerCase();
+    const studentCdcLower = (adviserInfo?.cdcName || profile?.cdc_name || '').trim().toLowerCase();
+    const studentTeacherId = profile?.teacher_id || profile?.assigned_teacher_id || null;
+
+    // Helper: checks whether an activity belongs to THIS student's teacher/CDC/barangay
+    const isActivityForMyTeacher = (mTeacherId, mTeacherName, mCdcName, mBarangay) => {
+      // If student has no teacher info at all yet, allow activities
+      if (!studentTeacherName && !studentBarangayLower && !studentCdcLower && !studentTeacherId) {
+        return true;
+      }
+
+      // 1. Direct teacher ID match
+      if (studentTeacherId && mTeacherId && String(studentTeacherId).trim() === String(mTeacherId).trim()) {
+        return true;
+      }
+
+      // 2. Direct teacher name match
+      const normModTeacher = (mTeacherName || '').toLowerCase().trim();
+      if (studentTeacherName && normModTeacher && (
+        normModTeacher.includes(studentTeacherName) ||
+        studentTeacherName.includes(normModTeacher)
+      )) {
+        return true;
+      }
+
+      // 3. Child Development Center match
+      const normModCdc = (mCdcName || '').toLowerCase().trim();
+      if (studentCdcLower && normModCdc && (
+        normModCdc === studentCdcLower ||
+        normModCdc.includes(studentCdcLower) ||
+        studentCdcLower.includes(normModCdc)
+      )) {
+        return true;
+      }
+
+      // 4. Barangay match
+      const normModBrgy = (mBarangay || '').toLowerCase().trim();
+      if (studentBarangayLower && normModBrgy && normModBrgy === studentBarangayLower) {
+        return true;
+      }
+
+      return false;
+    };
 
     (teacherUploadedModules || []).forEach((m) => {
       const isActualTeacherUpload =
@@ -227,7 +272,14 @@ export default function StudentDashboard({ profile }) {
         m.status === 'approved' ||
         m.verified_by_mswd === true;
 
-      if (isActualTeacherUpload && isActivity && isApproved && !seenTitles.has(m.title.toLowerCase())) {
+      const matchesTeacher = isActivityForMyTeacher(
+        m.teacher_id,
+        m.teacher_name,
+        m.cdc_name,
+        m.barangay
+      );
+
+      if (isActualTeacherUpload && isActivity && isApproved && matchesTeacher && !seenTitles.has(m.title.toLowerCase())) {
         seenTitles.add(m.title.toLowerCase());
         list.push({
           id: m.id,
@@ -248,7 +300,6 @@ export default function StudentDashboard({ profile }) {
     (dbMaterials || []).forEach((m) => {
       // dbMaterials is already filtered by status='approved' in loadDbMaterials
       if (m.type === 'activity' && m.created_by && !seenTitles.has(m.title.toLowerCase())) {
-        seenTitles.add(m.title.toLowerCase());
         let meta = {};
         let cleanDescription = m.content_text || '';
         if (m.content_text && m.content_text.trim().startsWith('{')) {
@@ -261,24 +312,34 @@ export default function StudentDashboard({ profile }) {
           } catch {}
         }
 
-        list.push({
-          id: m.id,
-          title: m.title,
-          category_id: m.category_id,
-          category_name: meta.sub_theme || meta.theme || m.categories?.name || 'Class Activity',
-          type: 'activity',
-          icon: m.categories?.icon || '✏️',
-          content_text: cleanDescription || 'Teacher-assigned learning activity.',
-          content_url: m.content_url || null,
-          teacher_name: meta.teacher_name || 'CDC Teacher',
-          cdc_name: meta.cdc_name || '',
-          created_at: m.created_at,
-        });
+        const matchesTeacher = isActivityForMyTeacher(
+          m.created_by,
+          meta.teacher_name,
+          meta.cdc_name,
+          meta.barangay
+        );
+
+        if (matchesTeacher) {
+          seenTitles.add(m.title.toLowerCase());
+          list.push({
+            id: m.id,
+            title: m.title,
+            category_id: m.category_id,
+            category_name: meta.sub_theme || meta.theme || m.categories?.name || 'Class Activity',
+            type: 'activity',
+            icon: m.categories?.icon || '✏️',
+            content_text: cleanDescription || 'Teacher-assigned learning activity.',
+            content_url: m.content_url || null,
+            teacher_name: meta.teacher_name || 'CDC Teacher',
+            cdc_name: meta.cdc_name || '',
+            created_at: m.created_at,
+          });
+        }
       }
     });
 
     return list;
-  }, [teacherUploadedModules, dbMaterials]);
+  }, [teacherUploadedModules, dbMaterials, adviserInfo, studentBarangay, profile]);
 
   const pendingTeacherActivities = useMemo(() => {
     return teacherActivities.filter((a) => !completedIds.has(a.id));
