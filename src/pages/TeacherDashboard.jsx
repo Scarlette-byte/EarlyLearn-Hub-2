@@ -12,6 +12,7 @@ import {
 } from '../lib/curriculumData.js';
 import { getLearnersForTeacher, getCdcForBarangay } from '../lib/learnersService.js';
 import TeacherChildDevelopment from '../components/teacher/TeacherChildDevelopment.jsx';
+import TeacherUploadModal from '../components/teacher/TeacherUploadModal.jsx';
 import {
   IconPlus,
   IconSearch,
