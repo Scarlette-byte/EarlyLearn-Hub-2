@@ -8,6 +8,7 @@ export default function TeacherUploadModal({
   uploadCurriculumLevel,
   uploadQuarter,
   uploadWeek,
+  uploadSubTheme,
   uploadTitle,
   setUploadTitle,
   uploadDescription,
@@ -28,22 +29,39 @@ export default function TeacherUploadModal({
   handleRemoveSelectedFile,
   handleModalLevelChange,
   handleModalQuarterChange,
-  handleModalWeekChange,
+  handleSelectMswdTopicChoice,
   handleSaveMaterial,
-  availableWeeksForUploadModal,
+  mswdTopicChoices = [],
 }) {
   if (!isOpen) return null;
 
+  // Filter MSWD topic choices matching selected Level & Quarter; if none match that exact filter, show all MSWD assigned topics so navigation stays effortless
+  const matchingChoices = mswdTopicChoices.filter(
+    (c) =>
+      c.level === uploadCurriculumLevel &&
+      Number(c.quarter) === Number(uploadQuarter)
+  );
+  const displayedChoices = matchingChoices.length > 0 ? matchingChoices : mswdTopicChoices;
+
+  const selectedChoiceKey =
+    displayedChoices.find(
+      (c) =>
+        (activeAssignmentId && c.assignmentId === activeAssignmentId && c.week === uploadWeek && c.subTheme === uploadSubTheme) ||
+        (c.week === uploadWeek && c.subTheme === uploadSubTheme)
+    )?.choiceKey ||
+    displayedChoices[0]?.choiceKey ||
+    '';
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full p-5 space-y-4 my-8">
+      <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full p-5 space-y-4 my-8">
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div>
             <h3 className="text-base font-bold text-slate-900 m-0">
-              Upload Curriculum Learning Material
+              Upload Activity / Learning Material
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Directly assigned to official DepEd ECCD weekly lessons.
+              Comply with your MSWD-assigned topic for MSWD review and approval.
             </p>
           </div>
           <button
@@ -58,17 +76,17 @@ export default function TeacherUploadModal({
         <form onSubmit={handleSaveMaterial} className="space-y-3.5 text-xs">
           {/* Assigned Topic Fulfillment Banner */}
           {activeAssignmentId && (
-            <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 flex items-center justify-between">
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 flex items-center justify-between gap-2">
               <div>
                 <div className="font-bold flex items-center gap-1.5">
-                  <span>🎯 Fulfilling Admin-Assigned Topic</span>
+                  <span>🎯 MSWD Assigned Topic: {uploadSubTheme || uploadWeek}</span>
                 </div>
                 <div className="text-[11px] text-amber-800 mt-0.5">
-                  {activeAssignmentDeadline ? `Official Deadline: ${activeAssignmentDeadline}` : 'No deadline set'} • Upon upload, this assignment will be marked as Completed.
+                  {activeAssignmentDeadline ? `Deadline: ${activeAssignmentDeadline}` : 'Flexible schedule'} • MSWD will review and approve before you post to students.
                 </div>
               </div>
-              <span className="px-2 py-0.5 rounded text-[10.5px] font-bold bg-amber-200/70 text-amber-950">
-                Assigned by MSWDO
+              <span className="px-2 py-0.5 rounded text-[10.5px] font-bold bg-amber-200/70 text-amber-950 shrink-0">
+                MSWD Topic
               </span>
             </div>
           )}
@@ -129,21 +147,21 @@ export default function TeacherUploadModal({
                   }
                 }}
                 onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-xl p-5 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-2 ${
+                className={`border-2 border-dashed rounded-xl p-4 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-1.5 ${
                   isDraggingFile
                     ? 'border-accent bg-amber-50/70 scale-[1.01]'
                     : 'border-slate-300 bg-slate-50/80 hover:bg-slate-100 hover:border-slate-400'
                 }`}
               >
-                <div className="w-12 h-12 rounded-2xl bg-white shadow-xs border border-slate-200 flex items-center justify-center text-2xl text-accent">
+                <div className="w-10 h-10 rounded-xl bg-white shadow-xs border border-slate-200 flex items-center justify-center text-xl text-accent">
                   {isDraggingFile ? '📥' : '☁️'}
                 </div>
                 <div>
-                  <p className="font-bold text-slate-800 text-xs sm:text-sm m-0">
+                  <p className="font-bold text-slate-800 text-xs m-0">
                     Drag &amp; drop file here, or{' '}
                     <span className="text-accent underline font-extrabold">choose file</span>
                   </p>
-                  <p className="text-[11px] text-slate-500 mt-1 mb-0">
+                  <p className="text-[10.5px] text-slate-500 mt-0.5 mb-0">
                     PDF, Word, Excel, PowerPoint, Images (PNG/JPG), MP4 Video, Worksheets
                   </p>
                 </div>
@@ -154,23 +172,23 @@ export default function TeacherUploadModal({
                     e.stopPropagation();
                     fileInputRef.current?.click();
                   }}
-                  className="mt-1 px-4 py-1.5 rounded-lg bg-white border border-slate-300 hover:border-slate-400 text-slate-800 font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="mt-1 px-3.5 py-1 rounded-lg bg-white border border-slate-300 hover:border-slate-400 text-slate-800 font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <span>📁</span>
                   <span>Choose File</span>
                 </button>
               </div>
             ) : (
-              <div className="p-3.5 rounded-xl border border-emerald-300 bg-emerald-50/60 flex items-center justify-between gap-3">
+              <div className="p-3 rounded-xl border border-emerald-300 bg-emerald-50/60 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   {uploadFilePreview && ['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF'].includes(uploadFileType) ? (
                     <img
                       src={uploadFilePreview}
                       alt="Preview"
-                      className="w-12 h-12 object-cover rounded-lg border border-emerald-200 shadow-xs shrink-0"
+                      className="w-11 h-11 object-cover rounded-lg border border-emerald-200 shadow-xs shrink-0"
                     />
                   ) : (
-                    <div className="w-12 h-12 rounded-lg bg-emerald-700 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                    <div className="w-11 h-11 rounded-lg bg-emerald-700 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
                       {uploadFileType || 'FILE'}
                     </div>
                   )}
@@ -241,7 +259,7 @@ export default function TeacherUploadModal({
             </div>
           </div>
 
-          {/* Step 2: Quarter & Week */}
+          {/* Step 2 & 3: Quarter & MSWD Assigned Topic ONLY */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="font-semibold text-slate-700 block mb-1">
@@ -261,23 +279,74 @@ export default function TeacherUploadModal({
 
             <div>
               <label className="font-semibold text-slate-700 block mb-1">
-                3. ECCD Week &amp; Theme
+                3. ECCD Week &amp; Theme <span className="text-[10.5px] text-amber-800 font-bold">(MSWD Topic)</span>
               </label>
-              <select
-                value={uploadWeek}
-                onChange={(e) => handleModalWeekChange(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white font-medium text-slate-800 outline-none"
-              >
-                {availableWeeksForUploadModal?.weeks?.map((w) => (
-                  <option key={w.week} value={w.week}>
-                    {w.week}: {w.subTheme}
-                  </option>
-                ))}
-              </select>
+              {displayedChoices.length > 0 ? (
+                <select
+                  value={selectedChoiceKey}
+                  onChange={(e) => {
+                    const chosen = displayedChoices.find((c) => c.choiceKey === e.target.value);
+                    if (chosen && handleSelectMswdTopicChoice) {
+                      handleSelectMswdTopicChoice(chosen);
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-amber-300 bg-amber-50/40 font-semibold text-slate-900 outline-none focus:border-accent"
+                >
+                  {displayedChoices.map((c) => (
+                    <option key={c.choiceKey} value={c.choiceKey}>
+                      {c.week}: {c.subTheme} ({c.level} • Q{c.quarter})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <select
+                  disabled
+                  value=""
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-slate-100 font-medium text-slate-500 outline-none cursor-not-allowed"
+                >
+                  <option value="">No MSWD topic assigned yet</option>
+                </select>
+              )}
             </div>
           </div>
 
-          {/* Step 3: Material Type */}
+          {/* Concise MSWD Topic Quick Selector Pills or Notice */}
+          {mswdTopicChoices.length > 0 ? (
+            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+              <div className="text-[10.5px] font-bold text-slate-600 flex items-center justify-between">
+                <span>📌 Quick Select MSWD Assigned Topic ({mswdTopicChoices.length}):</span>
+                <span className="text-emerald-700">Provided by MSWD</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                {mswdTopicChoices.map((c) => {
+                  const isActive = c.choiceKey === selectedChoiceKey;
+                  return (
+                    <button
+                      key={c.choiceKey}
+                      type="button"
+                      onClick={() => handleSelectMswdTopicChoice && handleSelectMswdTopicChoice(c)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer text-left ${
+                        isActive
+                          ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                          : 'bg-white text-slate-700 border-slate-200 hover:border-amber-300 hover:bg-amber-50/50'
+                      }`}
+                    >
+                      {c.week}: {c.subTheme} <span className="opacity-75 text-[10px]">({c.level} Q{c.quarter})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="p-2.5 rounded-xl bg-amber-50/80 border border-amber-200 text-[11px] text-amber-900 flex items-center gap-2">
+              <span>📋</span>
+              <span>
+                <b>MSWD Topic Required:</b> Curriculum guide choices are hidden because MSWD decides and assigns the specific topics for teachers. Once MSWD assigns a topic, it will appear in <b>3. ECCD Week &amp; Theme</b> above.
+              </span>
+            </div>
+          )}
+
+          {/* Step 4: Material Type */}
           <div>
             <label className="font-semibold text-slate-700 block mb-1">
               4. Post Format / Material Type
@@ -306,7 +375,7 @@ export default function TeacherUploadModal({
             </div>
           </div>
 
-          {/* Step 4: Material Title */}
+          {/* Step 5: Material Title */}
           <div>
             <label className="font-semibold text-slate-700 block mb-1">
               5. Material Title
@@ -315,13 +384,13 @@ export default function TeacherUploadModal({
               type="text"
               value={uploadTitle}
               onChange={(e) => setUploadTitle(e.target.value)}
-              placeholder="e.g. [Pre-K 1 Q1 W1] I Have A Name - Fun Writing Practice"
+              placeholder="e.g. [PRE-K1 Q1 Week 1] Activity Title"
               required
               className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white font-medium text-slate-800 outline-none"
             />
           </div>
 
-          {/* Step 5: Content URL */}
+          {/* Step 6: Content URL */}
           <div>
             <label className="font-semibold text-slate-700 block mb-1">
               6. Resource / Video / Worksheet Link <span className="text-slate-400 font-normal">(optional if file is attached)</span>
@@ -335,7 +404,7 @@ export default function TeacherUploadModal({
             />
           </div>
 
-          {/* Step 6: Instructions / Question */}
+          {/* Step 7: Instructions / Question */}
           <div>
             <label className="font-semibold text-slate-700 block mb-1">
               7. Activity Instructions or Question for Parent &amp; Learner
@@ -367,9 +436,10 @@ export default function TeacherUploadModal({
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold shadow-xs cursor-pointer"
+              disabled={mswdTopicChoices.length === 0}
+              className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Upload Material
+              Submit to MSWD for Approval
             </button>
           </div>
         </form>

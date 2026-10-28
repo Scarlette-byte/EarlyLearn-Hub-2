@@ -54,6 +54,26 @@ export default function ProgramMonitoring({
   const [successToast, setSuccessToast] = useState('');
   const [isLoadingSupabase, setIsLoadingSupabase] = useState(false);
 
+  // Manual record post modal state
+  const [newTitle, setNewTitle] = useState('');
+  const [newTeacherId, setNewTeacherId] = useState('');
+  const [newLevel, setNewLevel] = useState('Pre-K1');
+  const [newQuarter, setNewQuarter] = useState('1');
+  const [newWeek, setNewWeek] = useState('Week 1');
+  const [newSubTheme, setNewSubTheme] = useState('');
+  const [newModuleType, setNewModuleType] = useState('Activity Worksheet');
+  const [newDescription, setNewDescription] = useState('');
+  const [uploadSuccess, setUploadSuccess] = useState('');
+
+  // Helper to categorize a teacher post into 'activity' | 'file' | 'video'
+  const getItemCategory = (mod) => {
+    if (!mod) return 'activity';
+    const t = (mod.type || mod.module_type || mod.file_type || '').toLowerCase();
+    if (t.includes('video') || t.includes('mp4')) return 'video';
+    if (t.includes('file') || t.includes('doc') || t.includes('guide') || t.includes('plan')) return 'file';
+    return 'activity';
+  };
+
   // --- Load Materials directly from Supabase (Sync across all devices) ---
   const loadSupabaseModules = useCallback(async () => {
     setIsLoadingSupabase(true);
@@ -78,11 +98,12 @@ export default function ProgramMonitoring({
           }
 
           const isApproved = m.status === 'approved' || m.status === 'Approved';
-          const isNeedsRevision = m.status === 'needs_revision';
-          const displayStatus = isApproved ? 'Approved' : isNeedsRevision ? 'Needs Revision' : 'Pending Review';
+          const isRejected = m.status === 'rejected' || m.status === 'Rejected' || m.status === 'needs_revision';
+          const displayStatus = isApproved ? 'Approved' : isRejected ? 'Rejected' : 'Pending Review';
 
           return {
             id: m.id,
+            assignment_id: meta.assignment_id || null,
             title: m.title || 'Curriculum Learning Material',
             teacher_name: meta.teacher_name || 'CDC Teacher',
             teacher_id: m.created_by,
@@ -100,7 +121,11 @@ export default function ProgramMonitoring({
             upload_date: m.created_at ? new Date(m.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : 'Recent',
             status: displayStatus,
             verified_by_mswd: isApproved,
+            posted_to_students: Boolean(meta.posted_to_students),
+            target_student_id: meta.target_student_id || 'all',
+            target_student_name: meta.target_student_name || 'All Class Learners',
             mswd_comments: meta.mswd_comments || '',
+            revision_notes: meta.revision_notes || '',
             description: cleanDescription || 'Curriculum activity worksheet for daycare learners.',
             content_url: m.content_url || null,
             content_text: cleanDescription,
@@ -110,8 +135,23 @@ export default function ProgramMonitoring({
         });
 
         setModules((prev) => {
-          const localOnly = prev.filter((p) => !p.from_supabase && !mapped.some((s) => s.id === p.id));
-          return [...mapped, ...localOnly];
+          const localList = getCleanTeacherModules();
+          const merged = mapped.map((sbItem) => {
+            const loc = localList.find((l) => l.id === sbItem.id);
+            if (loc) {
+              return {
+                ...sbItem,
+                posted_to_students: Boolean(loc.posted_to_students ?? sbItem.posted_to_students),
+                target_student_id: loc.target_student_id || sbItem.target_student_id || 'all',
+                target_student_name: loc.target_student_name || sbItem.target_student_name || 'All Class Learners',
+                mswd_comments: loc.mswd_comments || sbItem.mswd_comments || '',
+                revision_notes: loc.revision_notes || sbItem.revision_notes || '',
+              };
+            }
+            return sbItem;
+          });
+          const localOnly = localList.filter((p) => !merged.some((s) => s.id === p.id));
+          return [...merged, ...localOnly];
         });
       }
     } catch (err) {
@@ -188,13 +228,15 @@ export default function ProgramMonitoring({
 
       let newStatus = m.status;
       let newVerified = m.verified_by_mswd;
+      let newPosted = m.posted_to_students;
 
       if (commentDecision === 'approve') {
         newStatus = 'Approved';
         newVerified = true;
       } else if (commentDecision === 'revision') {
-        newStatus = 'Needs Revision';
+        newStatus = 'Rejected';
         newVerified = false;
+        newPosted = false;
       }
 
       return {
@@ -204,6 +246,7 @@ export default function ProgramMonitoring({
         mswd_comment_date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
         status: newStatus,
         verified_by_mswd: newVerified,
+        posted_to_students: newPosted,
       };
     });
 
@@ -215,8 +258,8 @@ export default function ProgramMonitoring({
       // Ignored
     }
 
-    // Update status in Supabase so other devices see the approval/revision immediately
-    const sbStatus = commentDecision === 'approve' ? 'approved' : commentDecision === 'revision' ? 'needs_revision' : 'pending';
+    // Update status in Supabase so other devices see the approval/rejection immediately
+    const sbStatus = commentDecision === 'approve' ? 'approved' : commentDecision === 'revision' ? 'rejected' : 'pending';
     try {
       await supabase.from('materials').update({ status: sbStatus }).eq('id', commentingModule.id);
     } catch (err) {
@@ -229,7 +272,13 @@ export default function ProgramMonitoring({
 
     setCommentingModule(null);
     setCommentText('');
-    setSuccessToast('✅ Review comment saved! The teacher will see your feedback in their dashboard.');
+    setSuccessToast(
+      commentDecision === 'approve'
+        ? '✅ Complied activity APPROVED by MSWD! The teacher can now post it to their specific Student Dashboard.'
+        : commentDecision === 'revision'
+        ? '❌ Complied activity REJECTED by MSWD. The teacher has been notified.'
+        : '✅ Review comment saved! The teacher will see your feedback in their dashboard.'
+    );
     setTimeout(() => setSuccessToast(''), 4000);
   };
 
@@ -253,7 +302,7 @@ export default function ProgramMonitoring({
       // Ignored
     }
 
-    // Sync approval to Supabase materials table so students on any device see it
+    // Sync approval to Supabase materials table
     try {
       await supabase.from('materials').update({ status: 'approved' }).eq('id', moduleId);
     } catch (err) {
@@ -264,17 +313,42 @@ export default function ProgramMonitoring({
       setInspectingModule((prev) => (prev ? { ...prev, status: 'Approved', verified_by_mswd: true } : null));
     }
 
-    setSuccessToast('✅ Teacher post approved & verified by MSWD!');
-    setTimeout(() => setSuccessToast(''), 3000);
+    setSuccessToast('✅ Complied activity APPROVED by MSWD! The teacher can now post this activity to their specific Student Dashboard.');
+    setTimeout(() => setSuccessToast(''), 4000);
   };
 
-  // Handle Reject / Request Revision
-  const handleRejectModule = (moduleId) => {
-    const target = modules.find((m) => m.id === moduleId);
-    if (target) {
-      handleOpenComment(target);
-      setCommentDecision('revision');
+  // Handle Reject Module directly or with feedback
+  const handleRejectModule = async (moduleId) => {
+    const updated = modules.map((m) =>
+      m.id === moduleId
+        ? {
+            ...m,
+            status: 'Rejected',
+            verified_by_mswd: false,
+            posted_to_students: false,
+          }
+        : m
+    );
+    setModules(updated);
+    try {
+      localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updated }));
+    } catch {
+      // Ignored
     }
+
+    try {
+      await supabase.from('materials').update({ status: 'rejected' }).eq('id', moduleId);
+    } catch (err) {
+      console.warn('Error updating rejection in Supabase:', err);
+    }
+
+    if (inspectingModule?.id === moduleId) {
+      setInspectingModule((prev) => (prev ? { ...prev, status: 'Rejected', verified_by_mswd: false, posted_to_students: false } : null));
+    }
+
+    setSuccessToast('❌ Complied activity marked as REJECTED by MSWD.');
+    setTimeout(() => setSuccessToast(''), 3500);
   };
 
   // Handle Add Module manually
@@ -759,21 +833,36 @@ export default function ProgramMonitoring({
 
                       {/* 7. Status */}
                       <td className="px-3 py-3 text-center whitespace-nowrap">
-                        <span
-                          className={`inline-block px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
-                            module.verified_by_mswd
-                              ? 'bg-[#DCEBDD] text-[#2E6B38] border border-emerald-200'
-                              : module.status === 'Needs Revision'
-                              ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                              : 'bg-amber-100 text-amber-800 border border-amber-200'
-                          }`}
-                        >
-                          {module.verified_by_mswd
-                            ? 'Approved ✓'
-                            : module.status === 'Needs Revision'
-                            ? 'Needs Revision'
-                            : 'Pending Review'}
-                        </span>
+                        <div className="flex flex-col items-center gap-1">
+                          <span
+                            className={`inline-block px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
+                              module.verified_by_mswd || module.status === 'Approved'
+                                ? 'bg-[#DCEBDD] text-[#2E6B38] border border-emerald-200'
+                                : module.status === 'Rejected' || module.status === 'Needs Revision'
+                                ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                : 'bg-amber-100 text-amber-800 border border-amber-200'
+                            }`}
+                          >
+                            {module.verified_by_mswd || module.status === 'Approved'
+                              ? 'Approved ✓'
+                              : module.status === 'Rejected' || module.status === 'Needs Revision'
+                              ? 'Rejected ✕'
+                              : 'Pending Review'}
+                          </span>
+                          {(module.verified_by_mswd || module.status === 'Approved') && (
+                            <span
+                              className={`text-[9.5px] font-bold px-2 py-0.5 rounded ${
+                                module.posted_to_students
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : 'bg-amber-50 text-amber-800 border border-amber-200'
+                              }`}
+                            >
+                              {module.posted_to_students
+                                ? `🚀 Posted (${module.target_student_name || 'Class'})`
+                                : '🔓 Teacher Can Post Now'}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* 8. Actions: View, Comment, Approve */}
@@ -1240,15 +1329,7 @@ export default function ProgramMonitoring({
             <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-950 flex items-center gap-2.5">
               <span className="text-base">🏫</span>
               <div>
-                <span className="font-bold text-amber-900">Student Dashboard Linkage:</span> Upon approval, this activity is strictly delivered to learners enrolled with <span className="font-bold text-slate-900">{inspectingModule.teacher_name}</span> at <span className="font-bold text-slate-900">{inspectingModule.cdc_name || 'Assigned CDC'}</span> (Brgy. {inspectingModule.barangay}).
-              </div>
-            </div>
-
-            {/* Student linkage notice */}
-            <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-950 flex items-center gap-2.5">
-              <span className="text-base">🏫</span>
-              <div>
-                <span className="font-bold text-amber-900">Student Dashboard Linkage:</span> Upon approval, this activity is strictly delivered to learners enrolled with <span className="font-bold text-slate-900">{inspectingModule.teacher_name}</span> at <span className="font-bold text-slate-900">{inspectingModule.cdc_name || 'Assigned CDC'}</span> (Brgy. {inspectingModule.barangay}).
+                <span className="font-bold text-amber-900">MSWD Approval → Teacher Posts to Student Dashboard:</span> Once MSWD approves this complied activity, Teacher <span className="font-bold text-slate-900">{inspectingModule.teacher_name}</span> at <span className="font-bold text-slate-900">{inspectingModule.cdc_name || 'Assigned CDC'}</span> (Brgy. {inspectingModule.barangay}) can post it to their specific student dashboard.
               </div>
             </div>
 

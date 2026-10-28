@@ -342,17 +342,34 @@ export function getCleanCurriculumAssignments() {
     if (!saved) return [];
     const parsed = JSON.parse(saved);
     if (!Array.isArray(parsed)) return [];
-    const filtered = parsed.filter(
-      (a) =>
-        a &&
-        a.id &&
-        a.topicTitle &&
-        a.topicTitle !== 'Prescribed ECCD Topic' &&
-        a.topicTitle !== 'Curriculum Learning Topic' &&
-        a.assignedDate !== '2026-10-17' &&
-        !/^asg-0[1-9]|^asg-1[0-5]|^asg-07-.*|^asg-test-.*$/.test(a.id) &&
-        !a.isDummy
-    );
+    const filtered = parsed
+      .filter(
+        (a) =>
+          a &&
+          a.id &&
+          a.topicTitle &&
+          a.topicTitle !== 'Prescribed ECCD Topic' &&
+          a.assignedDate !== '2026-10-17' &&
+          !/^asg-0[1-9]|^asg-1[0-5]|^asg-07-.*|^asg-test-.*$/.test(a.id) &&
+          !a.isDummy
+      )
+      .map((a) => {
+        if (a.topicTitle === 'Curriculum Learning Topic') {
+          const curr = (a.level || '').toLowerCase() === 'pre-k2' ? preK2Curriculum : preK1Curriculum;
+          const qNum = a.quarter || (Array.isArray(a.quarters) && a.quarters[0]) || 1;
+          const qObj = curr.find((q) => q.quarterNumber === qNum) || curr[0];
+          const wStr = Array.isArray(a.weeks) && a.weeks.length > 0 ? a.weeks[0] : a.week;
+          const wObj = qObj?.weeks?.find((w) => w.week === wStr) || qObj?.weeks?.[0];
+          return {
+            ...a,
+            week: wObj?.week || a.week || 'Week 1',
+            topicTitle: wObj?.subTheme || qObj?.theme || 'MSWD Assigned Topic',
+            subTheme: wObj?.subTheme || a.subTheme || qObj?.theme || 'MSWD Assigned Topic',
+            theme: a.theme || qObj?.theme || 'TELL ME ABOUT YOURSELF',
+          };
+        }
+        return a;
+      });
     if (filtered.length !== parsed.length) {
       localStorage.setItem('earlylearn_curriculum_assignments', JSON.stringify(filtered));
     }
@@ -360,6 +377,73 @@ export function getCleanCurriculumAssignments() {
   } catch {
     return [];
   }
+}
+
+/**
+ * Extracts concise, navigable topic choices strictly from what MSWD has assigned to the teacher.
+ * Never returns unassigned curriculum guide lessons.
+ */
+export function extractMswdTopicChoices(myAssignedTopics = []) {
+  const choices = [];
+  const seenKeys = new Set();
+
+  (myAssignedTopics || []).forEach((asg) => {
+    if (!asg) return;
+    const normLevel = (asg.level || '').toUpperCase().includes('2') ? 'PRE-K2' : 'PRE-K1';
+    const qNum = Number(asg.quarter || (Array.isArray(asg.quarters) && asg.quarters[0]) || 1);
+
+    // If assignment explicitly carries multiple topic items deployed by MSWD
+    if (Array.isArray(asg.assignedTopics) && asg.assignedTopics.length > 0) {
+      asg.assignedTopics.forEach((t, idx) => {
+        const w = t.week || asg.week || 'Week 1';
+        const sub = t.subTheme || t.topicTitle || asg.topicTitle || asg.subTheme;
+        if (!sub) return;
+        const tQ = Number(t.quarter || qNum);
+        const key = `${normLevel}-Q${tQ}-${w}-${sub}`.toLowerCase();
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          choices.push({
+            choiceKey: `${asg.id}-${idx}`,
+            assignmentId: asg.id,
+            level: normLevel,
+            quarter: tQ,
+            week: w,
+            subTheme: sub,
+            theme: t.theme || asg.theme || '',
+            suggestedActivities: t.suggestedActivities || asg.suggestedActivities || '',
+            deadline: asg.deadline || null,
+            notes: asg.notes || '',
+            status: asg.status || 'Pending',
+          });
+        }
+      });
+      return;
+    }
+
+    const weekStr = asg.week || (Array.isArray(asg.weeks) && asg.weeks[0]) || 'Week 1';
+    const subThemeStr = asg.topicTitle || asg.subTheme || '';
+    if (!subThemeStr) return;
+
+    const key = `${normLevel}-Q${qNum}-${weekStr}-${subThemeStr}`.toLowerCase();
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      choices.push({
+        choiceKey: asg.id,
+        assignmentId: asg.id,
+        level: normLevel,
+        quarter: qNum,
+        week: weekStr,
+        subTheme: subThemeStr,
+        theme: asg.theme || '',
+        suggestedActivities: asg.suggestedActivities || asg.suggestedContent || '',
+        deadline: asg.deadline || null,
+        notes: asg.notes || '',
+        status: asg.status || 'Pending',
+      });
+    }
+  });
+
+  return choices;
 }
 
 /**

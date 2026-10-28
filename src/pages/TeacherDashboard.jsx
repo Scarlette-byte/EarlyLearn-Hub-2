@@ -4,29 +4,22 @@ import DashboardLayout from '../components/DashboardLayout.jsx';
 import {
   preK1Curriculum,
   preK2Curriculum,
-  initialCurriculumAssignments,
   getCleanCurriculumAssignments,
-  initialTeacherModules,
+  extractMswdTopicChoices,
   realTeachersList,
   realCdcsList,
 } from '../lib/curriculumData.js';
 import { getLearnersForTeacher, getCdcForBarangay } from '../lib/learnersService.js';
 import TeacherChildDevelopment from '../components/teacher/TeacherChildDevelopment.jsx';
 import TeacherUploadModal from '../components/teacher/TeacherUploadModal.jsx';
-import TeacherActivityNotifications from '../components/teacher/TeacherActivityNotifications.jsx';
 import {
-  IconPlus,
   IconSearch,
   IconMaterials,
-  IconCheck,
   IconClose,
-  IconTeachers,
   IconBuilding,
   IconPin,
   IconRefresh,
   IconUpload,
-  IconTrash,
-  IconEdit,
 } from '../components/Icons.jsx';
 import {
   cardBox,
@@ -41,9 +34,7 @@ import {
   label,
   btnPrimary,
   btnSmall,
-  btnAdd,
   delBtn,
-  ageTag,
 } from '../lib/ui.js';
 
 const TABS = [
@@ -103,9 +94,9 @@ export default function TeacherDashboard({ profile }) {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [uploadCurriculumLevel, setUploadCurriculumLevel] = useState('PRE-K1');
   const [uploadQuarter, setUploadQuarter] = useState(1);
-  const [uploadWeek, setUploadWeek] = useState('Week 1');
-  const [uploadTheme, setUploadTheme] = useState('TELL ME ABOUT YOURSELF');
-  const [uploadSubTheme, setUploadSubTheme] = useState('I HAVE A NAME');
+  const [uploadWeek, setUploadWeek] = useState('');
+  const [uploadTheme, setUploadTheme] = useState('');
+  const [uploadSubTheme, setUploadSubTheme] = useState('');
   const [uploadType, setUploadType] = useState('activity');
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploadDescription, setUploadDescription] = useState('');
@@ -121,10 +112,16 @@ export default function TeacherDashboard({ profile }) {
   const fileInputRef = useRef(null);
 
   // Uploaded Materials tab filters
+  const [uploadedFilterStatus, setUploadedFilterStatus] = useState('all'); // 'all' | 'pending' | 'approved' | 'posted' | 'rejected'
   const [uploadedFilterLevel, setUploadedFilterLevel] = useState('all');
   const [uploadedFilterQuarter, setUploadedFilterQuarter] = useState('all');
   const [uploadedFilterType, setUploadedFilterType] = useState('all');
   const [uploadedSearch, setUploadedSearch] = useState('');
+
+  // Post Approved Activity to Student Dashboard Modal state
+  const [postingMaterial, setPostingMaterial] = useState(null);
+  const [selectedTargetStudentId, setSelectedTargetStudentId] = useState('all');
+  const [postModalMsg, setPostModalMsg] = useState({ text: '', type: '' });
 
   // Announcements tab
   const [annTitle, setAnnTitle] = useState('');
@@ -156,6 +153,48 @@ export default function TeacherDashboard({ profile }) {
   const [myLearners, setMyLearners] = useState([]);
   const [learnersLoading, setLearnersLoading] = useState(true);
 
+  // Filter assignments targeted to this logged-in teacher / CDC / Barangay (Real MSWDO deployments only)
+  const myAssignedTopics = useMemo(() => {
+    const teacherName = (myFullName || profile?.full_name || '').toLowerCase();
+    const cleanName = teacherName.replace(/\s*\(.*?\)\s*/g, '').trim();
+    const brgy = (myBarangay || profile?.barangay || '').toLowerCase();
+    const cdc = (myCdcName || profile?.cdc_name || '').toLowerCase();
+
+    return assignments.filter((a) => {
+      if (
+        !a ||
+        !a.topicTitle ||
+        a.topicTitle === 'Prescribed ECCD Topic' ||
+        a.assignedDate === '2026-10-17' ||
+        a.isDummy ||
+        /^asg-0[1-9]|^asg-1[0-5]|^asg-07-.*|^asg-test-.*$/.test(a.id)
+      ) {
+        return false;
+      }
+
+      const aTeacher = (a.teacherName || '').toLowerCase();
+      const aBrgy = (a.barangay || '').toLowerCase();
+      const aCdc = (a.cdcName || '').toLowerCase();
+
+      const idMatch = a.teacherId && (a.teacherId === currentUserId || a.teacherId === profile?.id);
+      const nameMatch = cleanName && (aTeacher.includes(cleanName) || cleanName.includes(aTeacher));
+      const cdcMatch = cdc && (aCdc.includes(cdc) || cdc.includes(aCdc));
+      const brgyMatch = brgy && (aBrgy.includes(brgy) || brgy.includes(aBrgy));
+      const isUniversal =
+        a.targetType === 'all' ||
+        a.barangay === 'all' ||
+        a.cdcName === 'All CDCs' ||
+        a.teacherName === 'All Teachers';
+
+      return idMatch || nameMatch || cdcMatch || brgyMatch || isUniversal;
+    });
+  }, [assignments, profile, currentUserId, myFullName, myBarangay, myCdcName]);
+
+  // Choices for "3. ECCD Week & Theme" based ONLY on what MSWD assigned to this teacher
+  const mswdTopicChoices = useMemo(() => {
+    return extractMswdTopicChoices(myAssignedTopics);
+  }, [myAssignedTopics]);
+
   // --- Load categories into the dropdown ---
   const loadCategoryOptions = useCallback(async () => {
     const { data } = await supabase.from('categories').select('id, name, icon').order('name');
@@ -164,7 +203,6 @@ export default function TeacherDashboard({ profile }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // --- Load my uploaded materials ---
   // --- Load my uploaded materials from Supabase ---
   const loadMyMaterials = useCallback(async () => {
     try {
@@ -198,70 +236,56 @@ export default function TeacherDashboard({ profile }) {
     };
   }, [loadMyMaterials]);
 
-  // Flatten curriculum weeks for Curriculum Guide tab
-  const flatCurriculumWeeks = useMemo(() => {
-    const curr = curriculumLevel === 'PRE-K1' ? preK1Curriculum : preK2Curriculum;
-    const list = [];
-    curr.forEach((q) => {
-      if (curriculumQuarter !== 'all' && q.quarterNumber !== parseInt(curriculumQuarter, 10)) {
-        return;
-      }
-      q.weeks.forEach((w) => {
-        const matchSearch =
-          !curriculumSearch.trim() ||
-          q.suggestedContent.toLowerCase().includes(curriculumSearch.toLowerCase()) ||
-          q.theme.toLowerCase().includes(curriculumSearch.toLowerCase()) ||
-          w.week.toLowerCase().includes(curriculumSearch.toLowerCase()) ||
-          w.subTheme.toLowerCase().includes(curriculumSearch.toLowerCase()) ||
-          (w.suggestedActivities || '').toLowerCase().includes(curriculumSearch.toLowerCase());
-
-        if (matchSearch) {
-          list.push({
-            level: curriculumLevel,
-            quarterNumber: q.quarterNumber,
-            quarter: q.quarter,
-            month: q.month,
-            theme: q.theme,
-            suggestedContent: q.suggestedContent,
-            week: w.week,
-            subTheme: w.subTheme,
-            suggestedActivities: w.suggestedActivities,
-          });
-        }
-      });
-    });
-    return list;
-  }, [curriculumLevel, curriculumQuarter, curriculumSearch]);
-
-  // Available weeks for Upload Modal based on level & quarter
-  const availableWeeksForUploadModal = useMemo(() => {
-    const curr = uploadCurriculumLevel === 'PRE-K1' ? preK1Curriculum : preK2Curriculum;
-    const qObj = curr.find((q) => q.quarterNumber === parseInt(uploadQuarter, 10)) || curr[0];
-    return qObj || { weeks: [] };
-  }, [uploadCurriculumLevel, uploadQuarter]);
-
-  // Combined uploaded materials list
+  // Combined uploaded materials list (merges Supabase materials + localTeacherModules for MSWD status & student post status)
   const combinedUploadedMaterials = useMemo(() => {
-    const teacherMods = (localTeacherModules || []).map((m) => ({
-      id: m.id,
-      title: m.title,
-      level: m.level || 'Pre-K1',
-      quarter: m.quarter || 1,
-      week: m.week || 'Week 1',
-      theme: m.theme || '',
-      sub_theme: m.sub_theme || '',
-      type: m.module_type?.toLowerCase().includes('video') ? 'video' : m.module_type?.toLowerCase().includes('worksheet') ? 'activity' : 'activity',
-      formatLabel: m.module_type || 'Activity Worksheet',
-      age_range: m.level === 'Pre-K1' ? '3.11' : '4.11',
-      status: m.status || 'Approved',
-      created_at: m.upload_date,
-      content_text: m.description,
-      file_name: m.file_name || null,
-      file_size: m.file_size || null,
-      file_type: m.file_type || null,
-      content_url: m.content_url || null,
-      isLocal: true,
-    }));
+    const localMap = new Map();
+    (localTeacherModules || []).forEach((m) => {
+      if (m && m.id) localMap.set(m.id, m);
+    });
+
+    const teacherMods = (localTeacherModules || [])
+      .filter((m) => {
+        const tName = (myFullName || profile?.full_name || '').toLowerCase().trim();
+        if (m.teacher_id && m.teacher_id === currentUserId) return true;
+        if (tName && m.teacher_name && m.teacher_name.toLowerCase().includes(tName)) return true;
+        return !m.teacher_id || m.teacher_id === currentUserId;
+      })
+      .map((m) => {
+        const isRejected = m.status === 'Rejected' || m.status === 'Needs Revision' || m.status === 'rejected' || m.status === 'needs_revision';
+        const isApproved = !isRejected && (m.status === 'Approved' || m.status === 'approved' || m.verified_by_mswd === true);
+        return {
+          id: m.id,
+          assignment_id: m.assignment_id || null,
+          title: m.title,
+          level: m.level || 'Pre-K1',
+          quarter: m.quarter || 1,
+          week: m.week || 'Week 1',
+          theme: m.theme || '',
+          sub_theme: m.sub_theme || '',
+          type: m.module_type?.toLowerCase().includes('video')
+            ? 'video'
+            : m.module_type?.toLowerCase().includes('worksheet')
+            ? 'activity'
+            : m.type || 'activity',
+          formatLabel: m.module_type || 'Activity Worksheet',
+          age_range: m.level === 'Pre-K1' ? '3.11' : '4.11',
+          status: isRejected ? 'Rejected' : isApproved ? 'Approved' : 'Pending Review',
+          verified_by_mswd: isApproved,
+          posted_to_students: Boolean(m.posted_to_students),
+          target_student_id: m.target_student_id || null,
+          target_student_name: m.target_student_name || null,
+          posted_at: m.posted_at || null,
+          mswd_comments: m.mswd_comments || '',
+          revision_notes: m.revision_notes || '',
+          created_at: m.upload_date,
+          content_text: m.description,
+          file_name: m.file_name || null,
+          file_size: m.file_size || null,
+          file_type: m.file_type || null,
+          content_url: m.content_url || null,
+          isLocal: true,
+        };
+      });
 
     const sbMats = (myMaterials || []).map((m) => {
       let meta = {};
@@ -275,30 +299,70 @@ export default function TeacherDashboard({ profile }) {
           }
         } catch {}
       }
+      const localMatch = localMap.get(m.id);
       const tagMatch = m.title?.match(/\[(Pre-K1|Pre-K2)?\s*Q?(\d+)?\s*(W[^\s\]]+|Week\s*[\d&]+)?\]/i);
       const parsedLevel = tagMatch?.[1] || (m.age_range?.includes('3') ? 'Pre-K1' : 'Pre-K2');
       const parsedQuarter = tagMatch?.[2] ? parseInt(tagMatch[2], 10) : 1;
-      const parsedWeek = tagMatch?.[3] ? (tagMatch[3].startsWith('W') && !tagMatch[3].startsWith('Week') ? `Week ${tagMatch[3].slice(1)}` : tagMatch[3]) : 'Week 1';
+      const parsedWeek = tagMatch?.[3]
+        ? tagMatch[3].startsWith('W') && !tagMatch[3].startsWith('Week')
+          ? `Week ${tagMatch[3].slice(1)}`
+          : tagMatch[3]
+        : 'Week 1';
+
+      const isRejected =
+        m.status === 'needs_revision' ||
+        m.status === 'rejected' ||
+        localMatch?.status === 'Rejected' ||
+        localMatch?.status === 'Needs Revision';
+      const isApproved =
+        !isRejected &&
+        (m.status === 'approved' ||
+          localMatch?.status === 'Approved' ||
+          localMatch?.verified_by_mswd === true);
 
       return {
         id: m.id,
+        assignment_id: meta.assignment_id || localMatch?.assignment_id || null,
         title: m.title,
-        level: meta.level || parsedLevel,
-        quarter: meta.quarter || parsedQuarter,
-        week: meta.week || parsedWeek,
-        theme: meta.theme || m.categories?.name || 'Curriculum Lesson',
-        sub_theme: meta.sub_theme || '',
+        level: meta.level || localMatch?.level || parsedLevel,
+        quarter: meta.quarter || localMatch?.quarter || parsedQuarter,
+        week: meta.week || localMatch?.week || parsedWeek,
+        theme: meta.theme || localMatch?.theme || m.categories?.name || 'Curriculum Lesson',
+        sub_theme: meta.sub_theme || localMatch?.sub_theme || '',
         type: m.type,
-        formatLabel: m.type === 'activity' ? 'Activity Worksheet / PDF' : m.type === 'video' ? 'Video Lesson' : m.type === 'image' ? 'Visual Worksheet' : 'Reading Story',
+        formatLabel:
+          m.type === 'activity'
+            ? 'Activity Worksheet / PDF'
+            : m.type === 'video'
+            ? 'Video Lesson'
+            : m.type === 'image'
+            ? 'Visual Worksheet'
+            : 'Reading Story',
         age_range: m.age_range,
-        status: m.status === 'approved' ? 'Approved' : m.status === 'needs_revision' ? 'Needs Revision' : 'Pending Review',
-        verified_by_mswd: m.status === 'approved',
-        created_at: m.created_at ? new Date(m.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : 'Recently',
+        status: isRejected ? 'Rejected' : isApproved ? 'Approved' : 'Pending Review',
+        verified_by_mswd: isApproved,
+        posted_to_students: Boolean(localMatch?.posted_to_students || meta.posted_to_students),
+        target_student_id: localMatch?.target_student_id || meta.target_student_id || null,
+        target_student_name: localMatch?.target_student_name || meta.target_student_name || null,
+        posted_at: localMatch?.posted_at || meta.posted_at || null,
+        mswd_comments: localMatch?.mswd_comments || meta.mswd_comments || '',
+        revision_notes: localMatch?.revision_notes || meta.revision_notes || '',
+        created_at: m.created_at
+          ? new Date(m.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+          : 'Recently',
         content_text: cleanDescription,
-        file_name: m.content_url?.startsWith('data:application/pdf') ? 'Worksheet File (PDF)' : m.content_url?.startsWith('data:') ? 'Attached Learning Document' : (m.file_name || null),
-        file_size: m.file_size || null,
-        file_type: m.file_type || (m.content_url?.startsWith('data:application/pdf') ? 'PDF' : m.type?.toUpperCase() || 'FILE'),
-        content_url: m.content_url || null,
+        file_name: m.content_url?.startsWith('data:application/pdf')
+          ? 'Worksheet File (PDF)'
+          : m.content_url?.startsWith('data:')
+          ? 'Attached Learning Document'
+          : m.file_name || localMatch?.file_name || null,
+        file_size: m.file_size || localMatch?.file_size || null,
+        file_type:
+          m.file_type ||
+          localMatch?.file_type ||
+          (m.content_url?.startsWith('data:application/pdf') ? 'PDF' : m.type?.toUpperCase() || 'FILE'),
+        content_url: m.content_url || localMatch?.content_url || null,
+        raw_meta: meta,
         isLocal: false,
       };
     });
@@ -312,11 +376,16 @@ export default function TeacherDashboard({ profile }) {
       }
     });
     return result;
-  }, [myMaterials, localTeacherModules]);
+  }, [myMaterials, localTeacherModules, currentUserId, myFullName, profile]);
 
   // Filtered uploaded materials
   const filteredUploadedMaterials = useMemo(() => {
     return combinedUploadedMaterials.filter((m) => {
+      if (uploadedFilterStatus === 'pending' && m.status !== 'Pending Review') return false;
+      if (uploadedFilterStatus === 'approved' && m.status !== 'Approved') return false;
+      if (uploadedFilterStatus === 'posted' && !m.posted_to_students) return false;
+      if (uploadedFilterStatus === 'rejected' && m.status !== 'Rejected') return false;
+
       const matchLevel =
         uploadedFilterLevel === 'all' ||
         m.level.toLowerCase() === (uploadedFilterLevel === 'PRE-K1' ? 'pre-k1' : 'pre-k2');
@@ -333,7 +402,14 @@ export default function TeacherDashboard({ profile }) {
 
       return matchLevel && matchQuarter && matchType && matchSearch;
     });
-  }, [combinedUploadedMaterials, uploadedFilterLevel, uploadedFilterQuarter, uploadedFilterType, uploadedSearch]);
+  }, [
+    combinedUploadedMaterials,
+    uploadedFilterStatus,
+    uploadedFilterLevel,
+    uploadedFilterQuarter,
+    uploadedFilterType,
+    uploadedSearch,
+  ]);
 
   // Handle File Chosen / Dropped for Upload
   const handleFileSelected = (file) => {
@@ -363,7 +439,8 @@ export default function TeacherDashboard({ profile }) {
     // Auto-fill title if currently blank or standard prefix
     const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
     if (!uploadTitle.trim() || uploadTitle.match(/^\[.*\]\s*$/)) {
-      setUploadTitle(`[${uploadCurriculumLevel} Q${uploadQuarter} ${uploadWeek}] ${cleanName}`);
+      const prefix = uploadWeek ? `[${uploadCurriculumLevel} Q${uploadQuarter} ${uploadWeek}] ` : `[${uploadCurriculumLevel} Q${uploadQuarter}] `;
+      setUploadTitle(`${prefix}${cleanName}`);
     }
 
     // Read file for preview / download URL
@@ -386,6 +463,22 @@ export default function TeacherDashboard({ profile }) {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  // Select an MSWD-assigned topic choice inside the Upload Modal
+  const handleSelectMswdTopicChoice = (choice) => {
+    if (!choice) return;
+    setActiveAssignmentId(choice.assignmentId || null);
+    setActiveAssignmentDeadline(choice.deadline || null);
+    setUploadCurriculumLevel(choice.level || 'PRE-K1');
+    setUploadQuarter(choice.quarter || 1);
+    setUploadWeek(choice.week || 'Week 1');
+    setUploadTheme(choice.theme || '');
+    setUploadSubTheme(choice.subTheme || '');
+    setUploadTitle(`[${choice.level || 'PRE-K1'} Q${choice.quarter || 1} ${choice.week || 'Week 1'}] ${choice.subTheme}`);
+    if (choice.suggestedActivities) {
+      setUploadDescription(choice.suggestedActivities);
+    }
+  };
+
   // Open upload modal linked specifically to an admin assigned topic
   const handleOpenUploadForAssignedTopic = (asg) => {
     const isPast = Boolean(asg.deadline && new Date(asg.deadline + 'T23:59:59') < new Date());
@@ -404,93 +497,98 @@ export default function TeacherDashboard({ profile }) {
     const resolvedQuarter = asg.quarter || (asg.quarters && asg.quarters[0]) || 1;
     setUploadQuarter(resolvedQuarter);
 
-    const resolvedWeek = asg.week || (Array.isArray(asg.weeks) ? asg.weeks[0] : 'Week 1');
+    const firstTopicEntry = Array.isArray(asg.assignedTopics) && asg.assignedTopics.length > 0 ? asg.assignedTopics[0] : null;
+    const resolvedWeek = firstTopicEntry?.week || asg.week || (Array.isArray(asg.weeks) ? asg.weeks[0] : 'Week 1');
     setUploadWeek(resolvedWeek);
 
-    setUploadTheme(asg.theme || (resolvedLevel === 'PRE-K1' ? 'TELL ME ABOUT YOURSELF' : 'MORE ABOUT MYSELF AND MY SCHOOL'));
-    const resolvedTopic = asg.topicTitle || asg.subTheme || 'Prescribed Lesson';
+    setUploadTheme(firstTopicEntry?.theme || asg.theme || '');
+    const resolvedTopic = firstTopicEntry?.subTheme || asg.subTheme || asg.topicTitle || 'MSWD Assigned Topic';
     setUploadSubTheme(resolvedTopic);
     setUploadTitle(`[${resolvedLevel} Q${resolvedQuarter} ${resolvedWeek}] ${resolvedTopic}`);
-    setUploadDescription(asg.suggestedActivities || asg.suggestedContent || '');
+    setUploadDescription(firstTopicEntry?.suggestedActivities || asg.suggestedActivities || asg.suggestedContent || '');
     setUploadType('activity');
     setUploadUrl('');
     setUploadMsg({ text: '', type: '' });
     setIsUploadModalOpen(true);
   };
 
-  // Open upload modal with pre-filled curriculum data
-  const handleOpenUploadFromCurriculum = (item) => {
-    handleRemoveSelectedFile();
-    setActiveAssignmentId(null);
-    setActiveAssignmentDeadline(null);
-    setUploadCurriculumLevel(item.level);
-    setUploadQuarter(item.quarterNumber);
-    setUploadWeek(item.week);
-    setUploadTheme(item.theme);
-    setUploadSubTheme(item.subTheme);
-    setUploadTitle(`[${item.level} Q${item.quarterNumber} ${item.week}] ${item.subTheme}`);
-    setUploadDescription(item.suggestedActivities || '');
-    setUploadType('activity');
-    setUploadUrl('');
-    setUploadMsg({ text: '', type: '' });
-    setIsUploadModalOpen(true);
-    setActiveTab('upload');
-  };
-
-  // Open clean new upload modal
+  // Open clean new upload modal — strictly uses MSWD-assigned topic choices (never curriculum guide defaults)
   const handleOpenNewUpload = () => {
     handleRemoveSelectedFile();
-    setActiveAssignmentId(null);
-    setActiveAssignmentDeadline(null);
-    const curr = preK1Curriculum[0];
-    const firstWeek = curr.weeks[0];
-    setUploadCurriculumLevel('PRE-K1');
-    setUploadQuarter(1);
-    setUploadWeek(firstWeek.week);
-    setUploadTheme(curr.theme);
-    setUploadSubTheme(firstWeek.subTheme);
-    setUploadTitle(`[PRE-K1 Q1 ${firstWeek.week}] ${firstWeek.subTheme}`);
-    setUploadDescription('');
+    const firstChoice = mswdTopicChoices[0] || null;
+    if (firstChoice) {
+      setActiveAssignmentId(firstChoice.assignmentId || null);
+      setActiveAssignmentDeadline(firstChoice.deadline || null);
+      setUploadCurriculumLevel(firstChoice.level);
+      setUploadQuarter(firstChoice.quarter);
+      setUploadWeek(firstChoice.week);
+      setUploadTheme(firstChoice.theme || '');
+      setUploadSubTheme(firstChoice.subTheme);
+      setUploadTitle(`[${firstChoice.level} Q${firstChoice.quarter} ${firstChoice.week}] ${firstChoice.subTheme}`);
+      setUploadDescription(firstChoice.suggestedActivities || '');
+    } else {
+      setActiveAssignmentId(null);
+      setActiveAssignmentDeadline(null);
+      setUploadCurriculumLevel('PRE-K1');
+      setUploadQuarter(1);
+      setUploadWeek('');
+      setUploadTheme('');
+      setUploadSubTheme('');
+      setUploadTitle('');
+      setUploadDescription('');
+    }
     setUploadType('activity');
     setUploadUrl('');
     setUploadMsg({ text: '', type: '' });
     setIsUploadModalOpen(true);
   };
 
-  // Modal Level change handler
+  // Modal Level change handler — filters only from MSWD assigned topics
   const handleModalLevelChange = (newLevel) => {
     setUploadCurriculumLevel(newLevel);
-    const curr = newLevel === 'PRE-K1' ? preK1Curriculum : preK2Curriculum;
-    const qObj = curr.find((q) => q.quarterNumber === parseInt(uploadQuarter, 10)) || curr[0];
-    const wObj = qObj.weeks[0];
-    setUploadWeek(wObj.week);
-    setUploadTheme(qObj.theme);
-    setUploadSubTheme(wObj.subTheme);
-    setUploadTitle(`[${newLevel} Q${qObj.quarterNumber} ${wObj.week}] ${wObj.subTheme}`);
+    const matching =
+      mswdTopicChoices.find((c) => c.level === newLevel && Number(c.quarter) === Number(uploadQuarter)) ||
+      mswdTopicChoices.find((c) => c.level === newLevel) ||
+      mswdTopicChoices[0] ||
+      null;
+
+    if (matching) {
+      setActiveAssignmentId(matching.assignmentId || null);
+      setActiveAssignmentDeadline(matching.deadline || null);
+      setUploadQuarter(matching.quarter);
+      setUploadWeek(matching.week);
+      setUploadTheme(matching.theme || '');
+      setUploadSubTheme(matching.subTheme);
+      setUploadTitle(`[${matching.level} Q${matching.quarter} ${matching.week}] ${matching.subTheme}`);
+    } else {
+      setUploadWeek('');
+      setUploadTheme('');
+      setUploadSubTheme('');
+      setUploadTitle('');
+    }
   };
 
-  // Modal Quarter change handler
+  // Modal Quarter change handler — filters only from MSWD assigned topics
   const handleModalQuarterChange = (newQ) => {
     setUploadQuarter(newQ);
-    const curr = uploadCurriculumLevel === 'PRE-K1' ? preK1Curriculum : preK2Curriculum;
-    const qObj = curr.find((q) => q.quarterNumber === parseInt(newQ, 10)) || curr[0];
-    const wObj = qObj.weeks[0];
-    setUploadWeek(wObj.week);
-    setUploadTheme(qObj.theme);
-    setUploadSubTheme(wObj.subTheme);
-    setUploadTitle(`[${uploadCurriculumLevel} Q${qObj.quarterNumber} ${wObj.week}] ${wObj.subTheme}`);
-  };
+    const matching =
+      mswdTopicChoices.find((c) => c.level === uploadCurriculumLevel && Number(c.quarter) === Number(newQ)) ||
+      mswdTopicChoices.find((c) => Number(c.quarter) === Number(newQ)) ||
+      mswdTopicChoices[0] ||
+      null;
 
-  // Modal Week change handler
-  const handleModalWeekChange = (newWeekStr) => {
-    setUploadWeek(newWeekStr);
-    const curr = uploadCurriculumLevel === 'PRE-K1' ? preK1Curriculum : preK2Curriculum;
-    const qObj = curr.find((q) => q.quarterNumber === parseInt(uploadQuarter, 10)) || curr[0];
-    const wObj = qObj.weeks.find((w) => w.week === newWeekStr) || qObj.weeks[0];
-    if (wObj) {
-      setUploadSubTheme(wObj.subTheme);
-      setUploadTheme(qObj.theme);
-      setUploadTitle(`[${uploadCurriculumLevel} Q${qObj.quarterNumber} ${wObj.week}] ${wObj.subTheme}`);
+    if (matching) {
+      setActiveAssignmentId(matching.assignmentId || null);
+      setActiveAssignmentDeadline(matching.deadline || null);
+      setUploadWeek(matching.week);
+      setUploadTheme(matching.theme || '');
+      setUploadSubTheme(matching.subTheme);
+      setUploadTitle(`[${uploadCurriculumLevel} Q${newQ} ${matching.week}] ${matching.subTheme}`);
+    } else {
+      setUploadWeek('');
+      setUploadTheme('');
+      setUploadSubTheme('');
+      setUploadTitle('');
     }
   };
 
@@ -507,22 +605,35 @@ export default function TeacherDashboard({ profile }) {
     const effectiveFileSize = uploadFileSize || '2.4 MB';
     const effectiveFileType = uploadFileType || (uploadType === 'video' ? 'MP4' : uploadType === 'file' ? 'PDF' : uploadType.toUpperCase());
 
-    // 1. Insert to Supabase materials (with status 'pending' awaiting Admin approval)
+    // 1. Insert to Supabase materials (with status 'pending' awaiting MSWD Admin approval)
     const metadataPayload = {
       __metadata: true,
+      assignment_id: activeAssignmentId || null,
       description: uploadDescription.trim() || '',
       teacher_name: profile?.full_name || 'Teacher',
       cdc_name: myCdcName || profile?.cdc_name || 'Manolo Fortich CDC',
       barangay: myBarangay || profile?.barangay || 'Manolo Fortich',
       level: uploadCurriculumLevel === 'PRE-K1' ? 'Pre-K1' : 'Pre-K2',
       quarter: parseInt(uploadQuarter, 10),
-      week: uploadWeek,
-      sub_theme: uploadSubTheme,
-      theme: uploadTheme,
-      module_type: uploadType === 'activity' ? 'Activity Worksheet' : uploadType === 'file' ? 'Official PDF Document' : uploadType === 'video' ? 'Video Lesson' : uploadType === 'image' ? 'Worksheet Image' : 'Reading Story',
+      week: uploadWeek || 'Week 1',
+      sub_theme: uploadSubTheme || '',
+      theme: uploadTheme || '',
+      module_type:
+        uploadType === 'activity'
+          ? 'Activity Worksheet'
+          : uploadType === 'file'
+          ? 'Official PDF Document'
+          : uploadType === 'video'
+          ? 'Video Lesson'
+          : uploadType === 'image'
+          ? 'Worksheet Image'
+          : 'Reading Story',
       file_type: effectiveFileType,
       file_size: effectiveFileSize,
       file_name: effectiveFileName,
+      posted_to_students: false,
+      target_student_id: null,
+      target_student_name: null,
     };
 
     const catId = categoryOptions.length > 0 ? categoryOptions[0].id : null;
@@ -556,7 +667,7 @@ export default function TeacherDashboard({ profile }) {
       console.warn('Note on Supabase insert:', err);
     }
 
-    // 2. Insert to localTeacherModules for cross-dashboard visibility & activity monitoring
+    // 2. Insert to localTeacherModules for cross-dashboard visibility & MSWD activity monitoring
     const newMod = {
       id: dbMaterialId || ('mod-' + Date.now()),
       assignment_id: activeAssignmentId || null,
@@ -567,16 +678,28 @@ export default function TeacherDashboard({ profile }) {
       barangay: myBarangay || profile?.barangay || 'Manolo Fortich',
       level: uploadCurriculumLevel === 'PRE-K1' ? 'Pre-K1' : 'Pre-K2',
       quarter: parseInt(uploadQuarter, 10),
-      week: uploadWeek,
-      sub_theme: uploadSubTheme,
-      theme: uploadTheme,
-      module_type: uploadType === 'activity' ? 'Activity Worksheet' : uploadType === 'file' ? 'Official PDF Document' : uploadType === 'video' ? 'Video Lesson' : uploadType === 'image' ? 'Worksheet Image' : 'Reading Story',
+      week: uploadWeek || 'Week 1',
+      sub_theme: uploadSubTheme || '',
+      theme: uploadTheme || '',
+      module_type:
+        uploadType === 'activity'
+          ? 'Activity Worksheet'
+          : uploadType === 'file'
+          ? 'Official PDF Document'
+          : uploadType === 'video'
+          ? 'Video Lesson'
+          : uploadType === 'image'
+          ? 'Worksheet Image'
+          : 'Reading Story',
       file_type: effectiveFileType,
       file_size: effectiveFileSize,
       file_name: effectiveFileName,
       upload_date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
       status: 'Pending Review',
       verified_by_mswd: false,
+      posted_to_students: false,
+      target_student_id: null,
+      target_student_name: null,
       mswd_comments: '',
       description: uploadDescription.trim() || `${uploadCurriculumLevel} ${uploadWeek} ECCD learning activity on ${uploadSubTheme}`,
       content_url: effectiveUrl,
@@ -618,8 +741,8 @@ export default function TeacherDashboard({ profile }) {
     loadMyMaterials();
     setUploadMsg({
       text: savedToSupabase
-        ? '✅ Malampusong na-upload sa Supabase! Nagpaabot og review ug pag-apruba sa MSWDO Admin una makita sa Student Dashboard.'
-        : '✅ Activity / file posted! Pending MSWDO Admin review & approval before being added to Student Dashboard.',
+        ? '✅ Activity submitted to MSWD! Once MSWD approves it, you can post it to your Student Dashboard.'
+        : '✅ Activity submitted to MSWD for review! Once approved, you can post it to your Student Dashboard.',
       type: 'ok',
     });
     setTimeout(() => {
@@ -628,7 +751,127 @@ export default function TeacherDashboard({ profile }) {
       setActiveAssignmentId(null);
       setActiveAssignmentDeadline(null);
       handleRemoveSelectedFile();
-    }, 1500);
+    }, 1400);
+  }
+
+  // Open modal to post an MSWD-approved activity to a specific Student Dashboard (or all learners in class)
+  const handleOpenPostToStudentModal = (mat) => {
+    setPostingMaterial(mat);
+    setSelectedTargetStudentId(mat.target_student_id || 'all');
+    setPostModalMsg({ text: '', type: '' });
+  };
+
+  // Confirm posting the MSWD-approved activity to the selected Student Dashboard
+  async function handleConfirmPostToStudent(e) {
+    if (e) e.preventDefault();
+    if (!postingMaterial) return;
+
+    const chosenLearner =
+      selectedTargetStudentId !== 'all'
+        ? myLearners.find((l) => String(l.id) === String(selectedTargetStudentId))
+        : null;
+
+    const targetName =
+      selectedTargetStudentId === 'all'
+        ? `All Class Learners (${myCdcName || 'My CDC'})`
+        : chosenLearner?.full_name || 'Selected Student';
+
+    const nowFormatted = new Date().toLocaleDateString('en-US', {
+      month: 'short',
+      day: '2-digit',
+      year: 'numeric',
+    });
+
+    // 1. Update localTeacherModules (or insert if it came from Supabase only)
+    let foundInLocal = false;
+    const updatedLocal = localTeacherModules.map((m) => {
+      if (m.id === postingMaterial.id || m.title === postingMaterial.title) {
+        foundInLocal = true;
+        return {
+          ...m,
+          status: 'Approved',
+          verified_by_mswd: true,
+          posted_to_students: true,
+          target_student_id: selectedTargetStudentId,
+          target_student_name: targetName,
+          posted_at: nowFormatted,
+        };
+      }
+      return m;
+    });
+
+    if (!foundInLocal) {
+      updatedLocal.unshift({
+        id: postingMaterial.id,
+        assignment_id: postingMaterial.assignment_id || null,
+        title: postingMaterial.title,
+        teacher_name: myFullName || profile?.full_name || 'Teacher',
+        teacher_id: currentUserId,
+        cdc_name: myCdcName || profile?.cdc_name || 'Manolo Fortich CDC',
+        barangay: myBarangay || profile?.barangay || 'Manolo Fortich',
+        level: postingMaterial.level || 'Pre-K1',
+        quarter: postingMaterial.quarter || 1,
+        week: postingMaterial.week || 'Week 1',
+        sub_theme: postingMaterial.sub_theme || '',
+        theme: postingMaterial.theme || '',
+        module_type: postingMaterial.formatLabel || 'Activity Worksheet',
+        type: 'activity',
+        status: 'Approved',
+        verified_by_mswd: true,
+        posted_to_students: true,
+        target_student_id: selectedTargetStudentId,
+        target_student_name: targetName,
+        posted_at: nowFormatted,
+        description: postingMaterial.content_text || '',
+        content_url: postingMaterial.content_url || null,
+        upload_date: postingMaterial.created_at || nowFormatted,
+        is_custom_teacher_upload: true,
+      });
+    }
+
+    setLocalTeacherModules(updatedLocal);
+    try {
+      localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(updatedLocal));
+      window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updatedLocal }));
+    } catch {}
+
+    // 2. Also update Supabase materials metadata if applicable
+    if (!postingMaterial.isLocal) {
+      try {
+        const updatedMeta = {
+          ...(postingMaterial.raw_meta || {}),
+          __metadata: true,
+          description: postingMaterial.content_text || '',
+          teacher_name: myFullName || profile?.full_name || 'Teacher',
+          cdc_name: myCdcName || profile?.cdc_name || 'Manolo Fortich CDC',
+          barangay: myBarangay || profile?.barangay || 'Manolo Fortich',
+          level: postingMaterial.level || 'Pre-K1',
+          quarter: postingMaterial.quarter || 1,
+          week: postingMaterial.week || 'Week 1',
+          sub_theme: postingMaterial.sub_theme || '',
+          theme: postingMaterial.theme || '',
+          posted_to_students: true,
+          target_student_id: selectedTargetStudentId,
+          target_student_name: targetName,
+          posted_at: nowFormatted,
+        };
+        await supabase
+          .from('materials')
+          .update({ content_text: JSON.stringify(updatedMeta) })
+          .eq('id', postingMaterial.id);
+        loadMyMaterials();
+      } catch {}
+    }
+
+    setPostModalMsg({
+      text: `🚀 Activity successfully posted to Student Dashboard (${targetName})!`,
+      type: 'ok',
+    });
+
+    setTimeout(() => {
+      setPostingMaterial(null);
+      setPostModalMsg({ text: '', type: '' });
+    }, 1100);
   }
 
   // Delete material
@@ -642,6 +885,7 @@ export default function TeacherDashboard({ profile }) {
     setLocalTeacherModules(updated);
     try {
       localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updated }));
     } catch {
       // Ignored
     }
@@ -875,7 +1119,6 @@ export default function TeacherDashboard({ profile }) {
 
     let supabaseSaved = false;
 
-    // 1. Update Supabase Auth user metadata (guaranteed cross-device persistence!)
     try {
       const { error: authErr } = await supabase.auth.updateUser({
         data: {
@@ -891,7 +1134,6 @@ export default function TeacherDashboard({ profile }) {
       console.warn('Note on Supabase auth.updateUser:', err);
     }
 
-    // 2. Update Supabase profiles table (always updates valid columns full_name & barangay)
     try {
       const { error: profError } = await supabase
         .from('profiles')
@@ -902,7 +1144,6 @@ export default function TeacherDashboard({ profile }) {
         .eq('id', currentUserId);
       if (!profError) supabaseSaved = true;
 
-      // Also attempt updating cdc_name and contact_number if columns exist in profiles
       try {
         await supabase
           .from('profiles')
@@ -911,14 +1152,11 @@ export default function TeacherDashboard({ profile }) {
             contact_number: updatedTeacher.contact_number,
           })
           .eq('id', currentUserId);
-      } catch {
-        // Ignored if columns not yet added to profiles table
-      }
+      } catch {}
     } catch (err) {
       console.warn('Note on Supabase profiles update:', err);
     }
 
-    // 3. Upsert Supabase teachers table
     try {
       const teacherPayload = {
         id: currentUserId,
@@ -935,7 +1173,6 @@ export default function TeacherDashboard({ profile }) {
       console.warn('Note on Supabase teachers upsert:', err);
     }
 
-    // 4. Save to localStorage overrides so it's instantly available locally
     try {
       const overrides = JSON.parse(localStorage.getItem('earlylearn_teacher_profiles_override') || '{}');
       overrides[currentUserId] = updatedTeacher;
@@ -947,7 +1184,6 @@ export default function TeacherDashboard({ profile }) {
       console.warn('Failed saving local overrides:', err);
     }
 
-    // 5. Update component state and profile object
     if (profile) {
       profile.full_name = updatedTeacher.full_name;
       profile.barangay = updatedTeacher.barangay;
@@ -956,11 +1192,9 @@ export default function TeacherDashboard({ profile }) {
     }
     setMyCdcName(finalCdc);
 
-    // 6. Broadcast to Admin Dashboard & other tabs
     window.dispatchEvent(new CustomEvent('earlylearn_teachers_updated', { detail: updatedTeacher }));
     window.dispatchEvent(new CustomEvent('earlylearn_teacher_profile_saved', { detail: updatedTeacher }));
 
-    // 7. Reload learners for newly assigned CDC
     loadMyLearners();
 
     setProfileSaving(false);
@@ -988,7 +1222,6 @@ export default function TeacherDashboard({ profile }) {
       // ignore
     }
 
-    // Check local profile override first
     let override = null;
     try {
       const overrides = JSON.parse(localStorage.getItem('earlylearn_teacher_profiles_override') || '{}');
@@ -1002,7 +1235,6 @@ export default function TeacherDashboard({ profile }) {
     const teacherName = profile?.full_name || '';
     const cleanTeacherName = teacherName.replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase();
 
-    // Check if matched in real baseline teachers
     const baselineMatch = realTeachersList.find(
       (t) =>
         t.id === currentUserId ||
@@ -1037,7 +1269,6 @@ export default function TeacherDashboard({ profile }) {
       setMyBarangay(effectiveBarangay);
     }
 
-    // Load learners for this teacher's assigned barangay & CDC
     try {
       const learners = await getLearnersForTeacher({
         teacherId: currentUserId,
@@ -1054,7 +1285,7 @@ export default function TeacherDashboard({ profile }) {
     } finally {
       setLearnersLoading(false);
     }
-  }, [currentUserId, profile, myBarangay]);
+  }, [currentUserId, profile, myBarangay, myCdcName]);
 
   // Live synchronization: auto-reload learners when a student signs up or logs in
   useEffect(() => {
@@ -1077,7 +1308,6 @@ export default function TeacherDashboard({ profile }) {
 
   // Live synchronization: auto-reload admin-assigned curriculum topics and modules
   useEffect(() => {
-    // Immediate mount cleanup of any legacy dummy assignments
     setAssignments(getCleanCurriculumAssignments());
 
     function handleAssignmentsSync(e) {
@@ -1110,51 +1340,12 @@ export default function TeacherDashboard({ profile }) {
     };
   }, []);
 
-  // Filter assignments targeted to this logged-in teacher / CDC / Barangay (Real MSWDO deployments only)
-  const myAssignedTopics = useMemo(() => {
-    const teacherName = (myFullName || profile?.full_name || '').toLowerCase();
-    const cleanName = teacherName.replace(/\s*\(.*?\)\s*/g, '').trim();
-    const brgy = (myBarangay || profile?.barangay || '').toLowerCase();
-    const cdc = (myCdcName || profile?.cdc_name || '').toLowerCase();
-
-    return assignments.filter((a) => {
-      // Must be an authentic MSWDO curriculum deployment (no placeholder or dummy fallback topics)
-      if (
-        !a ||
-        !a.topicTitle ||
-        a.topicTitle === 'Prescribed ECCD Topic' ||
-        a.topicTitle === 'Curriculum Learning Topic' ||
-        a.assignedDate === '2026-10-17' ||
-        a.isDummy ||
-        /^asg-0[1-9]|^asg-1[0-5]|^asg-07-.*|^asg-test-.*$/.test(a.id)
-      ) {
-        return false;
-      }
-
-      const aTeacher = (a.teacherName || '').toLowerCase();
-      const aBrgy = (a.barangay || '').toLowerCase();
-      const aCdc = (a.cdcName || '').toLowerCase();
-
-      const idMatch = a.teacherId && (a.teacherId === currentUserId || a.teacherId === profile?.id);
-      const nameMatch = cleanName && (aTeacher.includes(cleanName) || cleanName.includes(aTeacher));
-      const cdcMatch = cdc && (aCdc.includes(cdc) || cdc.includes(aCdc));
-      const brgyMatch = brgy && (aBrgy.includes(brgy) || brgy.includes(aBrgy));
-      const isUniversal =
-        a.targetType === 'all' ||
-        a.barangay === 'all' ||
-        a.cdcName === 'All CDCs' ||
-        a.teacherName === 'All Teachers';
-
-      return idMatch || nameMatch || cdcMatch || brgyMatch || isUniversal;
-    });
-  }, [assignments, profile, currentUserId, myFullName, myBarangay, myCdcName]);
-
   // Enriched topics with deadline calculation and active filter matching
   const filteredAssignedTopics = useMemo(() => {
     return myAssignedTopics
       .map((asg) => {
         const isPastDeadline = Boolean(asg.deadline && new Date(asg.deadline + 'T23:59:59') < new Date());
-        const matchingUpload = localTeacherModules.find(
+        const matchingUpload = combinedUploadedMaterials.find(
           (m) =>
             m.assignment_id === asg.id ||
             (asg.topicTitle && m.sub_theme && m.sub_theme.toLowerCase() === asg.topicTitle.toLowerCase()) ||
@@ -1170,22 +1361,18 @@ export default function TeacherDashboard({ profile }) {
         };
       })
       .filter((asg) => {
-        // Status filter
         if (topicStatusFilter === 'pending' && (asg.isCompleted || asg.isPastDeadline)) return false;
         if (topicStatusFilter === 'completed' && !asg.isCompleted) return false;
         if (topicStatusFilter === 'expired' && (!asg.isPastDeadline || asg.isCompleted)) return false;
 
-        // Level filter
         if (topicLevelFilter !== 'all' && asg.level?.toLowerCase() !== topicLevelFilter.toLowerCase()) return false;
 
-        // Quarter filter
         if (topicQuarterFilter !== 'all') {
           const qInt = parseInt(topicQuarterFilter, 10);
           const hasQ = asg.quarters ? asg.quarters.includes(qInt) : asg.quarter === qInt;
           if (!hasQ) return false;
         }
 
-        // Search query
         if (topicSearchQuery.trim()) {
           const q = topicSearchQuery.toLowerCase();
           const match =
@@ -1201,7 +1388,7 @@ export default function TeacherDashboard({ profile }) {
 
         return true;
       });
-  }, [myAssignedTopics, localTeacherModules, topicStatusFilter, topicLevelFilter, topicQuarterFilter, topicSearchQuery]);
+  }, [myAssignedTopics, combinedUploadedMaterials, topicStatusFilter, topicLevelFilter, topicQuarterFilter, topicSearchQuery]);
 
   // Aggregate counts for assigned topics
   const assignedCounts = useMemo(() => {
@@ -1211,7 +1398,7 @@ export default function TeacherDashboard({ profile }) {
 
     myAssignedTopics.forEach((asg) => {
       const isPast = Boolean(asg.deadline && new Date(asg.deadline + 'T23:59:59') < new Date());
-      const hasUpload = localTeacherModules.some(
+      const hasUpload = combinedUploadedMaterials.some(
         (m) =>
           m.assignment_id === asg.id ||
           (asg.topicTitle && m.sub_theme && m.sub_theme.toLowerCase() === asg.topicTitle.toLowerCase()) ||
@@ -1225,7 +1412,7 @@ export default function TeacherDashboard({ profile }) {
     });
 
     return { total: myAssignedTopics.length, pending, completed, expired };
-  }, [myAssignedTopics, localTeacherModules]);
+  }, [myAssignedTopics, combinedUploadedMaterials]);
 
   useEffect(() => {
     loadCategoryOptions();
@@ -1245,8 +1432,10 @@ export default function TeacherDashboard({ profile }) {
     loadMyLearners,
   ]);
 
-  const statusPillKind = (s) => ({ approved: 'checked', pending: 'submitted', rejected: 'submitted' }[s] || 'checked');
-  const statusLabel = (s) => (s === 'rejected' ? '❌ rejected' : s || 'approved');
+  const approvedReadyToPost = useMemo(
+    () => combinedUploadedMaterials.filter((m) => m.status === 'Approved' && !m.posted_to_students),
+    [combinedUploadedMaterials]
+  );
 
   return (
     <DashboardLayout
@@ -1268,12 +1457,91 @@ export default function TeacherDashboard({ profile }) {
     >
       {/* OVERVIEW */}
       {activeTab === 'overview' && (
-        <div className={cardBox}>
-          <h3 className={cardBoxTitle}>Welcome, Teacher!</h3>
-          <p className="text-sm text-[#5c5342]">
-            Use the menu on the left to upload materials/activities, post announcements, and
-            check student submissions.
-          </p>
+        <div className="space-y-5">
+          <div className={cardBox}>
+            <h3 className={cardBoxTitle}>Welcome, Teacher {myFullName || profile?.full_name || ''}!</h3>
+            <p className="text-sm text-[#5c5342]">
+              Comply with the topics assigned by MSWD, wait for MSWD approval, and then post approved activities directly to your Student Dashboard.
+            </p>
+
+            {/* Quick Workflow Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-4">
+              <div
+                onClick={() => setActiveTab('assigned_topics')}
+                className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 cursor-pointer hover:bg-amber-50 transition-colors"
+              >
+                <div className="text-[11px] font-bold text-amber-800 uppercase">1. MSWD Assigned Topics</div>
+                <div className="text-2xl font-bold text-amber-950 mt-1">{myAssignedTopics.length}</div>
+                <div className="text-[11px] text-amber-700 mt-0.5">{assignedCounts.pending} open to comply →</div>
+              </div>
+
+              <div
+                onClick={() => {
+                  setUploadedFilterStatus('pending');
+                  setActiveTab('upload');
+                }}
+                className="p-4 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-slate-100/70 transition-colors"
+              >
+                <div className="text-[11px] font-bold text-slate-600 uppercase">2. Pending MSWD Decision</div>
+                <div className="text-2xl font-bold text-slate-900 mt-1">
+                  {combinedUploadedMaterials.filter((m) => m.status === 'Pending Review').length}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">Awaiting MSWD review →</div>
+              </div>
+
+              <div
+                onClick={() => {
+                  setUploadedFilterStatus('approved');
+                  setActiveTab('upload');
+                }}
+                className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 cursor-pointer hover:bg-emerald-50 transition-colors"
+              >
+                <div className="text-[11px] font-bold text-emerald-800 uppercase">3. Approved by MSWD</div>
+                <div className="text-2xl font-bold text-emerald-900 mt-1">
+                  {combinedUploadedMaterials.filter((m) => m.status === 'Approved').length}
+                </div>
+                <div className="text-[11px] text-emerald-700 mt-0.5">
+                  {approvedReadyToPost.length} ready to post to students →
+                </div>
+              </div>
+
+              <div
+                onClick={() => {
+                  setUploadedFilterStatus('posted');
+                  setActiveTab('upload');
+                }}
+                className="p-4 rounded-xl bg-blue-50/70 border border-blue-200 cursor-pointer hover:bg-blue-50 transition-colors"
+              >
+                <div className="text-[11px] font-bold text-blue-800 uppercase">4. Posted to Students</div>
+                <div className="text-2xl font-bold text-blue-900 mt-1">
+                  {combinedUploadedMaterials.filter((m) => m.posted_to_students).length}
+                </div>
+                <div className="text-[11px] text-blue-700 mt-0.5">Live on Student Dashboard →</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Ready-to-Post Banner when MSWD Approves an Activity */}
+          {approvedReadyToPost.length > 0 && (
+            <div className="bg-emerald-50 border border-emerald-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+              <div>
+                <div className="text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>✅ MSWD Approved Your Complied Activity!</span>
+                </div>
+                <p className="text-xs text-emerald-800 mt-1 m-0">
+                  You have <strong>{approvedReadyToPost.length}</strong> MSWD-approved{' '}
+                  {approvedReadyToPost.length === 1 ? 'activity' : 'activities'} ready to post to a specific Student Dashboard or your entire CDC class.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleOpenPostToStudentModal(approvedReadyToPost[0])}
+                className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs cursor-pointer shrink-0"
+              >
+                📤 Post to Student Dashboard →
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1291,8 +1559,7 @@ export default function TeacherDashboard({ profile }) {
                 Assigned Topics &amp; Tasks
               </h3>
               <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl">
-                Official curriculum topics and activities assigned by MSWDO Manolo Fortich with required deadlines.
-                Review your tasks, decide when to complete them, and upload your activities or files before the deadline closes.
+                Official curriculum topics assigned by MSWDO Manolo Fortich. Upload your complied activity for MSWD review; once MSWD approves it, post it to your Student Dashboard.
               </p>
             </div>
 
@@ -1333,12 +1600,12 @@ export default function TeacherDashboard({ profile }) {
 
             <div className="bg-white p-4 rounded-xl border border-card-border shadow-xs">
               <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">
-                Completed &amp; Submitted
+                Complied &amp; Submitted
               </div>
               <div className="text-2xl font-bold text-emerald-800 mt-1">
                 {assignedCounts.completed}
               </div>
-              <div className="text-[10.5px] text-emerald-600 mt-0.5">Verified / Live</div>
+              <div className="text-[10.5px] text-emerald-600 mt-0.5">Sent to MSWD</div>
             </div>
 
             <div className="bg-white p-4 rounded-xl border border-card-border shadow-xs">
@@ -1354,7 +1621,6 @@ export default function TeacherDashboard({ profile }) {
 
           {/* Controls: Easy Navigation Status Tabs, Level & Quarter Selector, Search */}
           <div className="bg-white p-4 rounded-2xl border border-card-border shadow-xs space-y-3.5">
-            {/* Status Filter Tabs */}
             <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3">
               <button
                 type="button"
@@ -1395,7 +1661,7 @@ export default function TeacherDashboard({ profile }) {
                     : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
                 }`}
               >
-                <span>✅ Completed</span>
+                <span>✅ Complied</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${topicStatusFilter === 'completed' ? 'bg-white/20 text-white' : 'bg-emerald-200 text-emerald-900'}`}>
                   {assignedCounts.completed}
                 </span>
@@ -1417,9 +1683,7 @@ export default function TeacherDashboard({ profile }) {
               </button>
             </div>
 
-            {/* Secondary Toolbar: Level, Quarter, Search */}
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
-              {/* Level Selector */}
               <div>
                 <select
                   value={topicLevelFilter}
@@ -1432,7 +1696,6 @@ export default function TeacherDashboard({ profile }) {
                 </select>
               </div>
 
-              {/* Quarter Selector */}
               <div>
                 <select
                   value={topicQuarterFilter}
@@ -1447,7 +1710,6 @@ export default function TeacherDashboard({ profile }) {
                 </select>
               </div>
 
-              {/* Instant Search Bar */}
               <div className="sm:col-span-2 relative">
                 <IconSearch className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -1466,6 +1728,7 @@ export default function TeacherDashboard({ profile }) {
             {filteredAssignedTopics.map((item) => {
               const weekLabel = item.week || (Array.isArray(item.weeks) ? item.weeks.join(', ') : 'Week 1');
               const quarterNum = item.quarter || (item.quarters && item.quarters[0]) || 1;
+              const matchedMod = item.matchingUpload;
 
               return (
                 <div
@@ -1479,9 +1742,7 @@ export default function TeacherDashboard({ profile }) {
                   }`}
                 >
                   <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                    {/* Left: Topic Information */}
                     <div className="space-y-2 flex-1">
-                      {/* Badges Row */}
                       <div className="flex flex-wrap items-center gap-2">
                         <span
                           className={`text-[10.5px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
@@ -1497,11 +1758,27 @@ export default function TeacherDashboard({ profile }) {
                           Quarter {quarterNum} • {weekLabel}
                         </span>
 
-                        {item.isCompleted ? (
-                          <span className="text-[10.5px] px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
-                            <span>✓</span>
-                            <span>Completed &amp; Submitted</span>
-                          </span>
+                        {matchedMod ? (
+                          matchedMod.status === 'Approved' ? (
+                            <span className="text-[10.5px] px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                              <span>✅</span>
+                              <span>
+                                {matchedMod.posted_to_students
+                                  ? `Approved & Posted (${matchedMod.target_student_name || 'Students'})`
+                                  : 'Approved by MSWD'}
+                              </span>
+                            </span>
+                          ) : matchedMod.status === 'Rejected' ? (
+                            <span className="text-[10.5px] px-2.5 py-0.5 rounded-full font-bold bg-rose-100 text-rose-800 border border-rose-300 flex items-center gap-1">
+                              <span>❌</span>
+                              <span>Rejected by MSWD</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10.5px] px-2.5 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+                              <span>⏳</span>
+                              <span>Complied • Pending MSWD Decision</span>
+                            </span>
+                          )
                         ) : item.isPastDeadline ? (
                           <span className="text-[10.5px] px-2.5 py-0.5 rounded-full font-bold bg-rose-100 text-rose-800 border border-rose-300 flex items-center gap-1">
                             <span>⚠️</span>
@@ -1510,17 +1787,15 @@ export default function TeacherDashboard({ profile }) {
                         ) : (
                           <span className="text-[10.5px] px-2.5 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
                             <span>⏳</span>
-                            <span>Open for Upload</span>
+                            <span>Open for Compliance</span>
                           </span>
                         )}
                       </div>
 
-                      {/* Topic Title */}
                       <h4 className="text-lg font-bold text-slate-900 m-0">
                         {item.topicTitle || item.subTheme || 'Prescribed ECCD Topic'}
                       </h4>
 
-                      {/* Theme & Competency Focus */}
                       <div className="text-xs text-slate-600 flex flex-wrap items-center gap-x-2 gap-y-1">
                         <span className="font-semibold text-amber-900">
                           Focus: {item.subTheme || item.topicTitle}
@@ -1531,7 +1806,6 @@ export default function TeacherDashboard({ profile }) {
                         </span>
                       </div>
 
-                      {/* CDC and Barangay info */}
                       <div className="text-[11.5px] text-slate-500 flex items-center gap-1.5">
                         <span className="font-semibold text-slate-700">🏫 {item.cdcName}</span>
                         <span>•</span>
@@ -1544,7 +1818,6 @@ export default function TeacherDashboard({ profile }) {
                         )}
                       </div>
 
-                      {/* Suggested DepEd ECCD Activity Instructions */}
                       {(item.suggestedActivities || item.suggestedContent) && (
                         <div className="p-3 rounded-xl bg-[#FAF5EC] border border-[#EBE1CF] text-xs text-[#524430] leading-relaxed mt-2">
                           <span className="font-bold block text-slate-800 mb-0.5">
@@ -1554,7 +1827,6 @@ export default function TeacherDashboard({ profile }) {
                         </div>
                       )}
 
-                      {/* Admin Notes */}
                       {item.notes && (
                         <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-900">
                           <strong>Note from MSWDO Admin:</strong> {item.notes}
@@ -1562,9 +1834,7 @@ export default function TeacherDashboard({ profile }) {
                       )}
                     </div>
 
-                    {/* Right: Deadline Indicator & Action Button */}
                     <div className="flex flex-col items-start md:items-end justify-between gap-3 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
-                      {/* Deadline Display */}
                       <div className="text-left md:text-right">
                         <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                           Submission Deadline
@@ -1583,43 +1853,52 @@ export default function TeacherDashboard({ profile }) {
                               <span>📅</span>
                               <span>{item.deadline}</span>
                             </span>
-                            <div className="text-[10.5px] mt-1 font-semibold">
-                              {item.isCompleted ? (
-                                <span className="text-emerald-700">✓ Submitted to MSWDO</span>
-                              ) : item.isPastDeadline ? (
-                                <span className="text-rose-600">⚠️ Deadline has expired</span>
-                              ) : (
-                                <span className="text-amber-700">⏳ You decide when to upload</span>
-                              )}
-                            </div>
                           </div>
                         ) : (
                           <div className="text-xs text-slate-400 italic mt-1">
-                            Flexible schedule (No hard deadline)
+                            Flexible schedule
                           </div>
                         )}
                       </div>
 
-                      {/* Action Button: Locked if deadline past! */}
                       <div>
                         {item.isPastDeadline && !item.isCompleted ? (
-                          <div className="flex flex-col items-start md:items-end gap-1">
+                          <button
+                            type="button"
+                            disabled
+                            className="px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-300 text-slate-400 font-bold text-xs cursor-not-allowed flex items-center gap-1.5 opacity-60"
+                          >
+                            <span>🔒 Upload Closed (Deadline Passed)</span>
+                          </button>
+                        ) : matchedMod && matchedMod.status === 'Approved' ? (
+                          <div className="flex flex-wrap items-center gap-2">
                             <button
                               type="button"
-                              disabled
-                              className="px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-300 text-slate-400 font-bold text-xs cursor-not-allowed flex items-center gap-1.5 opacity-60 shadow-none"
-                              title="The deadline has already passed. Uploading is disabled for this assignment."
+                              onClick={() => handleOpenPostToStudentModal(matchedMod)}
+                              className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
                             >
-                              <span>🔒 Upload Closed (Deadline Passed)</span>
+                              <span>📤 {matchedMod.posted_to_students ? 'Repost / Change Student' : 'Post to Student Dashboard'}</span>
                             </button>
-                            <span className="text-[10px] text-rose-600 font-bold">
-                              Submission window expired on {item.deadline}
-                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setActiveTab('upload')}
+                              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
+                            >
+                              View →
+                            </button>
                           </div>
+                        ) : matchedMod && matchedMod.status === 'Rejected' ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenUploadForAssignedTopic(item)}
+                            className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                          >
+                            <span>🔄 Re-upload Revised Activity →</span>
+                          </button>
                         ) : item.isCompleted ? (
                           <div className="flex items-center gap-2">
-                            <span className="px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-1">
-                              <span>✓ Submitted</span>
+                            <span className="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold">
+                              ⏳ Pending MSWD Approval
                             </span>
                             <button
                               type="button"
@@ -1635,7 +1914,7 @@ export default function TeacherDashboard({ profile }) {
                             onClick={() => handleOpenUploadForAssignedTopic(item)}
                             className="px-4 py-2.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
                           >
-                            <span>📤 Upload Activity or File →</span>
+                            <span>📤 Comply &amp; Upload Activity →</span>
                           </button>
                         )}
                       </div>
@@ -1655,23 +1934,9 @@ export default function TeacherDashboard({ profile }) {
                 </div>
                 <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
                   {myAssignedTopics.length === 0
-                    ? 'When MSWDO Manolo Fortich deploys a curriculum topic, lesson plan requirement, or submission task with a deadline for you or your Day Care Center, it will automatically appear here in real time.'
+                    ? 'When MSWDO Manolo Fortich assigns a curriculum topic for you or your Child Development Center, it will automatically appear here and in your Uploaded Materials choices.'
                     : 'Try adjusting your status filter or search query.'}
                 </p>
-                {myAssignedTopics.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTopicStatusFilter('all');
-                      setTopicLevelFilter('all');
-                      setTopicQuarterFilter('all');
-                      setTopicSearchQuery('');
-                    }}
-                    className="text-xs text-accent font-bold hover:underline cursor-pointer pt-1 inline-block"
-                  >
-                    Reset Filters
-                  </button>
-                )}
               </div>
             )}
           </div>
@@ -1768,853 +2033,345 @@ export default function TeacherDashboard({ profile }) {
         />
       )}
 
-      {/* UPLOADED MATERIALS */}
+      {/* UPLOADED MATERIALS — Concise & Easy to Navigate, Based Strictly on MSWD Assigned Topics */}
       {activeTab === 'upload' && (
-        <div className="space-y-5">
+        <div className="space-y-4">
           {/* Header Card */}
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-semibold">
-                <IconMaterials className="w-3.5 h-3.5 text-slate-500" />
-                <span>Child Development Center Materials Repository</span>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold">
+                <IconMaterials className="w-3.5 h-3.5 text-amber-700" />
+                <span>MSWD Topic Compliance &amp; Student Activity Publishing</span>
               </div>
-              <h3 className="text-xl font-bold text-slate-900 m-0 mt-2 tracking-tight">
-                Uploaded Materials &amp; Activities
+              <h3 className="text-xl font-bold text-slate-900 m-0 mt-1.5 tracking-tight">
+                Uploaded Materials &amp; Complied Activities
               </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Curriculum-aligned learning materials, activities, and worksheets created for your learners.
+              <p className="text-xs text-slate-500 mt-0.5">
+                1. Select an MSWD-assigned topic to upload • 2. MSWD views &amp; decides (Approve / Reject) • 3. Post approved activity to Student Dashboard.
               </p>
             </div>
 
             <button
               type="button"
               onClick={handleOpenNewUpload}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-colors self-start sm:self-auto cursor-pointer shrink-0"
             >
               <IconUpload className="w-4 h-4" />
-              <span>Upload New Material</span>
+              <span>Upload for MSWD Topic</span>
             </button>
           </div>
 
-          {/* Quick Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="bg-white p-4 rounded-xl border border-slate-200">
-              <div className="text-xs font-medium text-slate-500 uppercase">Total Uploaded</div>
-              <div className="text-2xl font-bold text-slate-900 mt-1">
-                {combinedUploadedMaterials.length}
+          {/* Concise MSWD Assigned Topics Bar — 1-Click Upload per MSWD Topic */}
+          <div className="bg-white p-4 rounded-2xl border border-amber-200 shadow-xs space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <span>📌</span>
+                <span>MSWD Assigned Topics for You ({mswdTopicChoices.length})</span>
               </div>
-            </div>
-            <div className="bg-white p-4 rounded-xl border border-slate-200">
-              <div className="text-xs font-medium text-emerald-700 uppercase">Live to Students</div>
-              <div className="text-2xl font-bold text-emerald-800 mt-1">
-                {combinedUploadedMaterials.filter((m) => m.status === 'Approved' || m.status === 'approved').length}
-              </div>
-            </div>
-            <div className="bg-white p-4 rounded-xl border border-slate-200">
-              <div className="text-xs font-medium text-amber-700 uppercase">Pending Review</div>
-              <div className="text-2xl font-bold text-amber-800 mt-1">
-                {combinedUploadedMaterials.filter((m) => m.status !== 'Approved' && m.status !== 'approved').length}
-              </div>
-            </div>
-          </div>
-
-          {/* Filter Bar */}
-          <div className="p-3 bg-white border border-slate-200 rounded-xl flex flex-wrap items-center gap-2.5 text-xs">
-            <span className="font-semibold text-slate-700">Filter Materials:</span>
-
-            {/* Level Filter */}
-            <select
-              value={uploadedFilterLevel}
-              onChange={(e) => setUploadedFilterLevel(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-700 outline-none"
-            >
-              <option value="all">All Levels</option>
-              <option value="PRE-K1">PRE-K 1 (3.11 y/o)</option>
-              <option value="PRE-K2">PRE-K 2 (4.11 y/o)</option>
-            </select>
-
-            {/* Quarter Filter */}
-            <select
-              value={uploadedFilterQuarter}
-              onChange={(e) => setUploadedFilterQuarter(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-700 outline-none"
-            >
-              <option value="all">All Quarters</option>
-              <option value="1">Quarter 1</option>
-              <option value="2">Quarter 2</option>
-              <option value="3">Quarter 3</option>
-              <option value="4">Quarter 4</option>
-            </select>
-
-            {/* Type Filter */}
-            <select
-              value={uploadedFilterType}
-              onChange={(e) => setUploadedFilterType(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-700 outline-none"
-            >
-              <option value="all">All Types</option>
-              <option value="activity">✏️ Activity Worksheet</option>
-              <option value="video">🎬 Video Lesson</option>
-              <option value="image">🖼️ Worksheet / Image</option>
-              <option value="text">📖 Reading Story</option>
-            </select>
-
-            {/* Search Input */}
-            <div className="relative flex-1 min-w-[200px]">
-              <input
-                type="text"
-                placeholder="Search uploaded materials or lesson topic..."
-                value={uploadedSearch}
-                onChange={(e) => setUploadedSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs outline-none"
-              />
-              <IconSearch className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <span className="text-[11px] text-slate-500">
+                Click any MSWD topic below to immediately upload your complied activity:
+              </span>
             </div>
 
-            {(uploadedFilterLevel !== 'all' || uploadedFilterQuarter !== 'all' || uploadedFilterType !== 'all' || uploadedSearch) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setUploadedFilterLevel('all');
-                  setUploadedFilterQuarter('all');
-                  setUploadedFilterType('all');
-                  setUploadedSearch('');
-                }}
-                className="text-xs text-accent hover:underline font-semibold cursor-pointer"
-              >
-                Reset
-              </button>
-            )}
-          </div>
-
-          {/* Uploaded Materials Table */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left text-xs">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
-                    <th className="px-4 py-3">Material Title &amp; ECCD Lesson</th>
-                    <th className="px-4 py-3">Curriculum Level &amp; Week</th>
-                    <th className="px-4 py-3">Format / Type</th>
-                    <th className="px-4 py-3 text-center">Status</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredUploadedMaterials.map((m) => (
-                    <tr key={m.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="px-4 py-3.5">
-                        <div className="font-bold text-slate-900 text-xs">{m.title}</div>
-                        {m.sub_theme && (
-                          <div className="text-[11px] text-amber-900 font-medium mt-0.5">
-                            Lesson Theme: {m.sub_theme}
-                          </div>
-                        )}
-                        {m.file_name && (
-                          <div className="text-[11px] text-blue-700 font-medium mt-1 flex items-center gap-1">
-                            <span>📎</span>
-                            <span className="font-semibold">{m.file_name}</span>
-                            {m.file_size && <span className="text-slate-400">({m.file_size})</span>}
-                          </div>
-                        )}
-                        {m.content_text && (
-                          <div className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
-                            {m.content_text}
-                          </div>
-                        )}
-                        {m.mswd_comments && (
-                          <div className="mt-1.5 p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-900">
-                            <span className="font-bold">💬 MSWD Review Note:</span> {m.mswd_comments}
-                          </div>
-                        )}
-                        {m.revision_notes && (
-                          <div className="mt-1.5 p-2 rounded-lg bg-rose-50 border border-rose-200 text-[11px] text-rose-900">
-                            <span className="font-bold">⚠️ MSWD Revision Note:</span> {m.revision_notes}
-                          </div>
-                        )}
-                      </td>
-
-                      <td className="px-4 py-3.5 whitespace-nowrap">
-                        <div className="flex flex-col gap-1">
-                          <span className={`inline-block px-2 py-0.5 rounded text-[10.5px] font-bold w-fit ${
-                            m.level?.toLowerCase().includes('pre-k1')
-                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                              : 'bg-blue-50 text-blue-800 border border-blue-200'
-                          }`}>
-                            {m.level?.toUpperCase().includes('PRE-K') ? m.level : 'Pre-K1'}
-                          </span>
-                          <span className="text-[11px] font-semibold text-slate-700">
-                            Quarter {m.quarter} • {m.week}
-                          </span>
-                        </div>
-                      </td>
-
-                      <td className="px-4 py-3.5 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">
-                          <span>{m.type === 'video' ? '🎬' : m.type === 'image' ? '🖼️' : m.type === 'text' ? '📖' : '✏️'}</span>
-                          <span>{m.formatLabel}</span>
-                        </span>
-                      </td>
-
-                      <td className="px-4 py-3.5 text-center whitespace-nowrap">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                          m.status === 'Approved' || m.status === 'approved' || m.verified_by_mswd
-                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                            : m.status === 'Needs Revision'
-                            ? 'bg-rose-50 text-rose-800 border border-rose-200'
-                            : 'bg-amber-50 text-amber-800 border border-amber-200'
-                        }`}>
-                          {m.status === 'Approved' || m.status === 'approved' || m.verified_by_mswd
-                            ? 'Approved by MSWD ✓'
-                            : m.status === 'Needs Revision'
-                            ? 'Needs Revision'
-                            : 'Pending MSWD Review'}
-                        </span>
-                      </td>
-
-                      <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {m.content_url && (
-                            <a
-                              href={m.content_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              download={m.file_name || undefined}
-                              className="px-2.5 py-1 rounded text-emerald-700 hover:bg-emerald-50 text-xs font-semibold transition-colors inline-flex items-center gap-1 cursor-pointer"
-                              title="View / Download Material File"
-                            >
-                              <span>👁️</span>
-                              <span>View File</span>
-                            </a>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteMaterial(m)}
-                            className="px-2.5 py-1 rounded text-red-600 hover:bg-red-50 text-xs font-medium transition-colors cursor-pointer"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredUploadedMaterials.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
-                        <div className="text-2xl mb-1">📂</div>
-                        <div className="font-semibold text-xs">No uploaded materials match your filter</div>
-                        <div className="text-[11px] text-slate-400 mt-0.5">
-                          Click "Upload New Material" or browse the Curriculum Guide to create one.
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CHILD DEVELOPMENT MONITORING */}
-      {activeTab === 'child_development' && (
-        <TeacherChildDevelopment
-          teacherProfile={profile}
-          teacherBarangay={myBarangay}
-          cdcName={myCdcName}
-          learners={myLearners}
-          onRefreshLearners={loadMyLearners}
-        />
-      )}
-
-      {/* UPLOADED MATERIALS */}
-      {activeTab === 'upload' && (
-        <div className="space-y-5">
-          {/* Header Card */}
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-semibold">
-                <IconMaterials className="w-3.5 h-3.5 text-slate-500" />
-                <span>Child Development Center Materials Repository</span>
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 m-0 mt-2 tracking-tight">
-                Uploaded Materials &amp; Activities
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Curriculum-aligned learning materials, activities, and worksheets created for your learners.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleOpenNewUpload}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
-            >
-              <IconUpload className="w-4 h-4" />
-              <span>Upload New Material</span>
-            </button>
-          </div>
-
-          {/* Quick Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="bg-white p-4 rounded-xl border border-slate-200">
-              <div className="text-xs font-medium text-slate-500 uppercase">Total Uploaded</div>
-              <div className="text-2xl font-bold text-slate-900 mt-1">
-                {combinedUploadedMaterials.length}
-              </div>
-            </div>
-            <div className="bg-white p-4 rounded-xl border border-slate-200">
-              <div className="text-xs font-medium text-emerald-700 uppercase">Live to Students</div>
-              <div className="text-2xl font-bold text-emerald-800 mt-1">
-                {combinedUploadedMaterials.filter((m) => m.status === 'Approved' || m.status === 'approved').length}
-              </div>
-            </div>
-            <div className="bg-white p-4 rounded-xl border border-slate-200">
-              <div className="text-xs font-medium text-amber-700 uppercase">Pending Review</div>
-              <div className="text-2xl font-bold text-amber-800 mt-1">
-                {combinedUploadedMaterials.filter((m) => m.status !== 'Approved' && m.status !== 'approved').length}
-              </div>
-            </div>
-          </div>
-
-          {/* Filter Bar */}
-          <div className="p-3 bg-white border border-slate-200 rounded-xl flex flex-wrap items-center gap-2.5 text-xs">
-            <span className="font-semibold text-slate-700">Filter Materials:</span>
-
-            {/* Level Filter */}
-            <select
-              value={uploadedFilterLevel}
-              onChange={(e) => setUploadedFilterLevel(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-700 outline-none"
-            >
-              <option value="all">All Levels</option>
-              <option value="PRE-K1">PRE-K 1 (3.11 y/o)</option>
-              <option value="PRE-K2">PRE-K 2 (4.11 y/o)</option>
-            </select>
-
-            {/* Quarter Filter */}
-            <select
-              value={uploadedFilterQuarter}
-              onChange={(e) => setUploadedFilterQuarter(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-700 outline-none"
-            >
-              <option value="all">All Quarters</option>
-              <option value="1">Quarter 1</option>
-              <option value="2">Quarter 2</option>
-              <option value="3">Quarter 3</option>
-              <option value="4">Quarter 4</option>
-            </select>
-
-            {/* Type Filter */}
-            <select
-              value={uploadedFilterType}
-              onChange={(e) => setUploadedFilterType(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-700 outline-none"
-            >
-              <option value="all">All Types</option>
-              <option value="activity">✏️ Activity Worksheet</option>
-              <option value="video">🎬 Video Lesson</option>
-              <option value="image">🖼️ Worksheet / Image</option>
-              <option value="text">📖 Reading Story</option>
-            </select>
-
-            {/* Search Input */}
-            <div className="relative flex-1 min-w-[200px]">
-              <input
-                type="text"
-                placeholder="Search uploaded materials or lesson topic..."
-                value={uploadedSearch}
-                onChange={(e) => setUploadedSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs outline-none"
-              />
-              <IconSearch className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-            </div>
-
-            {(uploadedFilterLevel !== 'all' || uploadedFilterQuarter !== 'all' || uploadedFilterType !== 'all' || uploadedSearch) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setUploadedFilterLevel('all');
-                  setUploadedFilterQuarter('all');
-                  setUploadedFilterType('all');
-                  setUploadedSearch('');
-                }}
-                className="text-xs text-accent hover:underline font-semibold cursor-pointer"
-              >
-                Reset
-              </button>
-            )}
-          </div>
-
-          {/* Uploaded Materials Table */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left text-xs">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
-                    <th className="px-4 py-3">Material Title &amp; ECCD Lesson</th>
-                    <th className="px-4 py-3">Curriculum Level &amp; Week</th>
-                    <th className="px-4 py-3">Format / Type</th>
-                    <th className="px-4 py-3 text-center">Status</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredUploadedMaterials.map((m) => (
-                    <tr key={m.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="px-4 py-3.5">
-                        <div className="font-bold text-slate-900 text-xs">{m.title}</div>
-                        {m.sub_theme && (
-                          <div className="text-[11px] text-amber-900 font-medium mt-0.5">
-                            Lesson Theme: {m.sub_theme}
-                          </div>
-                        )}
-                        {m.file_name && (
-                          <div className="text-[11px] text-blue-700 font-medium mt-1 flex items-center gap-1">
-                            <span>📎</span>
-                            <span className="font-semibold">{m.file_name}</span>
-                            {m.file_size && <span className="text-slate-400">({m.file_size})</span>}
-                          </div>
-                        )}
-                        {m.content_text && (
-                          <div className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
-                            {m.content_text}
-                          </div>
-                        )}
-                        {m.mswd_comments && (
-                          <div className="mt-1.5 p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-900">
-                            <span className="font-bold">💬 MSWD Review Note:</span> {m.mswd_comments}
-                          </div>
-                        )}
-                        {m.revision_notes && (
-                          <div className="mt-1.5 p-2 rounded-lg bg-rose-50 border border-rose-200 text-[11px] text-rose-900">
-                            <span className="font-bold">⚠️ MSWD Revision Note:</span> {m.revision_notes}
-                          </div>
-                        )}
-                      </td>
-
-                      <td className="px-4 py-3.5 whitespace-nowrap">
-                        <div className="flex flex-col gap-1">
-                          <span className={`inline-block px-2 py-0.5 rounded text-[10.5px] font-bold w-fit ${
-                            m.level?.toLowerCase().includes('pre-k1')
-                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                              : 'bg-blue-50 text-blue-800 border border-blue-200'
-                          }`}>
-                            {m.level?.toUpperCase().includes('PRE-K') ? m.level : 'Pre-K1'}
-                          </span>
-                          <span className="text-[11px] font-semibold text-slate-700">
-                            Quarter {m.quarter} • {m.week}
-                          </span>
-                        </div>
-                      </td>
-
-                      <td className="px-4 py-3.5 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">
-                          <span>{m.type === 'video' ? '🎬' : m.type === 'image' ? '🖼️' : m.type === 'text' ? '📖' : '✏️'}</span>
-                          <span>{m.formatLabel}</span>
-                        </span>
-                      </td>
-
-                      <td className="px-4 py-3.5 text-center whitespace-nowrap">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                          m.status === 'Approved' || m.status === 'approved' || m.verified_by_mswd
-                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                            : m.status === 'Needs Revision'
-                            ? 'bg-rose-50 text-rose-800 border border-rose-200'
-                            : 'bg-amber-50 text-amber-800 border border-amber-200'
-                        }`}>
-                          {m.status === 'Approved' || m.status === 'approved' || m.verified_by_mswd
-                            ? 'Approved by MSWD ✓'
-                            : m.status === 'Needs Revision'
-                            ? 'Needs Revision'
-                            : 'Pending MSWD Review'}
-                        </span>
-                      </td>
-
-                      <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {m.content_url && (
-                            <a
-                              href={m.content_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              download={m.file_name || undefined}
-                              className="px-2.5 py-1 rounded text-emerald-700 hover:bg-emerald-50 text-xs font-semibold transition-colors inline-flex items-center gap-1 cursor-pointer"
-                              title="View / Download Material File"
-                            >
-                              <span>👁️</span>
-                              <span>View File</span>
-                            </a>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteMaterial(m)}
-                            className="px-2.5 py-1 rounded text-red-600 hover:bg-red-50 text-xs font-medium transition-colors cursor-pointer"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredUploadedMaterials.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
-                        <div className="text-2xl mb-1">📂</div>
-                        <div className="font-semibold text-xs">No uploaded materials match your filter</div>
-                        <div className="text-[11px] text-slate-400 mt-0.5">
-                          Click "Upload New Material" or browse the Curriculum Guide to create one.
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          {/* Modal moved */}
-          {isUploadModalOpen && (
-            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-              <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full p-5 space-y-4 my-8">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900 m-0">
-                      Upload Curriculum Learning Material
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Directly assigned to official DepEd ECCD weekly lessons.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsUploadModalOpen(false)}
-                    className="p-1 rounded-md text-slate-400 hover:text-slate-600 cursor-pointer"
-                  >
-                    <IconClose className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <form onSubmit={handleSaveMaterial} className="space-y-3.5 text-xs">
-                  {/* Assigned Topic Fulfillment Banner */}
-                  {activeAssignmentId && (
-                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 flex items-center justify-between">
-                      <div>
-                        <div className="font-bold flex items-center gap-1.5">
-                          <span>🎯 Fulfilling Admin-Assigned Topic</span>
-                        </div>
-                        <div className="text-[11px] text-amber-800 mt-0.5">
-                          {activeAssignmentDeadline ? `Official Deadline: ${activeAssignmentDeadline}` : 'No deadline set'} • Upon upload, this assignment will be marked as Completed.
-                        </div>
-                      </div>
-                      <span className="px-2 py-0.5 rounded text-[10.5px] font-bold bg-amber-200/70 text-amber-950">
-                        Assigned by MSWDO
-                      </span>
-                    </div>
-                  )}
-
-                  {/* PROMINENT CHOOSE FILE & DRAG FILE DROPZONE */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="font-bold text-slate-800 flex items-center gap-1.5">
-                        <span>📎</span>
-                        <span>Upload File (Choose File &amp; Drag File)</span>
-                      </label>
-                      {uploadFileName && (
-                        <button
-                          type="button"
-                          onClick={handleRemoveSelectedFile}
-                          className="text-[11px] text-rose-600 hover:text-rose-700 font-bold hover:underline cursor-pointer"
-                        >
-                          ✕ Remove File
-                        </button>
-                      )}
-                    </div>
-
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.mp4,.zip"
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files[0]) {
-                          handleFileSelected(e.target.files[0]);
-                        }
-                      }}
-                      className="hidden"
-                    />
-
-                    {!uploadFileName ? (
-                      <div
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setIsDraggingFile(true);
-                        }}
-                        onDragEnter={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setIsDraggingFile(true);
-                        }}
-                        onDragLeave={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setIsDraggingFile(false);
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setIsDraggingFile(false);
-                          if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                            handleFileSelected(e.dataTransfer.files[0]);
-                          }
-                        }}
-                        onClick={() => fileInputRef.current?.click()}
-                        className={`border-2 border-dashed rounded-xl p-5 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-2 ${
-                          isDraggingFile
-                            ? 'border-accent bg-amber-50/70 scale-[1.01]'
-                            : 'border-slate-300 bg-slate-50/80 hover:bg-slate-100 hover:border-slate-400'
-                        }`}
-                      >
-                        <div className="w-12 h-12 rounded-2xl bg-white shadow-xs border border-slate-200 flex items-center justify-center text-2xl text-accent">
-                          {isDraggingFile ? '📥' : '☁️'}
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-800 text-xs sm:text-sm m-0">
-                            Drag &amp; drop file here, or{' '}
-                            <span className="text-accent underline font-extrabold">choose file</span>
-                          </p>
-                          <p className="text-[11px] text-slate-500 mt-1 mb-0">
-                            PDF, Word, Excel, PowerPoint, Images (PNG/JPG), MP4 Video, Worksheets
-                          </p>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            fileInputRef.current?.click();
-                          }}
-                          className="mt-1 px-4 py-1.5 rounded-lg bg-white border border-slate-300 hover:border-slate-400 text-slate-800 font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <span>📁</span>
-                          <span>Choose File</span>
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="p-3.5 rounded-xl border border-emerald-300 bg-emerald-50/60 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          {uploadFilePreview && ['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF'].includes(uploadFileType) ? (
-                            <img
-                              src={uploadFilePreview}
-                              alt="Preview"
-                              className="w-12 h-12 object-cover rounded-lg border border-emerald-200 shadow-xs shrink-0"
-                            />
-                          ) : (
-                            <div className="w-12 h-12 rounded-lg bg-emerald-700 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
-                              {uploadFileType || 'FILE'}
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <div className="font-bold text-slate-900 text-xs truncate max-w-xs">
-                              {uploadFileName}
-                            </div>
-                            <div className="text-[11px] text-emerald-800 font-medium flex items-center gap-2 mt-0.5">
-                              <span>{uploadFileSize}</span>
-                              <span>•</span>
-                              <span className="font-bold text-emerald-700">✓ Ready to upload</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => fileInputRef.current?.click()}
-                            className="px-2.5 py-1 rounded-md bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs cursor-pointer"
-                          >
-                            Change
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleRemoveSelectedFile}
-                            className="p-1 rounded-md hover:bg-rose-100 text-rose-600 cursor-pointer"
-                            title="Remove file"
-                          >
-                            <IconClose className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Step 1: Curriculum Level */}
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1">
-                      1. Curriculum Level
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleModalLevelChange('PRE-K1')}
-                        className={`py-2 px-3 rounded-lg font-semibold border text-left cursor-pointer transition-colors ${
-                          uploadCurriculumLevel === 'PRE-K1'
-                            ? 'border-slate-900 bg-slate-900 text-white'
-                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        <div className="font-bold">PRE-K 1</div>
-                        <div className="text-[10.5px] opacity-80">3.11 years old (3 – 3.11)</div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleModalLevelChange('PRE-K2')}
-                        className={`py-2 px-3 rounded-lg font-semibold border text-left cursor-pointer transition-colors ${
-                          uploadCurriculumLevel === 'PRE-K2'
-                            ? 'border-slate-900 bg-slate-900 text-white'
-                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        <div className="font-bold">PRE-K 2</div>
-                        <div className="text-[10.5px] opacity-80">4.11 years old (4 – 4.11)</div>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Step 2: Quarter & Week */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="font-semibold text-slate-700 block mb-1">
-                        2. Quarter
-                      </label>
-                      <select
-                        value={uploadQuarter}
-                        onChange={(e) => handleModalQuarterChange(parseInt(e.target.value, 10))}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white font-medium text-slate-800 outline-none"
-                      >
-                        <option value={1}>Quarter 1</option>
-                        <option value={2}>Quarter 2</option>
-                        <option value={3}>Quarter 3</option>
-                        <option value={4}>Quarter 4</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="font-semibold text-slate-700 block mb-1">
-                        3. ECCD Week &amp; Theme
-                      </label>
-                      <select
-                        value={uploadWeek}
-                        onChange={(e) => handleModalWeekChange(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white font-medium text-slate-800 outline-none"
-                      >
-                        {availableWeeksForUploadModal.weeks.map((w) => (
-                          <option key={w.week} value={w.week}>
-                            {w.week}: {w.subTheme}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Step 3: Material Type */}
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1">
-                      4. Post Format / Material Type
-                    </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {[
-                        { type: 'activity', label: '✏️ Activity', desc: 'Worksheet / task' },
-                        { type: 'file', label: '📁 File / PDF', desc: 'Document / guide' },
-                        { type: 'video', label: '🎬 Video', desc: 'Video demonstration' },
-                        { type: 'image', label: '🖼️ Picture', desc: 'Visual card / craft' },
-                      ].map((t) => (
-                        <button
-                          key={t.type}
-                          type="button"
-                          onClick={() => setUploadType(t.type)}
-                          className={`p-2 rounded-lg border text-center transition-all cursor-pointer ${
-                            uploadType === t.type
-                              ? 'border-slate-900 bg-slate-50 font-bold text-slate-900'
-                              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                          }`}
-                        >
-                          <div>{t.label}</div>
-                          <div className="text-[10px] text-slate-400">{t.desc}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Step 4: Material Title */}
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1">
-                      5. Material Title
-                    </label>
-                    <input
-                      type="text"
-                      value={uploadTitle}
-                      onChange={(e) => setUploadTitle(e.target.value)}
-                      placeholder="e.g. [Pre-K 1 Q1 W1] I Have A Name - Fun Writing Practice"
-                      required
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white font-medium text-slate-800 outline-none"
-                    />
-                  </div>
-
-                  {/* Step 5: Content URL */}
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1">
-                      6. Resource / Video / Worksheet Link <span className="text-slate-400 font-normal">(optional if file is attached)</span>
-                    </label>
-                    <input
-                      type="url"
-                      value={uploadUrl}
-                      onChange={(e) => setUploadUrl(e.target.value)}
-                      placeholder="https://youtube.com/... or cloud link"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 outline-none"
-                    />
-                  </div>
-
-                  {/* Step 6: Instructions / Question */}
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1">
-                      7. Activity Instructions or Question for Parent &amp; Learner
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={uploadDescription}
-                      onChange={(e) => setUploadDescription(e.target.value)}
-                      placeholder="e.g. Help your child trace their first name with crayons. Write what letters they recognized!"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 outline-none resize-none"
-                    />
-                  </div>
-
-                  {uploadMsg.text && (
-                    <div className={`p-2.5 rounded-lg text-xs font-semibold ${
-                      uploadMsg.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-800'
-                    }`}>
-                      {uploadMsg.text}
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            {mswdTopicChoices.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {mswdTopicChoices.map((c) => {
+                  const alreadyComplied = combinedUploadedMaterials.some(
+                    (m) =>
+                      (c.assignmentId && m.assignment_id === c.assignmentId) ||
+                      (m.sub_theme && m.sub_theme.toLowerCase() === c.subTheme.toLowerCase())
+                  );
+                  return (
                     <button
+                      key={c.choiceKey}
                       type="button"
-                      onClick={() => setIsUploadModalOpen(false)}
-                      className="px-3.5 py-2 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold cursor-pointer"
+                      onClick={() => {
+                        handleRemoveSelectedFile();
+                        handleSelectMswdTopicChoice(c);
+                        setUploadMsg({ text: '', type: '' });
+                        setIsUploadModalOpen(true);
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                        alreadyComplied
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-900 hover:bg-emerald-100'
+                          : 'bg-amber-50/70 border-amber-300 text-amber-950 hover:bg-amber-100'
+                      }`}
                     >
-                      Cancel
+                      <span>{alreadyComplied ? '✓' : '📤'}</span>
+                      <span>
+                        {c.week}: {c.subTheme}
+                      </span>
+                      <span className="text-[10px] opacity-75">
+                        ({c.level} • Q{c.quarter})
+                      </span>
                     </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold shadow-xs cursor-pointer"
-                    >
-                      Upload Material
-                    </button>
-                  </div>
-                </form>
+                  );
+                })}
               </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center justify-between gap-3">
+                <span>
+                  No topic has been assigned by MSWD yet. Curriculum Guide topics are hidden until MSWD assigns a topic to you.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('assigned_topics')}
+                  className="text-xs font-bold text-accent hover:underline shrink-0 cursor-pointer"
+                >
+                  Check Assigned Topics →
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Concise Status Navigation Pills + Search */}
+          <div className="p-3.5 bg-white border border-slate-200 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[
+                { key: 'all', label: 'All', count: combinedUploadedMaterials.length },
+                {
+                  key: 'pending',
+                  label: '⏳ Pending MSWD',
+                  count: combinedUploadedMaterials.filter((m) => m.status === 'Pending Review').length,
+                },
+                {
+                  key: 'approved',
+                  label: '✅ MSWD Approved',
+                  count: combinedUploadedMaterials.filter((m) => m.status === 'Approved').length,
+                },
+                {
+                  key: 'posted',
+                  label: '🚀 Posted to Students',
+                  count: combinedUploadedMaterials.filter((m) => m.posted_to_students).length,
+                },
+                {
+                  key: 'rejected',
+                  label: '❌ Rejected',
+                  count: combinedUploadedMaterials.filter((m) => m.status === 'Rejected').length,
+                },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setUploadedFilterStatus(tab.key)}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    uploadedFilterStatus === tab.key
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                      uploadedFilterStatus === tab.key ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
             </div>
-          )}
+
+            <div className="flex items-center gap-2">
+              <div className="relative min-w-[210px] flex-1">
+                <input
+                  type="text"
+                  placeholder="Search complied activity or topic..."
+                  value={uploadedSearch}
+                  onChange={(e) => setUploadedSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs outline-none focus:border-slate-800"
+                />
+                <IconSearch className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              </div>
+
+              {(uploadedFilterStatus !== 'all' || uploadedSearch) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUploadedFilterStatus('all');
+                    setUploadedFilterLevel('all');
+                    setUploadedFilterQuarter('all');
+                    setUploadedFilterType('all');
+                    setUploadedSearch('');
+                  }}
+                  className="text-xs text-accent hover:underline font-bold cursor-pointer px-2"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Uploaded Materials Table */}
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                    <th className="px-4 py-3">Complied Activity &amp; MSWD Topic</th>
+                    <th className="px-4 py-3">Level &amp; Week</th>
+                    <th className="px-4 py-3 text-center">MSWD Decision</th>
+                    <th className="px-4 py-3 text-center">Student Dashboard</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredUploadedMaterials.map((m) => {
+                    const isApproved = m.status === 'Approved' || m.verified_by_mswd;
+                    const isRejected = m.status === 'Rejected';
+
+                    return (
+                      <tr key={m.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="px-4 py-3.5">
+                          <div className="font-bold text-slate-900 text-xs">{m.title}</div>
+                          {m.sub_theme && (
+                            <div className="text-[11px] text-amber-900 font-semibold mt-0.5">
+                              MSWD Topic: {m.sub_theme}
+                            </div>
+                          )}
+                          {m.file_name && (
+                            <div className="text-[11px] text-blue-700 font-medium mt-1 flex items-center gap-1">
+                              <span>📎</span>
+                              <span className="font-semibold">{m.file_name}</span>
+                              {m.file_size && <span className="text-slate-400">({m.file_size})</span>}
+                            </div>
+                          )}
+                          {m.content_text && (
+                            <div className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
+                              {m.content_text}
+                            </div>
+                          )}
+                          {m.mswd_comments && (
+                            <div className="mt-1.5 p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-900">
+                              <span className="font-bold">💬 MSWD Note:</span> {m.mswd_comments}
+                            </div>
+                          )}
+                          {m.revision_notes && (
+                            <div className="mt-1.5 p-2 rounded-lg bg-rose-50 border border-rose-200 text-[11px] text-rose-900">
+                              <span className="font-bold">⚠️ MSWD Rejection / Revision Note:</span> {m.revision_notes}
+                            </div>
+                          )}
+                        </td>
+
+                        <td className="px-4 py-3.5 whitespace-nowrap">
+                          <div className="flex flex-col gap-1">
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded text-[10.5px] font-bold w-fit ${
+                                m.level?.toLowerCase().includes('pre-k1')
+                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                  : 'bg-blue-50 text-blue-800 border border-blue-200'
+                              }`}
+                            >
+                              {m.level?.toUpperCase().includes('PRE-K') ? m.level : 'Pre-K1'}
+                            </span>
+                            <span className="text-[11px] font-semibold text-slate-700">
+                              Q{m.quarter} • {m.week}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                          <span
+                            className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                              isApproved
+                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                                : isRejected
+                                ? 'bg-rose-50 text-rose-800 border border-rose-300'
+                                : 'bg-amber-50 text-amber-800 border border-amber-300'
+                            }`}
+                          >
+                            {isApproved
+                              ? '✅ Approved by MSWD'
+                              : isRejected
+                              ? '❌ Rejected by MSWD'
+                              : '⏳ Pending MSWD Decision'}
+                          </span>
+                        </td>
+
+                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                          {isApproved ? (
+                            m.posted_to_students ? (
+                              <div className="inline-flex flex-col items-center gap-0.5">
+                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                                  🚀 Posted to Student Dashboard
+                                </span>
+                                <span className="text-[10px] text-slate-500 font-semibold">
+                                  Target: {m.target_student_name || 'All Class Learners'}
+                                </span>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenPostToStudentModal(m)}
+                                className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] shadow-2xs transition-colors cursor-pointer inline-flex items-center gap-1"
+                              >
+                                <span>📤</span>
+                                <span>Post to Student Dashboard</span>
+                              </button>
+                            )
+                          ) : isRejected ? (
+                            <span className="text-[11px] text-rose-600 font-semibold">
+                              Cannot post (Rejected)
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 font-medium">
+                              Locked until MSWD approves
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {isApproved && m.posted_to_students && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenPostToStudentModal(m)}
+                                className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-800 text-xs font-bold transition-colors cursor-pointer"
+                                title="Change target student or repost"
+                              >
+                                Target Student
+                              </button>
+                            )}
+                            {m.content_url && (
+                              <a
+                                href={m.content_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                download={m.file_name || undefined}
+                                className="px-2.5 py-1 rounded-lg text-emerald-700 hover:bg-emerald-50 text-xs font-semibold transition-colors inline-flex items-center gap-1 cursor-pointer"
+                                title="View / Download Material File"
+                              >
+                                <span>👁️</span>
+                                <span>View</span>
+                              </a>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteMaterial(m)}
+                              className="px-2.5 py-1 rounded-lg text-red-600 hover:bg-red-50 text-xs font-medium transition-colors cursor-pointer"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredUploadedMaterials.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                        <div className="text-2xl mb-1">📂</div>
+                        <div className="font-semibold text-xs">No uploaded activities match your filter</div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">
+                          Select an MSWD-assigned topic above to upload your complied activity.
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 
@@ -2748,7 +2505,6 @@ export default function TeacherDashboard({ profile }) {
       {/* MY PROFILE — Simplified & Volunteer-Friendly for Child Development Workers */}
       {activeTab === 'profile' && (
         <div className="space-y-6">
-          {/* Educator Identity Header Card */}
           <div className="bg-white p-5 sm:p-6 rounded-2xl border border-card-border shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-2xl bg-[#FFF5EE] border border-accent/20 text-accent flex items-center justify-center font-bold text-2xl shadow-xs shrink-0">
@@ -2788,7 +2544,6 @@ export default function TeacherDashboard({ profile }) {
             </div>
           </div>
 
-          {/* Feedback Status Alert */}
           {profileMsg.text && (
             <div
               className={`p-4 rounded-2xl text-xs font-bold flex items-center justify-between shadow-xs animate-fadeIn ${
@@ -2811,10 +2566,8 @@ export default function TeacherDashboard({ profile }) {
             </div>
           )}
 
-          {/* Clean & Essential Profile Form */}
           <form onSubmit={handleSaveTeacherProfile} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {/* Card 1: Personal & Contact Information */}
               <div className="bg-white p-5 rounded-2xl border border-card-border shadow-xs space-y-4">
                 <div className="border-b border-slate-100 pb-3">
                   <h4 className="font-fraunces text-base font-bold text-slate-900 m-0 flex items-center gap-2">
@@ -2839,9 +2592,6 @@ export default function TeacherDashboard({ profile }) {
                       placeholder="e.g. Miche Tamayon Ladao"
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-[#FFFDF8] font-bold text-slate-800 outline-none focus:border-accent text-sm"
                     />
-                    <span className="text-[10.5px] text-slate-500 mt-1 block">
-                      Kini ang makita sa MSWDO Admin ug sa records sa imong mga estudyante.
-                    </span>
                   </div>
 
                   <div>
@@ -2867,9 +2617,6 @@ export default function TeacherDashboard({ profile }) {
                       placeholder="e.g. 0917-889-2345"
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-[#FFFDF8] font-semibold text-slate-800 outline-none focus:border-accent font-mono text-sm"
                     />
-                    <span className="text-[10.5px] text-slate-500 mt-1 block">
-                      Importante kini aron makatawag o makatext ang MSWDO ug mga ginikanan.
-                    </span>
                   </div>
 
                   <div>
@@ -2883,14 +2630,10 @@ export default function TeacherDashboard({ profile }) {
                       placeholder="e.g. teacher@earlylearn.ph"
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 font-medium text-slate-700 outline-none focus:border-accent"
                     />
-                    <span className="text-[10.5px] text-slate-400 mt-1 block">
-                      Gigamit para sa pagsulod sa EarlyLearn Hub (Username/Email).
-                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* Card 2: Day Care Center & Barangay Assignment */}
               <div className="bg-white p-5 rounded-2xl border border-card-border shadow-xs space-y-4">
                 <div className="border-b border-slate-100 pb-3">
                   <h4 className="font-fraunces text-base font-bold text-slate-900 m-0 flex items-center gap-2">
@@ -2934,9 +2677,6 @@ export default function TeacherDashboard({ profile }) {
                         </option>
                       ))}
                     </select>
-                    <span className="text-[10.5px] text-slate-500 mt-1 block">
-                      Pilia ang barangay sa Manolo Fortich diin nahimutang ang imong sentro.
-                    </span>
                   </div>
 
                   <div>
@@ -2993,15 +2733,12 @@ export default function TeacherDashboard({ profile }) {
                       <input
                         type="text"
                         required
-                        placeholder="e.g. SitIo Impahanong Child Development Center"
+                        placeholder="e.g. Sitio Impahanong Child Development Center"
                         value={customCdcInput}
                         onChange={(e) => setCustomCdcInput(e.target.value)}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-[#FFFDF8] font-bold text-slate-800 outline-none focus:border-accent text-sm"
                       />
                     )}
-                    <span className="text-[10.5px] text-slate-500 mt-1 block">
-                      Ang mga bata nga narehistro sa kini nga sentro maoy mogawas sa &quot;My Learners&quot;.
-                    </span>
                   </div>
 
                   <div>
@@ -3015,74 +2752,11 @@ export default function TeacherDashboard({ profile }) {
                       placeholder="e.g. Lunes hangtod Biyernes: Morning Session 8:00 AM - 10:30 AM"
                       className="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-[#FFFDF8] font-medium text-slate-800 outline-none focus:border-accent resize-none text-xs leading-relaxed"
                     />
-                    <span className="text-[10.5px] text-slate-400 mt-0.5 block">
-                      Opsyonal: Isulat kon unsa nga oras o adlaw ang inyong klase sa day care.
-                    </span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Reassuring Summary Card: What MSWDO Admin Sees */}
-            <div className="bg-[#FFFDF9] p-5 rounded-2xl border border-card-border shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                  <span>📋</span>
-                  <span>Opisyal nga Impormasyon nga Makita sa MSWDO Admin</span>
-                </div>
-                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/70 px-2.5 py-0.5 rounded-full">
-                  ✓ Naka-konekta sa Sistema
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 p-4 rounded-xl bg-white border border-[#EBE1CF] text-xs">
-                <div>
-                  <span className="text-[10.5px] text-slate-500 font-bold block uppercase">👤 Kompleto nga Pangalan:</span>
-                  <span className="font-bold text-slate-900 text-sm">
-                    {myFullName || '(Wala pa mabutang)'}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-[10.5px] text-slate-500 font-bold block uppercase">📱 Numero sa Selpon:</span>
-                  <span className="font-bold text-slate-800 font-mono">
-                    {myContact || '(Wala pa mabutang)'}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-[10.5px] text-slate-500 font-bold block uppercase">📍 Barangay:</span>
-                  <span className="font-bold text-slate-800">
-                    {myBarangay ? `Brgy. ${myBarangay}` : '(Wala pa mapili)'}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-[10.5px] text-slate-500 font-bold block uppercase">🏫 Day Care Center (CDC):</span>
-                  <span className="font-bold text-emerald-900">
-                    {customCdcMode && customCdcInput.trim()
-                      ? customCdcInput.trim()
-                      : myCdcName || '(Wala pa mapili)'}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-[10.5px] text-slate-500 font-bold block uppercase">📧 Account Email:</span>
-                  <span className="font-medium text-slate-700">
-                    {myEmail || profile?.email || '(Default)'}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-[10.5px] text-slate-500 font-bold block uppercase">🕒 Iskedyul / Note:</span>
-                  <span className="font-medium text-slate-700 truncate block">
-                    {myBio || 'Regular Morning Session'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Simple Save & Reset Actions */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
               <button
                 type="button"
@@ -3107,7 +2781,88 @@ export default function TeacherDashboard({ profile }) {
           </form>
         </div>
       )}
-      {/* Global Upload Modal (accessible across tabs like assigned_topics and upload) */}
+
+      {/* POST APPROVED ACTIVITY TO SPECIFIC STUDENT DASHBOARD MODAL */}
+      {postingMaterial && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <span className="text-[10.5px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  ✅ Approved by MSWD
+                </span>
+                <h3 className="text-base font-bold text-slate-900 m-0 mt-1">
+                  Post Activity to Student Dashboard
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPostingMaterial(null)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <IconClose className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmPostToStudent} className="space-y-4 text-xs">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                <div className="font-bold text-slate-900 text-xs">{postingMaterial.title}</div>
+                <div className="text-[11px] text-amber-900 font-semibold">
+                  Topic: {postingMaterial.sub_theme || postingMaterial.theme || 'MSWD Assigned Topic'} ({postingMaterial.level} • Q{postingMaterial.quarter} {postingMaterial.week})
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-800 block mb-1.5">
+                  Select Target Student Dashboard:
+                </label>
+                <select
+                  value={selectedTargetStudentId}
+                  onChange={(e) => setSelectedTargetStudentId(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white font-bold text-slate-900 outline-none focus:border-slate-900"
+                >
+                  <option value="all">
+                    👥 All Learners in My CDC ({myCdcName || 'My Class'}) — {myLearners.length} Enrolled
+                  </option>
+                  {myLearners.map((learner) => (
+                    <option key={learner.id} value={learner.id}>
+                      🧒 {learner.full_name} {learner.parent_name ? `(Parent: ${learner.parent_name})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-500 mt-1.5 mb-0">
+                  Choose whether to post this MSWD-approved activity to a specific learner&apos;s Student Dashboard or to all learners in your assigned CDC class.
+                </p>
+              </div>
+
+              {postModalMsg.text && (
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-bold text-xs">
+                  {postModalMsg.text}
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setPostingMaterial(null)}
+                  className="px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold shadow-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>🚀</span>
+                  <span>Post to Student Dashboard</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Global Upload Modal (choices based strictly on MSWD-assigned topics) */}
       <TeacherUploadModal
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
@@ -3116,6 +2871,7 @@ export default function TeacherDashboard({ profile }) {
         uploadCurriculumLevel={uploadCurriculumLevel}
         uploadQuarter={uploadQuarter}
         uploadWeek={uploadWeek}
+        uploadSubTheme={uploadSubTheme}
         uploadTitle={uploadTitle}
         setUploadTitle={setUploadTitle}
         uploadDescription={uploadDescription}
@@ -3136,9 +2892,9 @@ export default function TeacherDashboard({ profile }) {
         handleRemoveSelectedFile={handleRemoveSelectedFile}
         handleModalLevelChange={handleModalLevelChange}
         handleModalQuarterChange={handleModalQuarterChange}
-        handleModalWeekChange={handleModalWeekChange}
+        handleSelectMswdTopicChoice={handleSelectMswdTopicChoice}
         handleSaveMaterial={handleSaveMaterial}
-        availableWeeksForUploadModal={availableWeeksForUploadModal}
+        mswdTopicChoices={mswdTopicChoices}
       />
     </DashboardLayout>
   );

@@ -227,23 +227,28 @@ export default function CurriculumGuides({
 
   // Open modal with pre-selected quarter, optional specific week, and optional topic details
   const handleOpenAssignModal = (quarterNum = null, specificWeek = null, specificTopicObj = null) => {
+    const targetLevel = selectedLevel === 'PRE-K1' ? 'Pre-K1' : 'Pre-K2';
+    setSelectedLevelForAssign(targetLevel);
+    const curr = targetLevel === 'Pre-K1' ? preK1Curriculum : preK2Curriculum;
+
     if (quarterNum) {
       setSelectedQuarterForModal(quarterNum);
       setSelectedQuartersForAssign([quarterNum]);
     } else {
-      setSelectedQuarterForModal('all');
-      setSelectedQuartersForAssign([1, 2, 3, 4]);
+      setSelectedQuarterForModal(1);
+      setSelectedQuartersForAssign([1]);
     }
+
+    const qObj = curr.find((q) => q.quarterNumber === (quarterNum || 1)) || curr[0];
     if (specificWeek) {
       setWeekScopeMode('specific');
       setSelectedWeeksForAssign([specificWeek]);
     } else {
-      setWeekScopeMode('all');
-      setSelectedWeeksForAssign([]);
+      setWeekScopeMode('specific');
+      setSelectedWeeksForAssign(qObj?.weeks?.[0] ? [qObj.weeks[0].week] : []);
     }
 
     setSelectedSpecificTopic(specificTopicObj || null);
-    setSelectedLevelForAssign(selectedLevel === 'PRE-K1' ? 'Pre-K1' : 'Pre-K2');
     setAssignSuccessMsg('');
 
     // Default deadline to 7 days ahead
@@ -262,9 +267,10 @@ export default function CurriculumGuides({
     const seen = new Set();
     qList.forEach((q) => {
       q.weeks.forEach((w) => {
-        if (!seen.has(w.week)) {
-          seen.add(w.week);
-          weekItems.push(w);
+        const key = `${q.quarterNumber}-${w.week}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          weekItems.push({ ...w, quarterNumber: q.quarterNumber, theme: q.theme, suggestedContent: q.suggestedContent });
         }
       });
     });
@@ -277,46 +283,83 @@ export default function CurriculumGuides({
     let newAssignmentsList = [...assignments];
     const targetWeeks = weekScopeMode === 'all' || selectedWeeksForAssign.length === 0 ? 'all' : selectedWeeksForAssign;
 
+    // Build exact MSWD topic items from selected weeks or specific topic
+    const matchedTopicItems =
+      selectedSpecificTopic
+        ? [
+            {
+              quarter: selectedSpecificTopic.quarterNumber || selectedQuartersForAssign[0] || 1,
+              week: selectedSpecificTopic.week,
+              subTheme: selectedSpecificTopic.subTheme,
+              theme: selectedSpecificTopic.theme,
+              suggestedActivities: selectedSpecificTopic.suggestedActivities || '',
+            },
+          ]
+        : weekScopeMode === 'specific' && selectedWeeksForAssign.length > 0
+        ? availableWeeksInModal
+            .filter((w) => selectedWeeksForAssign.includes(w.week))
+            .map((w) => ({
+              quarter: w.quarterNumber || selectedQuartersForAssign[0] || 1,
+              week: w.week,
+              subTheme: w.subTheme,
+              theme: w.theme,
+              suggestedActivities: w.suggestedActivities || '',
+            }))
+        : availableWeeksInModal.map((w) => ({
+            quarter: w.quarterNumber || selectedQuartersForAssign[0] || 1,
+            week: w.week,
+            subTheme: w.subTheme,
+            theme: w.theme,
+            suggestedActivities: w.suggestedActivities || '',
+          }));
+
+    const firstTopic = matchedTopicItems[0] || availableWeeksInModal[0] || {};
     const resolvedTopic =
       selectedSpecificTopic?.subTheme ||
-      (weekScopeMode === 'specific' && selectedWeeksForAssign.length === 1
-        ? availableWeeksInModal.find((w) => w.week === selectedWeeksForAssign[0])?.subTheme
-        : '') ||
-      'Curriculum Learning Topic';
+      (matchedTopicItems.length === 1
+        ? firstTopic.subTheme
+        : matchedTopicItems.length > 1
+        ? `${firstTopic.subTheme} (+${matchedTopicItems.length - 1} more MSWD topics)`
+        : 'I HAVE A NAME');
 
     const resolvedWeekStr =
       selectedSpecificTopic?.week ||
       (Array.isArray(targetWeeks) && targetWeeks.length === 1
         ? targetWeeks[0]
         : targetWeeks === 'all'
-        ? 'All Weeks'
-        : (targetWeeks[0] || 'Week 1'));
+        ? firstTopic.week || 'Week 1'
+        : targetWeeks[0] || 'Week 1');
+
+    const buildAssignmentForTeacher = (teacher, suffix = '') => ({
+      id: 'asg-' + Date.now() + '-' + (suffix || teacher.id),
+      teacherId: teacher.id,
+      teacherName: teacher.full_name,
+      barangay: teacher.barangay,
+      cdcName: teacher.cdc_name,
+      level: selectedLevelForAssign,
+      quarters: selectedQuartersForAssign,
+      quarter: firstTopic.quarter || selectedQuartersForAssign[0] || 1,
+      weeks: targetWeeks === 'all' ? matchedTopicItems.map((t) => t.week) : targetWeeks,
+      week: resolvedWeekStr,
+      topicTitle: resolvedTopic,
+      subTheme: firstTopic.subTheme || resolvedTopic,
+      theme:
+        selectedSpecificTopic?.theme ||
+        firstTopic.theme ||
+        (selectedLevelForAssign === 'Pre-K1' ? 'TELL ME ABOUT YOURSELF' : 'MORE ABOUT MYSELF AND MY SCHOOL'),
+      suggestedContent: selectedSpecificTopic?.suggestedContent || firstTopic.suggestedContent || '',
+      suggestedActivities: selectedSpecificTopic?.suggestedActivities || firstTopic.suggestedActivities || '',
+      assignedTopics: matchedTopicItems,
+      deadline: assignmentDeadline,
+      notes: adminNotes.trim(),
+      schoolYear,
+      status: 'Pending',
+      assignedDate: new Date().toISOString().split('T')[0],
+    });
 
     if (targetType === 'all') {
       activeTeachersList.forEach((teacher) => {
-        const newAssignmentObj = {
-          id: 'asg-' + Date.now() + '-' + teacher.id,
-          teacherId: teacher.id,
-          teacherName: teacher.full_name,
-          barangay: teacher.barangay,
-          cdcName: teacher.cdc_name,
-          level: selectedLevelForAssign,
-          quarters: selectedQuartersForAssign,
-          quarter: selectedQuartersForAssign[0] || 1,
-          weeks: targetWeeks,
-          week: resolvedWeekStr,
-          topicTitle: resolvedTopic,
-          subTheme: resolvedTopic,
-          theme: selectedSpecificTopic?.theme || (selectedLevelForAssign === 'Pre-K1' ? 'TELL ME ABOUT YOURSELF' : 'MORE ABOUT MYSELF AND MY SCHOOL'),
-          suggestedContent: selectedSpecificTopic?.suggestedContent || '',
-          suggestedActivities: selectedSpecificTopic?.suggestedActivities || '',
-          deadline: assignmentDeadline,
-          notes: adminNotes.trim(),
-          schoolYear,
-          status: 'Pending',
-          assignedDate: new Date().toISOString().split('T')[0],
-        };
-        newAssignmentsList.push(newAssignmentObj);
+        newAssignmentsList.push(buildAssignmentForTeacher(teacher, teacher.id));
       });
     } else if (targetType === 'teacher') {
       const teacher = activeTeachersList.find((t) => t.id === selectedTeacherId);
@@ -324,30 +367,7 @@ export default function CurriculumGuides({
         alert('Please select a teacher.');
         return;
       }
-
-      const newAssignmentObj = {
-        id: 'asg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
-        teacherId: teacher.id,
-        teacherName: teacher.full_name,
-        barangay: teacher.barangay,
-        cdcName: teacher.cdc_name,
-        level: selectedLevelForAssign,
-        quarters: selectedQuartersForAssign,
-        quarter: selectedQuartersForAssign[0] || 1,
-        weeks: targetWeeks,
-        week: resolvedWeekStr,
-        topicTitle: resolvedTopic,
-        subTheme: resolvedTopic,
-        theme: selectedSpecificTopic?.theme || (selectedLevelForAssign === 'Pre-K1' ? 'TELL ME ABOUT YOURSELF' : 'MORE ABOUT MYSELF AND MY SCHOOL'),
-        suggestedContent: selectedSpecificTopic?.suggestedContent || '',
-        suggestedActivities: selectedSpecificTopic?.suggestedActivities || '',
-        deadline: assignmentDeadline,
-        notes: adminNotes.trim(),
-        schoolYear,
-        status: 'Pending',
-        assignedDate: new Date().toISOString().split('T')[0],
-      };
-      newAssignmentsList.push(newAssignmentObj);
+      newAssignmentsList.push(buildAssignmentForTeacher(teacher, Math.random().toString(36).slice(2, 6)));
     } else if (targetType === 'barangay') {
       if (!selectedBarangayForAssign) {
         alert('Please select a Barangay.');
@@ -358,30 +378,8 @@ export default function CurriculumGuides({
         alert('No teachers found in this Barangay.');
         return;
       }
-
       teachersInBrgy.forEach((teacher) => {
-        newAssignmentsList.push({
-          id: 'asg-' + Date.now() + '-' + teacher.id,
-          teacherId: teacher.id,
-          teacherName: teacher.full_name,
-          barangay: teacher.barangay,
-          cdcName: teacher.cdc_name,
-          level: selectedLevelForAssign,
-          quarters: selectedQuartersForAssign,
-          quarter: selectedQuartersForAssign[0] || 1,
-          weeks: targetWeeks,
-          week: resolvedWeekStr,
-          topicTitle: resolvedTopic,
-          subTheme: resolvedTopic,
-          theme: selectedSpecificTopic?.theme || (selectedLevelForAssign === 'Pre-K1' ? 'TELL ME ABOUT YOURSELF' : 'MORE ABOUT MYSELF AND MY SCHOOL'),
-          suggestedContent: selectedSpecificTopic?.suggestedContent || '',
-          suggestedActivities: selectedSpecificTopic?.suggestedActivities || '',
-          deadline: assignmentDeadline,
-          notes: adminNotes.trim(),
-          schoolYear,
-          status: 'Pending',
-          assignedDate: new Date().toISOString().split('T')[0],
-        });
+        newAssignmentsList.push(buildAssignmentForTeacher(teacher, teacher.id));
       });
     } else if (targetType === 'cdc') {
       if (!selectedCdcForAssign) {
@@ -393,30 +391,8 @@ export default function CurriculumGuides({
         alert('No teachers found assigned to this CDC.');
         return;
       }
-
       teachersInCdc.forEach((teacher) => {
-        newAssignmentsList.push({
-          id: 'asg-' + Date.now() + '-' + teacher.id,
-          teacherId: teacher.id,
-          teacherName: teacher.full_name,
-          barangay: teacher.barangay,
-          cdcName: teacher.cdc_name,
-          level: selectedLevelForAssign,
-          quarters: selectedQuartersForAssign,
-          quarter: selectedQuartersForAssign[0] || 1,
-          weeks: targetWeeks,
-          week: resolvedWeekStr,
-          topicTitle: resolvedTopic,
-          subTheme: resolvedTopic,
-          theme: selectedSpecificTopic?.theme || (selectedLevelForAssign === 'Pre-K1' ? 'TELL ME ABOUT YOURSELF' : 'MORE ABOUT MYSELF AND MY SCHOOL'),
-          suggestedContent: selectedSpecificTopic?.suggestedContent || '',
-          suggestedActivities: selectedSpecificTopic?.suggestedActivities || '',
-          deadline: assignmentDeadline,
-          notes: adminNotes.trim(),
-          schoolYear,
-          status: 'Pending',
-          assignedDate: new Date().toISOString().split('T')[0],
-        });
+        newAssignmentsList.push(buildAssignmentForTeacher(teacher, teacher.id));
       });
     }
 
@@ -913,16 +889,21 @@ export default function CurriculumGuides({
                   <th className="px-4 py-3 text-center">Level</th>
                   <th className="px-4 py-3">Assigned Topic &amp; Focus</th>
                   <th className="px-4 py-3 text-center">Submission Deadline</th>
-                  <th className="px-4 py-3 text-center">Uploaded</th>
-                  <th className="px-4 py-3 text-center">Status</th>
+                  <th className="px-4 py-3">Complied Activity &amp; MSWD Status</th>
+                  <th className="px-4 py-3 text-center">Compliance</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F6F1E7]">
                 {filteredAssignments.map((asg) => {
                   const teacherModules = getCleanModules().filter(
-                    (m) => m.teacher_name === asg.teacherName || m.teacher_id === asg.teacherId || m.assignment_id === asg.id
+                    (m) =>
+                      m.assignment_id === asg.id ||
+                      ((m.teacher_name === asg.teacherName || m.teacher_id === asg.teacherId) &&
+                        ((asg.subTheme && m.sub_theme?.toLowerCase() === asg.subTheme.toLowerCase()) ||
+                          (asg.topicTitle && m.title?.toLowerCase().includes(asg.topicTitle.toLowerCase()))))
                   );
+                  const latestMod = teacherModules[0] || null;
                   const isPastDeadline = asg.deadline && new Date(asg.deadline + 'T23:59:59') < new Date();
                   const isCompleted = asg.status === 'Completed' || teacherModules.length > 0;
 
@@ -1003,7 +984,7 @@ export default function CurriculumGuides({
                             </span>
                             <span className="text-[10px] mt-0.5 font-medium text-slate-500">
                               {isCompleted
-                                ? '✓ Submitted'
+                                ? '✓ Complied'
                                 : isPastDeadline
                                 ? '⚠️ Deadline Passed'
                                 : '⏳ Open for Upload'}
@@ -1014,10 +995,33 @@ export default function CurriculumGuides({
                         )}
                       </td>
 
-                      <td className="px-4 py-3.5 text-center">
-                        <span className="font-bold text-xs text-dash-ink bg-[#FFF9ED] px-2.5 py-1 rounded-lg border border-[#F0E4CE]">
-                          {teacherModules.length} Modules
-                        </span>
+                      <td className="px-4 py-3.5">
+                        {latestMod ? (
+                          <div className="space-y-1 max-w-[220px]">
+                            <div className="font-bold text-slate-800 text-xs truncate" title={latestMod.title}>
+                              {latestMod.title}
+                            </div>
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                latestMod.verified_by_mswd || latestMod.status === 'Approved'
+                                  ? 'bg-[#DCEBDD] text-[#2E6B38]'
+                                  : latestMod.status === 'Rejected' || latestMod.status === 'Needs Revision'
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {latestMod.verified_by_mswd || latestMod.status === 'Approved'
+                                ? latestMod.posted_to_students
+                                  ? '✓ Approved & Posted to Students'
+                                  : '✓ Approved by MSWD'
+                                : latestMod.status === 'Rejected' || latestMod.status === 'Needs Revision'
+                                ? '✕ Rejected by MSWD'
+                                : '⏳ Pending MSWD Decision'}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 italic">Not complied yet</span>
+                        )}
                       </td>
 
                       <td className="px-4 py-3.5 text-center whitespace-nowrap">
@@ -1027,20 +1031,31 @@ export default function CurriculumGuides({
                               ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                               : isPastDeadline
                               ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                              : 'bg-[#DCEBDD] text-[#2E6B38]'
+                              : 'bg-amber-50 text-amber-800 border border-amber-200'
                           }`}
                         >
-                          {isCompleted ? 'Completed' : isPastDeadline ? 'Expired' : asg.status || 'Active'}
+                          {isCompleted ? 'Complied ✓' : isPastDeadline ? 'Expired' : 'Pending'}
                         </span>
                       </td>
 
                       <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                        <button
-                          onClick={() => handleRemoveAssignment(asg.id)}
-                          className="px-2.5 py-1 rounded-lg text-danger hover:bg-danger/10 text-xs font-bold transition-colors cursor-pointer"
-                        >
-                          Remove
-                        </button>
+                        <div className="inline-flex items-center gap-1.5">
+                          {latestMod && onNavigateToActivityMonitoring && (
+                            <button
+                              type="button"
+                              onClick={onNavigateToActivityMonitoring}
+                              className="px-2.5 py-1 rounded-lg bg-accent hover:bg-[#B5673C] text-white text-[11px] font-bold transition-colors cursor-pointer"
+                            >
+                              View &amp; Decide →
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleRemoveAssignment(asg.id)}
+                            className="px-2.5 py-1 rounded-lg text-danger hover:bg-danger/10 text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

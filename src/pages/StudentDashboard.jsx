@@ -199,12 +199,29 @@ export default function StudentDashboard({ profile }) {
         }
       }
     }
+    function handleModulesEvent() {
+      try {
+        const saved = localStorage.getItem('earlylearn_teacher_modules');
+        if (saved) setTeacherUploadedModules(JSON.parse(saved));
+      } catch {
+        // ignore
+      }
+      loadDbMaterials();
+    }
+
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    window.addEventListener('earlylearn_modules_updated', handleModulesEvent);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('earlylearn_modules_updated', handleModulesEvent);
+    };
   }, [loadAnnouncements, loadDbMaterials, currentUserId, profile]);
 
   // -------------------------------------------------------------------------
-  // "MY ACTIVITIES": STRICTLY BASED ON WHAT THE STUDENT'S TEACHER UPLOADS & ADMIN APPROVES
+  // "MY ACTIVITIES": STRICTLY BASED ON:
+  // 1) Teacher complied & uploaded activity
+  // 2) MSWD Admin approved it
+  // 3) Teacher posted it to this specific Student Dashboard (or their CDC class)
   // -------------------------------------------------------------------------
   const teacherActivities = useMemo(() => {
     const list = [];
@@ -214,39 +231,38 @@ export default function StudentDashboard({ profile }) {
     const studentBarangayLower = (studentBarangay || profile?.barangay || '').trim().toLowerCase();
     const studentCdcLower = (adviserInfo?.cdcName || profile?.cdc_name || '').trim().toLowerCase();
     const studentTeacherId = profile?.teacher_id || profile?.assigned_teacher_id || null;
+    const studentNameLower = (greetingName || '').trim().toLowerCase();
 
     // Helper: checks whether an activity belongs to THIS student's teacher/CDC/barangay
     const isActivityForMyTeacher = (mTeacherId, mTeacherName, mCdcName, mBarangay) => {
-      // If student has no teacher info at all yet, allow activities
       if (!studentTeacherName && !studentBarangayLower && !studentCdcLower && !studentTeacherId) {
         return true;
       }
 
-      // 1. Direct teacher ID match
       if (studentTeacherId && mTeacherId && String(studentTeacherId).trim() === String(mTeacherId).trim()) {
         return true;
       }
 
-      // 2. Direct teacher name match
       const normModTeacher = (mTeacherName || '').toLowerCase().trim();
-      if (studentTeacherName && normModTeacher && (
-        normModTeacher.includes(studentTeacherName) ||
-        studentTeacherName.includes(normModTeacher)
-      )) {
+      if (
+        studentTeacherName &&
+        normModTeacher &&
+        (normModTeacher.includes(studentTeacherName) || studentTeacherName.includes(normModTeacher))
+      ) {
         return true;
       }
 
-      // 3. Child Development Center match
       const normModCdc = (mCdcName || '').toLowerCase().trim();
-      if (studentCdcLower && normModCdc && (
-        normModCdc === studentCdcLower ||
-        normModCdc.includes(studentCdcLower) ||
-        studentCdcLower.includes(normModCdc)
-      )) {
+      if (
+        studentCdcLower &&
+        normModCdc &&
+        (normModCdc === studentCdcLower ||
+          normModCdc.includes(studentCdcLower) ||
+          studentCdcLower.includes(normModCdc))
+      ) {
         return true;
       }
 
-      // 4. Barangay match
       const normModBrgy = (mBarangay || '').toLowerCase().trim();
       if (studentBarangayLower && normModBrgy && normModBrgy === studentBarangayLower) {
         return true;
@@ -255,31 +271,47 @@ export default function StudentDashboard({ profile }) {
       return false;
     };
 
+    const matchesStudentTarget = (targetId, targetName, mTeacherId, mTeacherName, mCdcName, mBarangay) => {
+      if (targetId && targetId !== 'all') {
+        if (String(targetId) === String(currentUserId)) return true;
+        const normTargetName = (targetName || '').toLowerCase().trim();
+        if (studentNameLower && normTargetName && normTargetName.includes(studentNameLower)) return true;
+        return false;
+      }
+      return isActivityForMyTeacher(mTeacherId, mTeacherName, mCdcName, mBarangay);
+    };
+
     (teacherUploadedModules || []).forEach((m) => {
       const isActualTeacherUpload =
         m.is_custom_teacher_upload === true ||
         (m.id && m.id.startsWith('mod-') && !m.id.match(/^mod-0[1-9]/)) ||
         (m.teacher_id && m.teacher_id !== 'system');
 
-      const isActivity =
-        m.module_type === 'activity' ||
-        m.type === 'activity' ||
-        (m.module_type && m.module_type.toLowerCase().includes('activity'));
-
-      // STRICT APPROVAL GATE: Admin must approve activity before it appears on student dashboard
+      // 1. MSWD Approval Gate
       const isApproved =
-        m.status === 'Approved' ||
-        m.status === 'approved' ||
-        m.verified_by_mswd === true;
+        (m.status === 'Approved' || m.status === 'approved' || m.verified_by_mswd === true) &&
+        m.status !== 'Rejected' &&
+        m.status !== 'Needs Revision';
 
-      const matchesTeacher = isActivityForMyTeacher(
+      // 2. Teacher Post-Approval Gate: Teacher must post the approved activity to the Student Dashboard
+      const isPostedToStudent = m.posted_to_students === true;
+
+      const isTargetedToMe = matchesStudentTarget(
+        m.target_student_id,
+        m.target_student_name,
         m.teacher_id,
         m.teacher_name,
         m.cdc_name,
         m.barangay
       );
 
-      if (isActualTeacherUpload && isActivity && isApproved && matchesTeacher && !seenTitles.has(m.title.toLowerCase())) {
+      if (
+        isActualTeacherUpload &&
+        isApproved &&
+        isPostedToStudent &&
+        isTargetedToMe &&
+        !seenTitles.has(m.title.toLowerCase())
+      ) {
         seenTitles.add(m.title.toLowerCase());
         list.push({
           id: m.id,
@@ -292,14 +324,14 @@ export default function StudentDashboard({ profile }) {
           content_url: m.content_url || null,
           teacher_name: m.teacher_name || 'CDC Teacher',
           cdc_name: m.cdc_name || '',
-          created_at: m.upload_date || 'Recent',
+          target_student_name: m.target_student_name || null,
+          created_at: m.posted_at || m.upload_date || 'Recent',
         });
       }
     });
 
     (dbMaterials || []).forEach((m) => {
-      // dbMaterials is already filtered by status='approved' in loadDbMaterials
-      if (m.type === 'activity' && m.created_by && !seenTitles.has(m.title.toLowerCase())) {
+      if (m.created_by && !seenTitles.has(m.title.toLowerCase())) {
         let meta = {};
         let cleanDescription = m.content_text || '';
         if (m.content_text && m.content_text.trim().startsWith('{')) {
@@ -312,14 +344,17 @@ export default function StudentDashboard({ profile }) {
           } catch {}
         }
 
-        const matchesTeacher = isActivityForMyTeacher(
+        const isPostedToStudent = meta.posted_to_students === true;
+        const isTargetedToMe = matchesStudentTarget(
+          meta.target_student_id,
+          meta.target_student_name,
           m.created_by,
           meta.teacher_name,
           meta.cdc_name,
           meta.barangay
         );
 
-        if (matchesTeacher) {
+        if (isPostedToStudent && isTargetedToMe) {
           seenTitles.add(m.title.toLowerCase());
           list.push({
             id: m.id,
@@ -332,14 +367,15 @@ export default function StudentDashboard({ profile }) {
             content_url: m.content_url || null,
             teacher_name: meta.teacher_name || 'CDC Teacher',
             cdc_name: meta.cdc_name || '',
-            created_at: m.created_at,
+            target_student_name: meta.target_student_name || null,
+            created_at: meta.posted_at || m.created_at,
           });
         }
       }
     });
 
     return list;
-  }, [teacherUploadedModules, dbMaterials, adviserInfo, studentBarangay, profile]);
+  }, [teacherUploadedModules, dbMaterials, adviserInfo, studentBarangay, profile, currentUserId, greetingName]);
 
   const pendingTeacherActivities = useMemo(() => {
     return teacherActivities.filter((a) => !completedIds.has(a.id));
