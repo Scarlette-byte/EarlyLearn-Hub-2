@@ -522,23 +522,16 @@ export function isAuthenticLocalTeacherModule(m) {
 }
 
 /**
- * Returns the cleaned list of authentic teacher-uploaded modules from localStorage,
- * automatically purging any seeded student category review items.
+ * Strips any parenthetical CDC / center suffix from a teacher's display name
+ * e.g., "Teacher Juliet Paduhilag Pastrano (DALIRIG CHILD DEVELOPMENT CENTER)"
+ *    -> "Teacher Juliet Paduhilag Pastrano"
  */
-export function getCleanTeacherModulesList() {
-  try {
-    const saved = localStorage.getItem('earlylearn_teacher_modules');
-    if (!saved) return [];
-    const parsed = JSON.parse(saved);
-    if (!Array.isArray(parsed)) return [];
-    const filtered = parsed.filter(isAuthenticLocalTeacherModule);
-    if (filtered.length !== parsed.length) {
-      localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(filtered));
-    }
-    return filtered;
-  } catch {
-    return [];
-  }
+export function cleanTeacherDisplayName(rawName) {
+  if (!rawName) return '';
+  return String(rawName)
+    .replace(/\s*\([^)]*\)\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**
@@ -553,6 +546,97 @@ export function normalizeTeacherName(name) {
     .replace(/\b(teacher|cdw|day\s*care\s*worker|volunteer|mswdo|manolo\s*fortich|admin)\b/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * Deduplicates teacher-uploaded modules/activities so that each teacher has at most
+ * 1 record per activity title / topic (preferring Approved / Posted-to-Students / most recent).
+ * Also collects any duplicate Supabase row IDs into `duplicate_ids` so stale rows can be cleaned up.
+ */
+export function deduplicateTeacherModules(list = []) {
+  if (!Array.isArray(list)) return [];
+  const map = new Map();
+
+  const getScore = (m) => {
+    let score = 0;
+    if (m.posted_to_students) score += 8;
+    if (m.verified_by_mswd || m.status === 'Approved' || m.status === 'approved') score += 4;
+    if (m.status === 'Rejected' || m.status === 'rejected' || m.status === 'Needs Revision') score += 2;
+    if (m.content_url) score += 1;
+    return score;
+  };
+
+  for (const rawM of list) {
+    if (!rawM || !rawM.title) continue;
+    const m = {
+      ...rawM,
+      teacher_name: cleanTeacherDisplayName(rawM.teacher_name) || rawM.teacher_name,
+    };
+    const teacherKey =
+      normalizeTeacherName(m.teacher_name) ||
+      String(m.teacher_id || m.created_by || '').trim().toLowerCase() ||
+      'teacher';
+    const titleKey = String(m.title || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, ' ');
+    const dedupeKey = `${teacherKey}::${titleKey}`;
+
+    if (!map.has(dedupeKey)) {
+      map.set(dedupeKey, {
+        ...m,
+        duplicate_ids: m.duplicate_ids ? [...m.duplicate_ids] : [m.id].filter(Boolean),
+      });
+    } else {
+      const existing = map.get(dedupeKey);
+      const allIds = Array.from(
+        new Set([...(existing.duplicate_ids || [existing.id]), m.id].filter(Boolean))
+      );
+
+      if (getScore(m) > getScore(existing)) {
+        map.set(dedupeKey, {
+          ...existing,
+          ...m,
+          posted_to_students: Boolean(m.posted_to_students || existing.posted_to_students),
+          target_student_id: m.target_student_id || existing.target_student_id || 'all',
+          target_student_name: m.target_student_name || existing.target_student_name || 'All Class Learners',
+          content_url: m.content_url || existing.content_url || null,
+          file_name: m.file_name || existing.file_name || null,
+          duplicate_ids: allIds,
+        });
+      } else {
+        existing.posted_to_students = Boolean(existing.posted_to_students || m.posted_to_students);
+        if (!existing.content_url && m.content_url) existing.content_url = m.content_url;
+        if (!existing.file_name && m.file_name) existing.file_name = m.file_name;
+        if (!existing.target_student_name && m.target_student_name) {
+          existing.target_student_name = m.target_student_name;
+        }
+        existing.duplicate_ids = allIds;
+      }
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+/**
+ * Returns the cleaned, deduplicated list of authentic teacher-uploaded modules from localStorage,
+ * automatically purging any seeded student category review items and duplicate topic uploads.
+ */
+export function getCleanTeacherModulesList() {
+  try {
+    const saved = localStorage.getItem('earlylearn_teacher_modules');
+    if (!saved) return [];
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return [];
+    const filtered = deduplicateTeacherModules(parsed.filter(isAuthenticLocalTeacherModule));
+    if (filtered.length !== parsed.length) {
+      localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(filtered));
+    }
+    return filtered;
+  } catch {
+    return [];
+  }
 }
 
 /**

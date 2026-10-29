@@ -14,7 +14,7 @@ import {
 } from '../lib/mswdData.js';
 import {
   realTeachersList,
-  realCdcsList,
+  realCdcsList, cleanTeacherDisplayName,
 } from '../lib/curriculumData.js';
 import { getStoredLearners } from '../lib/learnersService.js';
 import {
@@ -251,7 +251,12 @@ export default function AdminDashboard({ profile }) {
         // ignore
       }
 
-      setTeachers(combined);
+      setTeachers(
+        combined.map((t) => ({
+          ...t,
+          full_name: cleanTeacherDisplayName(t.full_name) || t.full_name,
+        }))
+      );
     } catch {
       setTeachers(realTeachersList);
     }
@@ -507,14 +512,14 @@ export default function AdminDashboard({ profile }) {
           ? 'Supreme Municipal System Administration, User Control & ECCD Oversight • Manolo Fortich'
           : 'Municipal Social Welfare and Development Office • Manolo Fortich, Bukidnon'
       }
-      avatar={profile?.full_name ? profile.full_name.slice(0, 2).toUpperCase() : (isSuperAdmin ? 'SA' : 'AD')}
+      avatar={isSuperAdmin ? 'SA' : 'AD'}
       roleBadge={isSuperAdmin ? 'Municipal Superadmin' : 'MSWD Administrator'}
       isSuperAdmin={isSuperAdmin}
       stats={[
         { label: 'Registered Children (3.11 – 4.11 y/o)', value: learners.length },
         { label: 'Daycare Centers (CDCs)', value: cdcs.length },
         { label: 'Child Dev Workers / Teachers', value: teachers.length },
-        { label: 'ECCD Attendance Avg', value: '92.8%' },
+
       ]}
       activeTab={activeTab}
       onTabChange={setActiveTab}

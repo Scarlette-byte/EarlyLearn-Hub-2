@@ -4,7 +4,7 @@ import {
   barangayEnrolleesData,
   enrolleePopulationSummary,
 } from '../../lib/enrolleePopulationData.js';
-import { realTeachersList } from '../../lib/curriculumData.js';
+import { realTeachersList, cleanTeacherDisplayName } from '../../lib/curriculumData.js';
 
 // Format raw census CDC name into formal official center title
 function formatFormalCdcName(rawName, barangay) {
@@ -119,11 +119,18 @@ export default function DaycareCenterMonitoring({
 
   // Combine real teachers list (merging props teachers with realTeachersList baseline)
   const allTeachers = useMemo(() => {
-    const combined = [...(teachers || [])];
-    const seenNames = new Set(combined.map((t) => (t.full_name || '').toLowerCase().trim()));
+    const combined = (teachers || []).map((t) => ({
+      ...t,
+      full_name: cleanTeacherDisplayName(t.full_name) || t.full_name,
+    }));
+    const seenNames = new Set(combined.map((t) => cleanTeacherDisplayName(t.full_name).toLowerCase()));
     realTeachersList.forEach((bt) => {
-      if (!seenNames.has((bt.full_name || '').toLowerCase().trim())) {
-        combined.push(bt);
+      const cleanBtName = cleanTeacherDisplayName(bt.full_name);
+      if (!seenNames.has(cleanBtName.toLowerCase())) {
+        combined.push({
+          ...bt,
+          full_name: cleanBtName || bt.full_name,
+        });
       }
     });
     return combined;
@@ -222,8 +229,8 @@ export default function DaycareCenterMonitoring({
 
   return (
     <div className="space-y-6 font-nunito">
-      {/* 4 Authentic MSWD KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+      {/* 3 Authentic MSWD KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-card-border shadow-xs">
           <div className="flex items-center justify-between text-dash-ink-soft">
             <span className="text-[11px] font-extrabold uppercase tracking-wider">
@@ -270,21 +277,6 @@ export default function DaycareCenterMonitoring({
           </div>
           <div className="text-[11px] text-dash-ink-soft mt-0.5">
             Child Development Teachers &amp; Aides
-          </div>
-        </div>
-
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-card-border shadow-xs">
-          <div className="flex items-center justify-between text-[#2E6B38]">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#2E6B38]">
-              Average Attendance
-            </span>
-            <span className="text-base">📈</span>
-          </div>
-          <div className="font-fraunces text-2xl sm:text-3xl font-bold text-[#2E6B38] mt-1">
-            92.8%
-          </div>
-          <div className="text-[11px] text-dash-ink-soft mt-0.5">
-            Daily Municipal Turnout Average
           </div>
         </div>
       </div>

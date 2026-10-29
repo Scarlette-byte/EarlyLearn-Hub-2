@@ -6,6 +6,8 @@ import {
   realCdcsList,
   isAuthenticSupabaseMaterial,
   getCleanTeacherModulesList,
+  deduplicateTeacherModules,
+  cleanTeacherDisplayName,
 } from '../../lib/curriculumData.js';
 import {
   IconSearch,
@@ -96,7 +98,7 @@ export default function ProgramMonitoring({
             id: m.id,
             assignment_id: meta.assignment_id || null,
             title: m.title || 'Curriculum Learning Material',
-            teacher_name: meta.teacher_name || 'CDC Teacher',
+            teacher_name: cleanTeacherDisplayName(meta.teacher_name) || 'CDC Teacher',
             teacher_id: m.created_by,
             cdc_name: meta.cdc_name || 'Daycare Center',
             barangay: meta.barangay || 'Manolo Fortich',
@@ -125,9 +127,31 @@ export default function ProgramMonitoring({
           };
         });
 
-        setModules((prev) => {
+        const deduplicatedSb = deduplicateTeacherModules(mapped);
+
+        // Automatically remove stale duplicate Supabase rows for the same teacher + topic
+        const staleDbIds = [];
+        deduplicatedSb.forEach((item) => {
+          if (Array.isArray(item.duplicate_ids) && item.duplicate_ids.length > 1) {
+            item.duplicate_ids.forEach((dupId) => {
+              if (dupId && dupId !== item.id && !String(dupId).startsWith('mod-')) {
+                staleDbIds.push(dupId);
+              }
+            });
+          }
+        });
+        if (staleDbIds.length > 0) {
+          supabase
+            .from('materials')
+            .delete()
+            .in('id', staleDbIds)
+            .then(() => {})
+            .catch(() => {});
+        }
+
+        setModules(() => {
           const localList = getCleanTeacherModules();
-          const merged = mapped.map((sbItem) => {
+          const merged = deduplicatedSb.map((sbItem) => {
             const loc = localList.find((l) => l.id === sbItem.id);
             if (loc) {
               return {
@@ -142,7 +166,7 @@ export default function ProgramMonitoring({
             return sbItem;
           });
           const localOnly = localList.filter((p) => !merged.some((s) => s.id === p.id));
-          return [...merged, ...localOnly];
+          return deduplicateTeacherModules([...merged, ...localOnly]);
         });
       }
     } catch (err) {
@@ -161,7 +185,7 @@ export default function ProgramMonitoring({
         const local = getCleanTeacherModules();
         const sbOnly = prev.filter((p) => p.from_supabase);
         const uniqueLocal = local.filter((l) => !sbOnly.some((s) => s.id === l.id));
-        return [...sbOnly, ...uniqueLocal];
+        return deduplicateTeacherModules([...sbOnly, ...uniqueLocal]);
       });
     };
 

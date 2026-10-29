@@ -3,6 +3,8 @@ import { supabase } from '../../lib/supabaseClient';
 import {
   isAuthenticSupabaseMaterial,
   getCleanTeacherModulesList,
+  deduplicateTeacherModules,
+  cleanTeacherDisplayName,
 } from '../../lib/curriculumData.js';
 
 export default function MswdOverview({
@@ -52,7 +54,7 @@ export default function MswdOverview({
           return {
             id: m.id,
             title: m.title || 'Curriculum Learning Activity',
-            teacher_name: meta.teacher_name || 'CDC Teacher',
+            teacher_name: cleanTeacherDisplayName(meta.teacher_name) || 'CDC Teacher',
             teacher_id: m.created_by,
             cdc_name: meta.cdc_name || 'Daycare Center',
             barangay: meta.barangay || 'Manolo Fortich',
@@ -77,7 +79,8 @@ export default function MswdOverview({
           };
         });
 
-        const merged = mapped.map((sb) => {
+        const deduplicatedSb = deduplicateTeacherModules(mapped);
+        const merged = deduplicatedSb.map((sb) => {
           const loc = localList.find((l) => l.id === sb.id);
           return loc
             ? {
@@ -88,7 +91,7 @@ export default function MswdOverview({
             : sb;
         });
         const localOnly = localList.filter((l) => !merged.some((s) => s.id === l.id));
-        setCompliedActivities([...merged, ...localOnly]);
+        setCompliedActivities(deduplicateTeacherModules([...merged, ...localOnly]));
         return;
       }
     } catch {}
@@ -185,9 +188,13 @@ export default function MswdOverview({
             </span>
           </div>
           <h2 className="font-fraunces text-2xl sm:text-3xl font-bold text-dash-ink m-0">
-            {isSuperAdmin
-              ? `Welcome, ${profile?.full_name || 'Municipal Super Administrator'}`
-              : `Welcome, ${profile?.full_name || 'MSWD ECCD Administrator'}`}
+            {(() => {
+              const rawName = (profile?.full_name || '').trim();
+              const isGenericAdmin =
+                !rawName || /admin\s*test/i.test(rawName) || /^admin$/i.test(rawName);
+              const finalName = isGenericAdmin ? 'ADMIN' : rawName;
+              return `Welcome, ${finalName}`;
+            })()}
           </h2>
           <p className="text-xs sm:text-sm text-dash-ink-soft leading-relaxed m-0">
             {isSuperAdmin
@@ -291,7 +298,7 @@ export default function MswdOverview({
                   return (
                     <tr key={act.id} className="hover:bg-[#FFFDF9] transition-colors">
                       <td className="px-3.5 py-3 whitespace-nowrap">
-                        <div className="font-bold text-slate-900">{act.teacher_name}</div>
+                        <div className="font-bold text-slate-900">{cleanTeacherDisplayName(act.teacher_name) || act.teacher_name}</div>
                         <div className="text-[11px] text-slate-500">
                           {act.cdc_name} • Brgy. {act.barangay}
                         </div>

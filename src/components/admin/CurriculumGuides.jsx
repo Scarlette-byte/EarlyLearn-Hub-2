@@ -9,6 +9,7 @@ import {
   getCleanTeacherModulesList,
   initialTeacherModules,
   formatAssignmentCoverage,
+  cleanTeacherDisplayName,
 } from '../../lib/curriculumData.js';
 import { supabase, barangays } from '../../lib/supabaseClient';
 import {
@@ -178,13 +179,16 @@ export default function CurriculumGuides({
         if (ov) {
           return {
             ...t,
-            full_name: ov.full_name || t.full_name,
+            full_name: cleanTeacherDisplayName(ov.full_name || t.full_name),
             barangay: ov.barangay || t.barangay,
             cdc_name: ov.cdc_name || t.cdc_name,
             contact_number: ov.contact_number || t.contact_number,
           };
         }
-        return t;
+        return {
+          ...t,
+          full_name: cleanTeacherDisplayName(t.full_name) || t.full_name,
+        };
       });
     } catch {
       return base;

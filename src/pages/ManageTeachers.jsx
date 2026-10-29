@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase, barangays, normalizeAuthIdentifier } from '../lib/supabaseClient';
-import { realTeachersList, realCdcsList } from '../lib/curriculumData.js';
+import { realTeachersList, realCdcsList, cleanTeacherDisplayName } from '../lib/curriculumData.js';
 import {
   cardBox,
   table,
@@ -175,7 +175,12 @@ export default function ManageTeachers() {
         // ignore
       }
 
-      setTeachers(combined);
+      setTeachers(
+        combined.map((t) => ({
+          ...t,
+          full_name: cleanTeacherDisplayName(t.full_name) || t.full_name,
+        }))
+      );
     } catch {
       setTeachers(realTeachersList);
     }
@@ -375,7 +380,7 @@ export default function ManageTeachers() {
   // --- Edit Teacher ---
   function openEditModal(t) {
     setEditTeacherModal(t);
-    setEditFullName(t.full_name || '');
+    setEditFullName(cleanTeacherDisplayName(t.full_name) || '');
     setEditBarangay(t.barangay || '');
     setEditCdcId(t.cdc_id || '');
     setEditContact(t.contact_number || '');
@@ -709,7 +714,7 @@ export default function ManageTeachers() {
                       </div>
                       <div>
                         <div className="font-bold text-sm text-dash-ink">
-                          {t.full_name || '(No name set)'}
+                          {cleanTeacherDisplayName(t.full_name) || '(No name set)'}
                         </div>
                         <div className="text-[11px] text-dash-ink-soft font-mono">
                           ID: {t.id ? t.id.slice(0, 8) + '...' : '-'}

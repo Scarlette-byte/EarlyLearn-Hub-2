@@ -5,6 +5,7 @@ import {
   realCdcsList,
   getCleanCurriculumAssignments,
   formatAssignmentCoverage,
+  cleanTeacherDisplayName,
 } from '../../lib/curriculumData.js';
 import {
   barangayEnrolleesData,
@@ -48,14 +49,17 @@ export default function ReportsGeneration({
         if (ov) {
           return {
             ...t,
-            full_name: ov.full_name || t.full_name,
+            full_name: cleanTeacherDisplayName(ov.full_name || t.full_name),
             barangay: ov.barangay || t.barangay,
             cdc_name: ov.cdc_name || t.cdc_name,
             contact_number: ov.contact_number || t.contact_number,
             email: ov.email || t.email,
           };
         }
-        return t;
+        return {
+          ...t,
+          full_name: cleanTeacherDisplayName(t.full_name) || t.full_name,
+        };
       });
     } catch {
       // ignore
@@ -73,13 +77,18 @@ export default function ReportsGeneration({
     const customDeployments = getCleanCurriculumAssignments();
     const customMap = new Map();
     customDeployments.forEach((d) => {
-      const key = `${d.teacherName || ''}-${d.cdcName || ''}`.toLowerCase();
-      customMap.set(key, d);
+      const cleanName = cleanTeacherDisplayName(d.teacherName);
+      const key = `${cleanName || ''}-${d.cdcName || ''}`.toLowerCase();
+      customMap.set(key, {
+        ...d,
+        teacherName: cleanName || d.teacherName,
+      });
     });
 
     // Provide authentic municipal curriculum assignments for every real CDT across all 22 Barangays
     return activeTeachers.map((t, index) => {
-      const key = `${t.full_name || ''}-${t.cdc_name || ''}`.toLowerCase();
+      const cleanName = cleanTeacherDisplayName(t.full_name) || t.full_name;
+      const key = `${cleanName || ''}-${t.cdc_name || ''}`.toLowerCase();
       if (customMap.has(key)) {
         return customMap.get(key);
       }
@@ -89,7 +98,7 @@ export default function ReportsGeneration({
       return {
         id: `official-curr-${t.id || index}`,
         teacherId: t.id,
-        teacherName: t.full_name,
+        teacherName: cleanName,
         barangay: t.barangay,
         cdcName: t.cdc_name || `${t.barangay} Child Development Center`,
         level: isPreK1 ? 'Pre-K1' : 'Pre-K2',
@@ -143,7 +152,10 @@ export default function ReportsGeneration({
       attendees_count: r.attendees_count || 24,
     }));
 
-    return [...localModules, ...formattedBase];
+    return [...localModules, ...formattedBase].map((m) => ({
+      ...m,
+      teacher_name: cleanTeacherDisplayName(m.teacher_name) || m.teacher_name,
+    }));
   }, [activityReports]);
 
   // 5. Official Enrollee Population Census Data from MSWDO
@@ -427,7 +439,6 @@ export default function ReportsGeneration({
               <option value="modules">Teacher Uploaded Modules &amp; Activity Monitoring</option>
               <option value="teachers">Daycare Centers &amp; Teacher Staffing Roster</option>
               <option value="enrollment">Child Enrollee Population Census (3,091 Total)</option>
-              <option value="attendance">Daycare Center Operations &amp; Attendance</option>
               <option value="development">ECCD Child Developmental Milestones</option>
             </select>
           </div>

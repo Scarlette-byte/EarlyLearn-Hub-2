@@ -498,15 +498,56 @@ export default function TeacherDashboard({ profile }) {
       };
     });
 
-    const seenIds = new Set();
-    const result = [];
+    const byTitleMap = new Map();
+    const getScore = (item) => {
+      let s = 0;
+      if (item.posted_to_students) s += 8;
+      if (item.verified_by_mswd || item.status === 'Approved') s += 4;
+      if (item.status === 'Rejected') s += 2;
+      if (item.content_url) s += 1;
+      return s;
+    };
+
+    const staleDupIds = [];
     [...sbMats, ...teacherMods].forEach((item) => {
-      if (!seenIds.has(item.id)) {
-        seenIds.add(item.id);
-        result.push(item);
+      if (!item || !item.title) return;
+      const titleKey = String(item.title).trim().toLowerCase().replace(/\s+/g, ' ');
+      if (!byTitleMap.has(titleKey)) {
+        byTitleMap.set(titleKey, item);
+      } else {
+        const existing = byTitleMap.get(titleKey);
+        if (getScore(item) > getScore(existing)) {
+          if (existing.id && existing.id !== item.id && !String(existing.id).startsWith('mod-')) {
+            staleDupIds.push(existing.id);
+          }
+          byTitleMap.set(titleKey, {
+            ...existing,
+            ...item,
+            posted_to_students: Boolean(item.posted_to_students || existing.posted_to_students),
+            content_url: item.content_url || existing.content_url || null,
+            file_name: item.file_name || existing.file_name || null,
+          });
+        } else {
+          if (item.id && item.id !== existing.id && !String(item.id).startsWith('mod-')) {
+            staleDupIds.push(item.id);
+          }
+          existing.posted_to_students = Boolean(existing.posted_to_students || item.posted_to_students);
+          if (!existing.content_url && item.content_url) existing.content_url = item.content_url;
+          if (!existing.file_name && item.file_name) existing.file_name = item.file_name;
+        }
       }
     });
-    return result;
+
+    if (staleDupIds.length > 0) {
+      supabase
+        .from('materials')
+        .delete()
+        .in('id', staleDupIds)
+        .then(() => {})
+        .catch(() => {});
+    }
+
+    return Array.from(byTitleMap.values());
   }, [myMaterials, localTeacherModules, currentUserId, myFullName, profile]);
 
   // Filtered uploaded materials
@@ -769,36 +810,62 @@ export default function TeacherDashboard({ profile }) {
 
     const catId = categoryOptions.length > 0 ? categoryOptions[0].id : null;
     const dbType = ['image', 'video', 'text'].includes(uploadType) ? uploadType : 'activity';
-    let dbMaterialId = null;
+    const normNewTitle = uploadTitle.trim().toLowerCase().replace(/\s+/g, ' ');
+    const existingMat = (myMaterials || []).find(
+      (m) => (m.title || '').trim().toLowerCase().replace(/\s+/g, ' ') === normNewTitle
+    );
+    let dbMaterialId = existingMat?.id || null;
     let savedToSupabase = false;
 
     try {
-      const { data: insertedMat, error: matErr } = await supabase
-        .from('materials')
-        .insert({
-          category_id: catId,
-          type: dbType,
-          title: uploadTitle.trim(),
-          age_range: uploadCurriculumLevel === 'PRE-K1' ? '3-4' : '4-5',
-          content_url: effectiveUrl,
-          content_text: JSON.stringify(metadataPayload),
-          created_by: currentUserId,
-          status: 'pending',
-        })
-        .select()
-        .single();
+      if (existingMat?.id) {
+        const { data: updatedMat, error: matErr } = await supabase
+          .from('materials')
+          .update({
+            category_id: catId,
+            type: dbType,
+            title: uploadTitle.trim(),
+            age_range: uploadCurriculumLevel === 'PRE-K1' ? '3-4' : '4-5',
+            content_url: effectiveUrl,
+            content_text: JSON.stringify(metadataPayload),
+            status: 'pending',
+          })
+          .eq('id', existingMat.id)
+          .select()
+          .single();
 
-      if (!matErr && insertedMat) {
-        dbMaterialId = insertedMat.id;
-        savedToSupabase = true;
-      } else if (matErr) {
-        console.warn('Note on Supabase materials insert:', matErr);
+        if (!matErr && updatedMat) {
+          dbMaterialId = updatedMat.id;
+          savedToSupabase = true;
+        }
+      } else {
+        const { data: insertedMat, error: matErr } = await supabase
+          .from('materials')
+          .insert({
+            category_id: catId,
+            type: dbType,
+            title: uploadTitle.trim(),
+            age_range: uploadCurriculumLevel === 'PRE-K1' ? '3-4' : '4-5',
+            content_url: effectiveUrl,
+            content_text: JSON.stringify(metadataPayload),
+            created_by: currentUserId,
+            status: 'pending',
+          })
+          .select()
+          .single();
+
+        if (!matErr && insertedMat) {
+          dbMaterialId = insertedMat.id;
+          savedToSupabase = true;
+        } else if (matErr) {
+          console.warn('Note on Supabase materials insert:', matErr);
+        }
       }
     } catch (err) {
       console.warn('Note on Supabase insert:', err);
     }
 
-    // 2. Insert to localTeacherModules for cross-dashboard visibility & MSWD activity monitoring
+    // 2. Insert/replace in localTeacherModules for cross-dashboard visibility & MSWD activity monitoring (1 record per title)
     const newMod = {
       id: dbMaterialId || ('mod-' + Date.now()),
       assignment_id: activeAssignmentId || null,
@@ -840,7 +907,12 @@ export default function TeacherDashboard({ profile }) {
       is_custom_teacher_upload: true,
     };
 
-    const updated = [newMod, ...localTeacherModules];
+    const filteredLocal = (localTeacherModules || []).filter(
+      (m) =>
+        m.id !== newMod.id &&
+        (m.title || '').trim().toLowerCase().replace(/\s+/g, ' ') !== normNewTitle
+    );
+    const updated = [newMod, ...filteredLocal];
     setLocalTeacherModules(updated);
     try {
       localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(updated));
