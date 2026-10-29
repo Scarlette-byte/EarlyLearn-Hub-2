@@ -302,11 +302,10 @@ export default function DaycareCenterMonitoring({
             <button
               type="button"
               onClick={() => setViewMode('table')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                viewMode === 'table'
-                  ? 'bg-white text-dash-ink shadow-xs'
-                  : 'text-dash-ink-soft hover:text-dash-ink'
-              }`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${viewMode === 'table'
+                ? 'bg-white text-dash-ink shadow-xs'
+                : 'text-dash-ink-soft hover:text-dash-ink'
+                }`}
             >
               <span>📋</span>
               <span>Table</span>
@@ -314,11 +313,10 @@ export default function DaycareCenterMonitoring({
             <button
               type="button"
               onClick={() => setViewMode('cards')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                viewMode === 'cards'
-                  ? 'bg-white text-dash-ink shadow-xs'
-                  : 'text-dash-ink-soft hover:text-dash-ink'
-              }`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${viewMode === 'cards'
+                ? 'bg-white text-dash-ink shadow-xs'
+                : 'text-dash-ink-soft hover:text-dash-ink'
+                }`}
             >
               <span>🗂️</span>
               <span>Cards</span>
@@ -331,44 +329,40 @@ export default function DaycareCenterMonitoring({
           <button
             type="button"
             onClick={() => setActiveFilterTab('all')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-              activeFilterTab === 'all'
-                ? 'bg-accent text-white shadow-xs'
-                : 'bg-[#F9F5EC] text-slate-700 hover:bg-[#F0E8D8]'
-            }`}
+            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${activeFilterTab === 'all'
+              ? 'bg-accent text-white shadow-xs'
+              : 'bg-[#F9F5EC] text-slate-700 hover:bg-[#F0E8D8]'
+              }`}
           >
             All Centers ({totalCentersCount})
           </button>
           <button
             type="button"
             onClick={() => setActiveFilterTab('large')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-              activeFilterTab === 'large'
-                ? 'bg-accent text-white shadow-xs'
-                : 'bg-[#F9F5EC] text-slate-700 hover:bg-[#F0E8D8]'
-            }`}
+            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${activeFilterTab === 'large'
+              ? 'bg-accent text-white shadow-xs'
+              : 'bg-[#F9F5EC] text-slate-700 hover:bg-[#F0E8D8]'
+              }`}
           >
             Large Centers (50+ Toddlers)
           </button>
           <button
             type="button"
             onClick={() => setActiveFilterTab('multi_teacher')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-              activeFilterTab === 'multi_teacher'
-                ? 'bg-accent text-white shadow-xs'
-                : 'bg-[#F9F5EC] text-slate-700 hover:bg-[#F0E8D8]'
-            }`}
+            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${activeFilterTab === 'multi_teacher'
+              ? 'bg-accent text-white shadow-xs'
+              : 'bg-[#F9F5EC] text-slate-700 hover:bg-[#F0E8D8]'
+              }`}
           >
             Multiple Teachers (2+ CDWs)
           </button>
           <button
             type="button"
             onClick={() => setActiveFilterTab('near_capacity')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-              activeFilterTab === 'near_capacity'
-                ? 'bg-accent text-white shadow-xs'
-                : 'bg-[#F9F5EC] text-slate-700 hover:bg-[#F0E8D8]'
-            }`}
+            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${activeFilterTab === 'near_capacity'
+              ? 'bg-accent text-white shadow-xs'
+              : 'bg-[#F9F5EC] text-slate-700 hover:bg-[#F0E8D8]'
+              }`}
           >
             Near / At Capacity (85%+)
           </button>
@@ -506,11 +500,10 @@ export default function DaycareCenterMonitoring({
                                     </span>
                                     <div className="flex items-center gap-1.5 text-[10.5px] text-slate-500 mt-0.5">
                                       <span
-                                        className={`px-1.5 py-0.2 rounded text-[9.5px] font-bold ${
-                                          (t.designation || '').includes('Aide')
-                                            ? 'bg-amber-100 text-amber-800'
-                                            : 'bg-sky-100 text-sky-800'
-                                        }`}
+                                        className={`px-1.5 py-0.2 rounded text-[9.5px] font-bold ${(t.designation || '').includes('Aide')
+                                          ? 'bg-amber-100 text-amber-800'
+                                          : 'bg-sky-100 text-sky-800'
+                                          }`}
                                       >
                                         {(t.designation || '').includes('Aide') ? 'CDW Aide' : 'CDT'}
                                       </span>
@@ -536,13 +529,12 @@ export default function DaycareCenterMonitoring({
                               <span className="text-slate-500 font-normal"> / {cdc.capacity} Max Cap</span>
                             </span>
                             <span
-                              className={`text-[11px] font-extrabold ${
-                                cdc.utilization >= 95
-                                  ? 'text-red-700'
-                                  : cdc.utilization >= 85
+                              className={`text-[11px] font-extrabold ${cdc.utilization >= 95
+                                ? 'text-red-700'
+                                : cdc.utilization >= 85
                                   ? 'text-amber-700'
                                   : 'text-emerald-700'
-                              }`}
+                                }`}
                             >
                               {cdc.utilization}% Fill
                             </span>
@@ -551,13 +543,12 @@ export default function DaycareCenterMonitoring({
                           {/* Progress bar */}
                           <div className="w-full bg-[#EAE0CF] rounded-full h-2 overflow-hidden mb-1.5">
                             <div
-                              className={`h-full rounded-full transition-all duration-300 ${
-                                cdc.utilization >= 95
-                                  ? 'bg-red-500'
-                                  : cdc.utilization >= 85
+                              className={`h-full rounded-full transition-all duration-300 ${cdc.utilization >= 95
+                                ? 'bg-red-500'
+                                : cdc.utilization >= 85
                                   ? 'bg-amber-500'
                                   : 'bg-emerald-500'
-                              }`}
+                                }`}
                               style={{ width: `${Math.min(cdc.utilization, 100)}%` }}
                             />
                           </div>
@@ -626,13 +617,12 @@ export default function DaycareCenterMonitoring({
                     Center #{cdc.no} • Brgy. {cdc.barangay}
                   </span>
                   <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                      cdc.utilization >= 95
-                        ? 'bg-red-100 text-red-800'
-                        : cdc.utilization >= 85
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${cdc.utilization >= 95
+                      ? 'bg-red-100 text-red-800'
+                      : cdc.utilization >= 85
                         ? 'bg-amber-100 text-amber-800'
                         : 'bg-emerald-100 text-emerald-800'
-                    }`}
+                      }`}
                   >
                     {cdc.status}
                   </span>
@@ -667,9 +657,8 @@ export default function DaycareCenterMonitoring({
                   </div>
                   <div className="w-full bg-[#EAE0CF] rounded-full h-2 overflow-hidden">
                     <div
-                      className={`h-full rounded-full ${
-                        cdc.utilization >= 95 ? 'bg-red-500' : cdc.utilization >= 85 ? 'bg-amber-500' : 'bg-emerald-500'
-                      }`}
+                      className={`h-full rounded-full ${cdc.utilization >= 95 ? 'bg-red-500' : cdc.utilization >= 85 ? 'bg-amber-500' : 'bg-emerald-500'
+                        }`}
                       style={{ width: `${Math.min(cdc.utilization, 100)}%` }}
                     />
                   </div>
