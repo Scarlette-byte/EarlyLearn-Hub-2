@@ -8,8 +8,12 @@ import {
   extractMswdTopicChoices,
   realTeachersList,
   realCdcsList,
+  isAuthenticSupabaseMaterial,
+  getCleanTeacherModulesList,
+  doesAssignmentMatchTeacher,
+  normalizeTeacherName,
 } from '../lib/curriculumData.js';
-import { getLearnersForTeacher, getCdcForBarangay } from '../lib/learnersService.js';
+import { getLearnersForTeacher, getCdcForBarangay, cleanStudentName } from '../lib/learnersService.js';
 import TeacherChildDevelopment from '../components/teacher/TeacherChildDevelopment.jsx';
 import TeacherUploadModal from '../components/teacher/TeacherUploadModal.jsx';
 import {
@@ -67,23 +71,77 @@ export default function TeacherDashboard({ profile }) {
   const [curriculumQuarter, setCurriculumQuarter] = useState('all');
   const [curriculumSearch, setCurriculumSearch] = useState('');
 
-  // Uploaded Materials & Modules state (persisted per teacher)
-  const [localTeacherModules, setLocalTeacherModules] = useState(() => {
-    try {
-      const saved = localStorage.getItem('earlylearn_teacher_modules');
-      if (!saved) return [];
-      const parsed = JSON.parse(saved);
-      if (!Array.isArray(parsed)) return [];
-      // Clean out any legacy mod-01 to mod-12 dummy items
-      const filtered = parsed.filter((m) => m && m.id && !/^mod-0[1-9]$|^mod-1[0-2]$/.test(m.id));
-      if (filtered.length !== parsed.length) {
-        localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(filtered));
+  // Uploaded Materials & Modules state (persisted per teacher, excluding student category review items)
+  const [localTeacherModules, setLocalTeacherModules] = useState(getCleanTeacherModulesList);
+
+  // In-App Preview Modal state (for viewing teacher uploaded materials & student submitted activities without forcing download)
+  const [previewModalItem, setPreviewModalItem] = useState(null);
+  const [previewBlobUrl, setPreviewBlobUrl] = useState(null);
+
+  // Helper to convert data: URLs to Blob URLs so PDFs and images can be viewed inline or in a new tab without forced download
+  const createViewableUrl = useCallback((rawUrl) => {
+    if (!rawUrl) return null;
+    if (rawUrl.startsWith('data:')) {
+      try {
+        const parts = rawUrl.split(',');
+        const mimeMatch = parts[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+        const bstr = atob(parts[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        const blob = new Blob([u8arr], { type: mime });
+        return URL.createObjectURL(blob);
+      } catch {
+        return rawUrl;
       }
-      return filtered;
-    } catch {
-      return [];
     }
-  });
+    return rawUrl;
+  }, []);
+
+  const handleOpenPreviewModal = useCallback(
+    (item) => {
+      if (previewBlobUrl && previewBlobUrl.startsWith('blob:')) {
+        try {
+          URL.revokeObjectURL(previewBlobUrl);
+        } catch {}
+      }
+      const nextBlob = item?.fileUrl ? createViewableUrl(item.fileUrl) : null;
+      setPreviewBlobUrl(nextBlob);
+      setPreviewModalItem(item);
+    },
+    [createViewableUrl, previewBlobUrl]
+  );
+
+  const handleClosePreviewModal = useCallback(() => {
+    if (previewBlobUrl && previewBlobUrl.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(previewBlobUrl);
+      } catch {}
+    }
+    setPreviewBlobUrl(null);
+    setPreviewModalItem(null);
+  }, [previewBlobUrl]);
+
+  const handleOpenInNewTabOrDownload = useCallback(
+    (fileUrl, fileName, mode = 'view') => {
+      if (!fileUrl) return;
+      const urlToUse = createViewableUrl(fileUrl);
+      if (mode === 'download') {
+        const a = document.createElement('a');
+        a.href = urlToUse;
+        a.download = fileName || 'activity-file';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else {
+        window.open(urlToUse, '_blank', 'noopener,noreferrer');
+      }
+    },
+    [createViewableUrl]
+  );
 
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [matCategory, setMatCategory] = useState('');
@@ -153,13 +211,8 @@ export default function TeacherDashboard({ profile }) {
   const [myLearners, setMyLearners] = useState([]);
   const [learnersLoading, setLearnersLoading] = useState(true);
 
-  // Filter assignments targeted to this logged-in teacher / CDC / Barangay (Real MSWDO deployments only)
+  // Filter assignments targeted strictly to this logged-in teacher (only matches all teachers if explicitly assigned to All Teachers)
   const myAssignedTopics = useMemo(() => {
-    const teacherName = (myFullName || profile?.full_name || '').toLowerCase();
-    const cleanName = teacherName.replace(/\s*\(.*?\)\s*/g, '').trim();
-    const brgy = (myBarangay || profile?.barangay || '').toLowerCase();
-    const cdc = (myCdcName || profile?.cdc_name || '').toLowerCase();
-
     return assignments.filter((a) => {
       if (
         !a ||
@@ -172,21 +225,12 @@ export default function TeacherDashboard({ profile }) {
         return false;
       }
 
-      const aTeacher = (a.teacherName || '').toLowerCase();
-      const aBrgy = (a.barangay || '').toLowerCase();
-      const aCdc = (a.cdcName || '').toLowerCase();
-
-      const idMatch = a.teacherId && (a.teacherId === currentUserId || a.teacherId === profile?.id);
-      const nameMatch = cleanName && (aTeacher.includes(cleanName) || cleanName.includes(aTeacher));
-      const cdcMatch = cdc && (aCdc.includes(cdc) || cdc.includes(aCdc));
-      const brgyMatch = brgy && (aBrgy.includes(brgy) || brgy.includes(aBrgy));
-      const isUniversal =
-        a.targetType === 'all' ||
-        a.barangay === 'all' ||
-        a.cdcName === 'All CDCs' ||
-        a.teacherName === 'All Teachers';
-
-      return idMatch || nameMatch || cdcMatch || brgyMatch || isUniversal;
+      return doesAssignmentMatchTeacher(a, {
+        teacherId: currentUserId || profile?.id,
+        teacherName: myFullName || profile?.full_name || '',
+        barangay: myBarangay || profile?.barangay || '',
+        cdcName: myCdcName || profile?.cdc_name || '',
+      });
     });
   }, [assignments, profile, currentUserId, myFullName, myBarangay, myCdcName]);
 
@@ -215,8 +259,7 @@ export default function TeacherDashboard({ profile }) {
         // 1. Extract any MSWD curriculum topic assignments stored in Supabase
         const sbAssigns = [];
         const regularMats = [];
-        const teacherNameLower = (myFullName || profile?.full_name || '').replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase();
-        const cdcNameLower = (myCdcName || profile?.cdc_name || '').trim().toLowerCase();
+        const normMyTeacherName = normalizeTeacherName(myFullName || profile?.full_name || '');
 
         data.forEach((m) => {
           if (m.title?.startsWith('[MSWD_ASSIGNMENT]')) {
@@ -231,6 +274,11 @@ export default function TeacherDashboard({ profile }) {
             return;
           }
 
+          // Exclude the 70+ static student bilingual category review items
+          if (!isAuthenticSupabaseMaterial(m)) {
+            return;
+          }
+
           let meta = {};
           if (m.content_text && m.content_text.trim().startsWith('{')) {
             try {
@@ -239,12 +287,14 @@ export default function TeacherDashboard({ profile }) {
             } catch {}
           }
 
-          const metaTeacher = (meta.teacher_name || '').toLowerCase();
-          const metaCdc = (meta.cdc_name || '').toLowerCase();
+          const normMetaTeacher = normalizeTeacherName(meta.teacher_name || '');
           const isMine =
             m.created_by === currentUserId ||
-            (teacherNameLower && metaTeacher && (metaTeacher.includes(teacherNameLower) || teacherNameLower.includes(metaTeacher))) ||
-            (cdcNameLower && metaCdc && (metaCdc.includes(cdcNameLower) || cdcNameLower.includes(metaCdc)));
+            (normMyTeacherName.length >= 3 &&
+              normMetaTeacher.length >= 3 &&
+              (normMetaTeacher === normMyTeacherName ||
+                normMetaTeacher.includes(normMyTeacherName) ||
+                normMyTeacherName.includes(normMetaTeacher)));
 
           if (isMine) {
             regularMats.push(m);
@@ -272,9 +322,9 @@ export default function TeacherDashboard({ profile }) {
     } catch {
       // ignore
     }
-  }, [currentUserId, myFullName, myCdcName, profile]);
+  }, [currentUserId, myFullName, profile]);
 
-  // Real-time Supabase sync for materials status (notified when Admin approves/rejects)
+  // Real-time Supabase sync for materials status and student submissions
   useEffect(() => {
     loadMyMaterials();
 
@@ -284,6 +334,10 @@ export default function TeacherDashboard({ profile }) {
         .channel('teacher-dashboard-materials-realtime')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'materials' }, () => {
           loadMyMaterials();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'submissions' }, () => {
+          loadSubmissions();
+          loadProgress();
         })
         .subscribe();
     } catch {}
@@ -300,12 +354,21 @@ export default function TeacherDashboard({ profile }) {
       if (m && m.id) localMap.set(m.id, m);
     });
 
+    const normMyName = normalizeTeacherName(myFullName || profile?.full_name || '');
     const teacherMods = (localTeacherModules || [])
       .filter((m) => {
-        const tName = (myFullName || profile?.full_name || '').toLowerCase().trim();
         if (m.teacher_id && m.teacher_id === currentUserId) return true;
-        if (tName && m.teacher_name && m.teacher_name.toLowerCase().includes(tName)) return true;
-        return !m.teacher_id || m.teacher_id === currentUserId;
+        const normModTeacher = normalizeTeacherName(m.teacher_name || '');
+        if (
+          normMyName.length >= 3 &&
+          normModTeacher.length >= 3 &&
+          (normModTeacher === normMyName ||
+            normModTeacher.includes(normMyName) ||
+            normMyName.includes(normModTeacher))
+        ) {
+          return true;
+        }
+        return false;
       })
       .map((m) => {
         const isRejected = m.status === 'Rejected' || m.status === 'Needs Revision' || m.status === 'rejected' || m.status === 'needs_revision';
@@ -1030,16 +1093,16 @@ export default function TeacherDashboard({ profile }) {
     loadAnnouncements();
   }
 
-  // --- Submissions (with cross-device student file & image upload support) ---
+  // --- Submissions (1 record per student, student name only without parent name, cross-device file view) ---
   const loadSubmissions = useCallback(async () => {
-    let list = [];
+    let rawList = [];
     try {
       const { data, error } = await supabase
         .from('submissions')
         .select('id, material_id, student_id, answer_text, status, created_at, profiles(full_name), materials(title)')
         .order('created_at', { ascending: false });
       if (!error && data) {
-        list = data.map((s) => {
+        rawList = data.map((s) => {
           let parsedMeta = null;
           if (s.answer_text && s.answer_text.trim().startsWith('{')) {
             try {
@@ -1047,14 +1110,29 @@ export default function TeacherDashboard({ profile }) {
               if (p && p.__submission_meta) parsedMeta = p;
             } catch {}
           }
+          const studentOnlyName = cleanStudentName(
+            s.profiles?.full_name || parsedMeta?.student_name || 'Learner'
+          );
+          const isChecked =
+            s.status === 'checked' ||
+            s.status === 'reviewed' ||
+            parsedMeta?.teacher_checked === true;
+
           return {
             ...s,
+            raw_answer_text: s.answer_text,
+            parsed_meta: parsedMeta,
             answer_text: parsedMeta ? parsedMeta.answer_text || '' : s.answer_text,
+            status: isChecked ? 'checked' : 'submitted',
             profiles: {
-              full_name: s.profiles?.full_name || parsedMeta?.student_name || 'Learner',
+              full_name: studentOnlyName || 'Learner',
             },
             materials: {
-              title: s.materials?.title || parsedMeta?.material_title || parsedMeta?.category || 'Activity Submission',
+              title:
+                s.materials?.title ||
+                parsedMeta?.material_title ||
+                parsedMeta?.category ||
+                'Activity Submission',
             },
             mediaUrl: parsedMeta?.file_url || null,
             fileName: parsedMeta?.file_name || null,
@@ -1069,59 +1147,199 @@ export default function TeacherDashboard({ profile }) {
 
     try {
       const localStudentUploads = JSON.parse(localStorage.getItem('earlylearn_student_uploads') || '[]');
-      const localSubs = localStudentUploads.map((u) => ({
-        id: u.id,
-        answer_text: u.note || u.title || '',
-        status: u.status === 'Checked' ? 'checked' : 'submitted',
-        profiles: { full_name: u.studentName || 'Student Test' },
-        materials: { title: u.materialTitle || u.title },
-        mediaUrl: u.mediaUrl || null,
-        fileName: u.fileName || null,
-        fileType: u.fileType || null,
-        fileSize: u.fileSize || null,
-        isStudentUpload: true,
-      }));
-      const existingIds = new Set(list.map((s) => s.id));
+      const localSubs = localStudentUploads.map((u) => {
+        const studentOnlyName = cleanStudentName(u.studentName || 'Student');
+        const isChecked =
+          u.status === 'Checked' ||
+          u.status === 'Checked by Teacher ✅' ||
+          u.status === 'Reviewed by Teacher' ||
+          u.teacherChecked === true;
+        return {
+          id: u.id,
+          student_id: u.studentId || null,
+          answer_text: u.note || '',
+          status: isChecked ? 'checked' : 'submitted',
+          profiles: { full_name: studentOnlyName || 'Student' },
+          materials: { title: u.materialTitle || u.title || 'Activity Submission' },
+          mediaUrl: u.mediaUrl || null,
+          fileName: u.fileName || null,
+          fileType: u.fileType || null,
+          fileSize: u.fileSize || null,
+          isStudentUpload: true,
+        };
+      });
+      const existingIds = new Set(rawList.map((s) => s.id));
       localSubs.forEach((s) => {
-        if (!existingIds.has(s.id)) list.push(s);
+        if (!existingIds.has(s.id)) rawList.push(s);
       });
     } catch {
       // ignore
     }
 
-    setSubmissions(list);
+    // Strictly 1 record per student only (merging any duplicate submission rows for the same student)
+    const byStudent = new Map();
+    rawList.forEach((item) => {
+      const studentKey = cleanStudentName(item.profiles?.full_name || '').toLowerCase();
+      if (!studentKey) return;
+
+      if (!byStudent.has(studentKey)) {
+        byStudent.set(studentKey, {
+          ...item,
+          allIds: [item.id],
+          rawRows: [item],
+        });
+      } else {
+        const existing = byStudent.get(studentKey);
+        if (!existing.allIds.includes(item.id)) {
+          existing.allIds.push(item.id);
+          existing.rawRows.push(item);
+        }
+        // Prefer keeping mediaUrl/fileName if the latest row didn't have one
+        if (!existing.mediaUrl && item.mediaUrl) {
+          existing.mediaUrl = item.mediaUrl;
+          existing.fileName = item.fileName;
+          existing.fileType = item.fileType;
+          existing.fileSize = item.fileSize;
+        }
+        if (item.status === 'checked') {
+          existing.status = 'checked';
+        }
+      }
+    });
+
+    setSubmissions(Array.from(byStudent.values()));
   }, []);
 
-  async function markChecked(id) {
-    try {
-      await supabase.from('submissions').update({ status: 'checked' }).eq('id', id);
-    } catch {
-      // ignore
+  async function markChecked(submissionOrId) {
+    const targetSub =
+      typeof submissionOrId === 'object' && submissionOrId !== null
+        ? submissionOrId
+        : submissions.find((s) => s.id === submissionOrId);
+
+    const idsToMark = targetSub?.allIds || [targetSub?.id || submissionOrId];
+    const rawRows = targetSub?.rawRows || (targetSub ? [targetSub] : []);
+    const checkedAt = new Date().toISOString();
+
+    for (const row of rawRows) {
+      if (!row?.id || String(row.id).startsWith('stu-')) continue;
+      let updatedAnswerText = row.raw_answer_text;
+      if (row.parsed_meta) {
+        updatedAnswerText = JSON.stringify({
+          ...row.parsed_meta,
+          teacher_checked: true,
+          checked_at: checkedAt,
+        });
+      }
+      try {
+        const { error } = await supabase
+          .from('submissions')
+          .update({
+            status: 'checked',
+            ...(updatedAnswerText ? { answer_text: updatedAnswerText } : {}),
+          })
+          .eq('id', row.id);
+
+        if (error) {
+          await supabase
+            .from('submissions')
+            .update({
+              status: 'reviewed',
+              ...(updatedAnswerText ? { answer_text: updatedAnswerText } : {}),
+            })
+            .eq('id', row.id);
+        }
+      } catch {
+        // ignore
+      }
     }
+
     try {
+      const targetStudentName = cleanStudentName(targetSub?.profiles?.full_name || '').toLowerCase();
       const localStudentUploads = JSON.parse(localStorage.getItem('earlylearn_student_uploads') || '[]');
-      const updated = localStudentUploads.map((u) => (u.id === id ? { ...u, status: 'Checked' } : u));
+      const updated = localStudentUploads.map((u) => {
+        const uStudent = cleanStudentName(u.studentName || '').toLowerCase();
+        if (idsToMark.includes(u.id) || (targetStudentName && uStudent === targetStudentName)) {
+          return { ...u, status: 'Checked by Teacher ✅', teacherChecked: true, checkedAt };
+        }
+        return u;
+      });
       localStorage.setItem('earlylearn_student_uploads', JSON.stringify(updated));
+      if (targetSub?.student_id) {
+        localStorage.setItem(`earlylearn_student_uploads_${targetSub.student_id}`, JSON.stringify(updated));
+      }
+      window.dispatchEvent(new CustomEvent('earlylearn_modules_updated'));
     } catch {
       // ignore
     }
+
+    if (previewModalItem && idsToMark.includes(previewModalItem.submissionId)) {
+      setPreviewModalItem((prev) => (prev ? { ...prev, status: 'checked' } : null));
+    }
+
     loadSubmissions();
+    loadProgress();
   }
 
-  // --- Progress ---
+  // --- Progress (1 record per student only, student name only without parent name) ---
   const loadProgress = useCallback(async () => {
     const { data: students } = await supabase
       .from('profiles')
       .select('id, full_name')
       .eq('role', 'student');
-    const { data: subs } = await supabase.from('submissions').select('student_id, status');
+    const { data: subs } = await supabase
+      .from('submissions')
+      .select('id, student_id, material_id, answer_text, status');
 
-    setTotalStudents((students || []).length);
+    // Group students by cleaned student name so there is strictly 1 record per student
+    const studentMap = new Map();
+    (students || []).forEach((st) => {
+      const cleaned = cleanStudentName(st.full_name || '');
+      if (!cleaned) return;
+      const key = cleaned.toLowerCase();
+      if (!studentMap.has(key)) {
+        studentMap.set(key, {
+          id: st.id,
+          name: cleaned,
+          studentIds: new Set([st.id]),
+        });
+      } else {
+        studentMap.get(key).studentIds.add(st.id);
+      }
+    });
 
-    const rows = (students || []).map((st) => {
-      const mine = (subs || []).filter((s) => s.student_id === st.id);
-      const checked = mine.filter((s) => s.status === 'checked').length;
-      return { id: st.id, name: st.full_name || '-', submitted: mine.length, checked };
+    const uniqueStudents = Array.from(studentMap.values());
+    setTotalStudents(uniqueStudents.length);
+
+    const rows = uniqueStudents.map((st) => {
+      const mine = (subs || []).filter((s) => st.studentIds.has(s.student_id));
+      // Deduplicate by activity title / material_id so 1 activity = 1 count
+      const byActivity = new Map();
+      mine.forEach((s) => {
+        let meta = null;
+        if (s.answer_text && s.answer_text.trim().startsWith('{')) {
+          try {
+            const p = JSON.parse(s.answer_text);
+            if (p && p.__submission_meta) meta = p;
+          } catch {}
+        }
+        const actKey = (meta?.material_title || s.material_id || s.id || 'activity').toString().toLowerCase().trim();
+        const isChecked =
+          s.status === 'checked' || s.status === 'reviewed' || meta?.teacher_checked === true;
+        if (!byActivity.has(actKey)) {
+          byActivity.set(actKey, { isChecked });
+        } else if (isChecked) {
+          byActivity.get(actKey).isChecked = true;
+        }
+      });
+
+      const uniqueActs = Array.from(byActivity.values());
+      const checkedCount = uniqueActs.filter((a) => a.isChecked).length;
+      return {
+        id: st.id,
+        name: st.name,
+        submitted: uniqueActs.length,
+        checked: checkedCount,
+      };
     });
     setProgressRows(rows);
   }, []);
@@ -2110,9 +2328,9 @@ export default function TeacherDashboard({ profile }) {
                 <table className={table}>
                   <thead>
                     <tr>
-                      <th className={th}>NAME</th>
-                      <th className={th}>BIRTHDATE</th>
-                      <th className={th}>PARENT</th>
+                      <th className={th}>STUDENT NAME</th>
+                      <th className={th}>AGE / BIRTHDATE</th>
+                      <th className={th}>BARANGAY</th>
                       <th className={th}>CONTACT</th>
                       <th className={th}>ACTIONS</th>
                     </tr>
@@ -2123,11 +2341,11 @@ export default function TeacherDashboard({ profile }) {
                         <td className={td}>
                           <div className="flex items-center gap-2">
                             <span>🧒</span>
-                            <span className="font-bold text-slate-900">{l.full_name}</span>
+                            <span className="font-bold text-slate-900">{cleanStudentName(l.full_name)}</span>
                           </div>
                         </td>
                         <td className={td}>{l.birthdate || l.child_age || '-'}</td>
-                        <td className={td}>{l.parent_name || '-'}</td>
+                        <td className={td}>{l.barangay || myBarangay || '-'}</td>
                         <td className={td}>{l.parent_contact || '-'}</td>
                         <td className={td}>
                           <button
@@ -2465,19 +2683,31 @@ export default function TeacherDashboard({ profile }) {
                                 Target Student
                               </button>
                             )}
-                            {m.content_url && (
-                              <a
-                                href={m.content_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                download={m.file_name || undefined}
-                                className="px-2.5 py-1 rounded-lg text-emerald-700 hover:bg-emerald-50 text-xs font-semibold transition-colors inline-flex items-center gap-1 cursor-pointer"
-                                title="View / Download Material File"
-                              >
-                                <span>👁️</span>
-                                <span>View</span>
-                              </a>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleOpenPreviewModal({
+                                  kind: 'material',
+                                  title: m.title,
+                                  subtitle: m.sub_theme
+                                    ? `MSWD Topic: ${m.sub_theme} (${m.level || 'Pre-K1'} • Q${m.quarter} ${m.week})`
+                                    : `${m.level || 'Pre-K1'} • Q${m.quarter} ${m.week}`,
+                                  description: m.content_text || '',
+                                  fileUrl: m.content_url || null,
+                                  fileName: m.file_name || m.title,
+                                  fileType: m.file_type || m.type?.toUpperCase() || 'FILE',
+                                  fileSize: m.file_size || '',
+                                  status: m.status,
+                                  postedToStudents: m.posted_to_students,
+                                  targetStudentName: m.target_student_name,
+                                })
+                              }
+                              className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-colors inline-flex items-center gap-1 cursor-pointer"
+                              title="View Uploaded Activity & File"
+                            >
+                              <span>👁️</span>
+                              <span>View</span>
+                            </button>
                             <button
                               type="button"
                               onClick={() => handleDeleteMaterial(m)}
@@ -2583,50 +2813,116 @@ export default function TeacherDashboard({ profile }) {
                 {submissions.map((s) => (
                   <tr key={s.id}>
                     <td className={td}>
-                      <div className="font-bold text-slate-900">{s.profiles?.full_name || '-'}</div>
+                      <div className="font-bold text-slate-900">
+                        {cleanStudentName(s.profiles?.full_name) || '-'}
+                      </div>
                     </td>
                     <td className={td}>{s.materials?.title || '-'}</td>
                     <td className={td}>
                       <div className="space-y-1.5">
                         {s.answer_text && <div className="text-xs text-slate-800">{s.answer_text}</div>}
                         {s.mediaUrl && (
-                          <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 w-fit">
-                            {s.mediaUrl.startsWith('data:image/') && (
+                          <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-50 border border-slate-200 w-fit">
+                            {s.mediaUrl.startsWith('data:image/') ? (
                               <img
                                 src={s.mediaUrl}
                                 alt={s.fileName || 'Student upload'}
-                                className="w-10 h-10 object-cover rounded border border-slate-200 shrink-0"
+                                onClick={() =>
+                                  handleOpenPreviewModal({
+                                    kind: 'submission',
+                                    submissionId: s.id,
+                                    submissionObj: s,
+                                    studentName: cleanStudentName(s.profiles?.full_name) || 'Student',
+                                    title: s.materials?.title || 'Student Activity',
+                                    subtitle: `Submitted by ${cleanStudentName(s.profiles?.full_name) || 'Student'}`,
+                                    description: s.answer_text || '',
+                                    fileUrl: s.mediaUrl,
+                                    fileName: s.fileName || 'Student_Activity_File',
+                                    fileType: s.fileType || 'IMAGE',
+                                    fileSize: s.fileSize || '',
+                                    status: s.status,
+                                  })
+                                }
+                                className="w-11 h-11 object-cover rounded-lg border border-slate-200 shrink-0 cursor-pointer hover:opacity-90"
                               />
+                            ) : (
+                              <div className="w-11 h-11 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 flex flex-col items-center justify-center shrink-0 text-[9px] font-extrabold">
+                                <span className="text-base">📄</span>
+                                <span>{s.fileType || 'FILE'}</span>
+                              </div>
                             )}
                             <div className="text-[11px]">
                               <div className="font-bold text-slate-800">
                                 📎 {s.fileName || 'Student Uploaded File'}
                               </div>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <a
-                                  href={s.mediaUrl}
-                                  download={s.fileName || 'student-submission-file'}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-emerald-700 font-bold hover:underline"
+                              <div className="flex items-center gap-2 mt-1">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleOpenPreviewModal({
+                                      kind: 'submission',
+                                      submissionId: s.id,
+                                      submissionObj: s,
+                                      studentName: cleanStudentName(s.profiles?.full_name) || 'Student',
+                                      title: s.materials?.title || 'Student Activity',
+                                      subtitle: `Submitted by ${cleanStudentName(s.profiles?.full_name) || 'Student'}`,
+                                      description: s.answer_text || '',
+                                      fileUrl: s.mediaUrl,
+                                      fileName: s.fileName || 'Student_Activity_File',
+                                      fileType: s.fileType || 'FILE',
+                                      fileSize: s.fileSize || '',
+                                      status: s.status,
+                                    })
+                                  }
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10.5px] cursor-pointer transition-colors inline-flex items-center gap-1"
                                 >
-                                  ⬇️ View / Download File
-                                </a>
+                                  <span>👁️</span>
+                                  <span>View Activity</span>
+                                </button>
                               </div>
                             </div>
                           </div>
+                        )}
+                        {!s.mediaUrl && s.answer_text && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleOpenPreviewModal({
+                                kind: 'submission',
+                                submissionId: s.id,
+                                submissionObj: s,
+                                studentName: cleanStudentName(s.profiles?.full_name) || 'Student',
+                                title: s.materials?.title || 'Student Activity',
+                                subtitle: `Submitted by ${cleanStudentName(s.profiles?.full_name) || 'Student'}`,
+                                description: s.answer_text || '',
+                                fileUrl: null,
+                                fileName: '',
+                                fileType: '',
+                                fileSize: '',
+                                status: s.status,
+                              })
+                            }
+                            className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-[10.5px] cursor-pointer inline-flex items-center gap-1"
+                          >
+                            <span>👁️</span>
+                            <span>View Answer</span>
+                          </button>
                         )}
                         {!s.answer_text && !s.mediaUrl && <span>-</span>}
                       </div>
                     </td>
                     <td className={td}>
-                      <span className={pillClass(s.status)}>{s.status}</span>
+                      <span className={pillClass(s.status)}>
+                        {s.status === 'checked' ? '✅ Checked' : '⏳ Submitted'}
+                      </span>
                     </td>
                     <td className={td}>
-                      {s.status === 'submitted' && (
-                        <button onClick={() => markChecked(s.id)} className={btnSmall}>
+                      {s.status === 'submitted' ? (
+                        <button onClick={() => markChecked(s)} className={btnSmall}>
                           Mark Checked
                         </button>
+                      ) : (
+                        <span className="text-xs font-bold text-emerald-700">✓ Checked</span>
                       )}
                     </td>
                   </tr>
@@ -2993,7 +3289,7 @@ export default function TeacherDashboard({ profile }) {
                   </option>
                   {myLearners.map((learner) => (
                     <option key={learner.id} value={learner.id}>
-                      🧒 {learner.full_name} {learner.parent_name ? `(Parent: ${learner.parent_name})` : ''}
+                      🧒 {cleanStudentName(learner.full_name)}
                     </option>
                   ))}
                 </select>
@@ -3028,6 +3324,187 @@ export default function TeacherDashboard({ profile }) {
           </div>
         </div>
       )}
+
+      {/* IN-APP ACTIVITY & FILE VIEWER MODAL (View without forced download) */}
+      {previewModalItem && (() => {
+        const fUrl = previewModalItem.fileUrl || '';
+        const fName = previewModalItem.fileName || '';
+        const fType = (previewModalItem.fileType || '').toUpperCase();
+
+        const isImg =
+          fUrl &&
+          (fUrl.startsWith('data:image/') ||
+            /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(fName || fUrl) ||
+            ['PNG', 'JPG', 'JPEG', 'GIF', 'WEBP', 'SVG', 'IMAGE'].includes(fType));
+
+        const isVid =
+          fUrl &&
+          (fUrl.startsWith('data:video/') ||
+            /\.(mp4|webm|ogg|mov)$/i.test(fName || fUrl) ||
+            ['MP4', 'WEBM', 'MOV', 'VIDEO'].includes(fType));
+
+        const isPdf =
+          fUrl &&
+          (fUrl.startsWith('data:application/pdf') ||
+            /\.pdf$/i.test(fName || fUrl) ||
+            fType === 'PDF' ||
+            fType.includes('PDF'));
+
+        return (
+          <div
+            className="fixed inset-0 z-50 bg-slate-900/65 backdrop-blur-xs flex items-center justify-center p-4"
+            onClick={handleClosePreviewModal}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full max-h-[90vh] overflow-y-auto p-5 sm:p-6 space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
+                <div>
+                  <span className="text-[10.5px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
+                    {previewModalItem.kind === 'submission'
+                      ? '📝 Student Activity Submission'
+                      : '📁 Teacher Uploaded Material'}
+                  </span>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 m-0 mt-1.5">
+                    {previewModalItem.title}
+                  </h3>
+                  {previewModalItem.subtitle && (
+                    <div className="text-xs font-semibold text-amber-900 mt-0.5">
+                      {previewModalItem.subtitle}
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClosePreviewModal}
+                  className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer shrink-0"
+                >
+                  <IconClose className="w-5 h-5" />
+                </button>
+              </div>
+
+              {previewModalItem.description && (
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-800 leading-relaxed">
+                  <div className="text-[10.5px] font-bold text-slate-500 uppercase mb-1">
+                    {previewModalItem.kind === 'submission'
+                      ? "Student's Answer / Comment:"
+                      : 'Activity Instructions / Description:'}
+                  </div>
+                  <div>{previewModalItem.description}</div>
+                </div>
+              )}
+
+              {fUrl ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5 min-w-0">
+                      <span>📎</span>
+                      <span className="truncate">{fName || 'Attached File'}</span>
+                      {previewModalItem.fileSize && (
+                        <span className="text-slate-400">({previewModalItem.fileSize})</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenInNewTabOrDownload(fUrl, fName, 'view')}
+                        className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer flex items-center gap-1"
+                      >
+                        <span>🔍</span>
+                        <span>Open in New Tab</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenInNewTabOrDownload(fUrl, fName, 'download')}
+                        className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold cursor-pointer flex items-center gap-1"
+                      >
+                        <span>⬇️</span>
+                        <span>Download</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {isImg && (
+                    <div className="rounded-xl overflow-hidden border border-slate-200 bg-white p-2">
+                      <img
+                        src={previewBlobUrl || fUrl}
+                        alt={fName || previewModalItem.title}
+                        className="w-full max-h-[460px] object-contain mx-auto block"
+                      />
+                    </div>
+                  )}
+
+                  {isVid && (
+                    <video
+                      controls
+                      src={previewBlobUrl || fUrl}
+                      className="w-full rounded-xl aspect-video border border-slate-200 bg-black"
+                    />
+                  )}
+
+                  {isPdf && (
+                    <iframe
+                      src={previewBlobUrl || fUrl}
+                      title={fName || previewModalItem.title}
+                      className="w-full h-[460px] rounded-xl border border-slate-200 bg-white"
+                    />
+                  )}
+
+                  {!isImg && !isVid && !isPdf && (
+                    <div className="p-6 text-center bg-white rounded-xl border border-slate-200 space-y-2">
+                      <div className="text-3xl">📄</div>
+                      <div className="text-xs font-bold text-slate-800">
+                        {fName || 'Document File'} ({fType || 'FILE'})
+                      </div>
+                      <p className="text-[11px] text-slate-500 m-0">
+                        Click &ldquo;Open in New Tab&rdquo; above to view this document directly in your browser.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 text-xs text-amber-900">
+                  No file attachment was uploaded with this item.
+                </div>
+              )}
+
+              <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100">
+                <div className="text-xs font-bold">
+                  {previewModalItem.kind === 'submission' ? (
+                    previewModalItem.status === 'checked' ? (
+                      <span className="text-emerald-700">✅ Checked by Teacher</span>
+                    ) : (
+                      <span className="text-amber-700">⏳ Pending Teacher Check</span>
+                    )
+                  ) : (
+                    <span className="text-slate-600">Status: {previewModalItem.status || 'Uploaded'}</span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {previewModalItem.kind === 'submission' && previewModalItem.status !== 'checked' && (
+                    <button
+                      type="button"
+                      onClick={() => markChecked(previewModalItem.submissionObj || previewModalItem.submissionId)}
+                      className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs cursor-pointer shadow-xs"
+                    >
+                      ✅ Mark Checked
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleClosePreviewModal}
+                    className="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Global Upload Modal (choices based strictly on MSWD-assigned topics) */}
       <TeacherUploadModal

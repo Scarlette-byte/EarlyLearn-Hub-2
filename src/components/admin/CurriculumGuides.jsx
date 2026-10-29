@@ -6,6 +6,7 @@ import {
   realCdcsList,
   initialCurriculumAssignments,
   getCleanCurriculumAssignments,
+  getCleanTeacherModulesList,
   initialTeacherModules,
   formatAssignmentCoverage,
 } from '../../lib/curriculumData.js';
@@ -253,15 +254,7 @@ export default function CurriculumGuides({
 
   // Helper to get authentic uploaded modules
   const getCleanModules = () => {
-    try {
-      const saved = localStorage.getItem('earlylearn_teacher_modules');
-      if (!saved) return [];
-      const parsed = JSON.parse(saved);
-      if (!Array.isArray(parsed)) return [];
-      return parsed.filter((m) => m && m.id && !/^mod-0[1-9]$|^mod-1[0-2]$/.test(m.id));
-    } catch {
-      return [];
-    }
+    return getCleanTeacherModulesList();
   };
 
   // Helper to count modules uploaded for a quarter
@@ -378,6 +371,7 @@ export default function CurriculumGuides({
 
     const buildAssignmentForTeacher = (teacher, suffix = '') => ({
       id: 'asg-' + Date.now() + '-' + (suffix || teacher.id),
+      targetType: targetType,
       teacherId: teacher.id,
       teacherName: teacher.full_name,
       barangay: teacher.barangay,

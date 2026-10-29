@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { BILINGUAL_CATEGORIES, playAudioWord } from '../lib/studentLearningData.js';
 import { CategoryBadge } from '../components/Category3DBadges.jsx';
-import { getDefaultTeacherForBarangay, syncStudentLogin } from '../lib/learnersService.js';
+import { getDefaultTeacherForBarangay, syncStudentLogin, cleanStudentName } from '../lib/learnersService.js';
+import { isAuthenticSupabaseMaterial, getCleanTeacherModulesList } from '../lib/curriculumData.js';
 
 const PALETTES = [
   'bg-coral', // coral red
@@ -23,10 +24,7 @@ export default function StudentDashboard({ profile }) {
 
   const greetingName = useMemo(() => {
     if (!profile?.full_name) return 'Student Test';
-    if (profile.full_name.includes('(Parent:')) {
-      return profile.full_name.split(' (Parent:')[0];
-    }
-    return profile.full_name;
+    return cleanStudentName(profile.full_name) || 'Student Test';
   }, [profile?.full_name]);
 
   const studentBarangay = profile?.barangay || profile?.user_metadata?.barangay || '';
@@ -177,12 +175,7 @@ export default function StudentDashboard({ profile }) {
 
   // Teacher-uploaded modules from localStorage & Supabase
   const [teacherUploadedModules, setTeacherUploadedModules] = useState(() => {
-    try {
-      const saved = localStorage.getItem('earlylearn_teacher_modules');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
+    return getCleanTeacherModulesList();
   });
 
   const [dbMaterials, setDbMaterials] = useState([]);
@@ -218,7 +211,7 @@ export default function StudentDashboard({ profile }) {
         .not('title', 'like', '[MSWD_ASSIGNMENT]%')
         .order('created_at', { ascending: false });
       if (!error && data) {
-        setDbMaterials(data);
+        setDbMaterials(data.filter((m) => isAuthenticSupabaseMaterial(m)));
       }
     } catch {
       // fallback
@@ -238,7 +231,7 @@ export default function StudentDashboard({ profile }) {
       if (!error && data && data.length > 0) {
         const doneSet = new Set();
         const subMap = {};
-        const dbStudentUploads = [];
+        const dbUploadsByTitle = new Map();
 
         try {
           const savedDone = localStorage.getItem(`earlylearn_done_${currentUserId}`);
@@ -266,6 +259,10 @@ export default function StudentDashboard({ profile }) {
 
           const matId = s.material_id || meta?.material_id || null;
           const matTitle = meta?.material_title || s.materials?.title || '';
+          const isTeacherChecked =
+            s.status === 'checked' ||
+            s.status === 'reviewed' ||
+            meta?.teacher_checked === true;
 
           const submissionEntry = {
             id: s.id,
@@ -276,43 +273,88 @@ export default function StudentDashboard({ profile }) {
             file_name: meta?.file_name || '',
             file_type: meta?.file_type || '',
             file_size: meta?.file_size || '',
-            status: s.status || 'submitted',
+            status: isTeacherChecked ? 'checked' : s.status || 'submitted',
+            teacher_checked: isTeacherChecked,
+            checked_at: meta?.checked_at || null,
             created_at: s.created_at,
           };
 
           if (matId) {
             doneSet.add(matId);
-            if (!subMap[matId]) subMap[matId] = submissionEntry;
+            if (!subMap[matId]) {
+              subMap[matId] = submissionEntry;
+            } else {
+              if (isTeacherChecked) {
+                subMap[matId].teacher_checked = true;
+                subMap[matId].status = 'checked';
+              }
+              if (!subMap[matId].file_url && submissionEntry.file_url) {
+                subMap[matId].file_url = submissionEntry.file_url;
+                subMap[matId].file_name = submissionEntry.file_name;
+                subMap[matId].file_type = submissionEntry.file_type;
+                subMap[matId].file_size = submissionEntry.file_size;
+              }
+            }
           }
           if (matTitle) {
             const titleKey = matTitle.toLowerCase().trim();
             doneSet.add(titleKey);
-            if (!subMap[titleKey]) subMap[titleKey] = submissionEntry;
+            if (!subMap[titleKey]) {
+              subMap[titleKey] = submissionEntry;
+            } else {
+              if (isTeacherChecked) {
+                subMap[titleKey].teacher_checked = true;
+                subMap[titleKey].status = 'checked';
+              }
+              if (!subMap[titleKey].file_url && submissionEntry.file_url) {
+                subMap[titleKey].file_url = submissionEntry.file_url;
+                subMap[titleKey].file_name = submissionEntry.file_name;
+                subMap[titleKey].file_type = submissionEntry.file_type;
+                subMap[titleKey].file_size = submissionEntry.file_size;
+              }
+            }
           }
 
           if (meta?.file_url || meta?.file_name || cleanAnswer) {
-            dbStudentUploads.push({
-              id: s.id,
-              studentId: currentUserId,
-              studentName: meta?.student_name || greetingName,
-              title: matTitle || meta?.title || 'Activity Submission',
-              category: meta?.category || 'Teacher Assigned Activity',
-              note: cleanAnswer,
-              mediaUrl: meta?.file_url || null,
-              fileName: meta?.file_name || '',
-              fileType: meta?.file_type || '',
-              fileSize: meta?.file_size || '',
-              uploadedAt:
-                meta?.uploaded_at ||
-                (s.created_at
-                  ? new Date(s.created_at).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })
-                  : 'Recent'),
-              status: s.status === 'reviewed' ? 'Reviewed by Teacher' : 'Submitted to Teacher',
-            });
+            const uploadTitleStr = (matTitle || meta?.title || 'Activity Submission').trim();
+            const normUploadKey = uploadTitleStr.toLowerCase();
+            if (!dbUploadsByTitle.has(normUploadKey)) {
+              dbUploadsByTitle.set(normUploadKey, {
+                id: s.id,
+                studentId: currentUserId,
+                studentName: cleanStudentName(meta?.student_name || greetingName),
+                title: uploadTitleStr,
+                category: meta?.category || 'Teacher Assigned Activity',
+                note: cleanAnswer,
+                mediaUrl: meta?.file_url || null,
+                fileName: meta?.file_name || '',
+                fileType: meta?.file_type || '',
+                fileSize: meta?.file_size || '',
+                uploadedAt:
+                  meta?.uploaded_at ||
+                  (s.created_at
+                    ? new Date(s.created_at).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })
+                    : 'Recent'),
+                teacherChecked: isTeacherChecked,
+                status: isTeacherChecked ? 'Checked by Teacher ✅' : 'Submitted • Waiting for Teacher',
+              });
+            } else {
+              const existingUp = dbUploadsByTitle.get(normUploadKey);
+              if (isTeacherChecked) {
+                existingUp.teacherChecked = true;
+                existingUp.status = 'Checked by Teacher ✅';
+              }
+              if (!existingUp.mediaUrl && meta?.file_url) {
+                existingUp.mediaUrl = meta.file_url;
+                existingUp.fileName = meta.file_name || '';
+                existingUp.fileType = meta.file_type || '';
+                existingUp.fileSize = meta.file_size || '';
+              }
+            }
           }
         });
 
@@ -324,15 +366,16 @@ export default function StudentDashboard({ profile }) {
           // ignore
         }
 
+        const dbStudentUploads = Array.from(dbUploadsByTitle.values());
         setStudentUploads((prev) => {
           const merged = [...dbStudentUploads];
-          const seenKeys = new Set(
-            dbStudentUploads.map((u) => `${(u.title || '').toLowerCase()}|${u.fileName || ''}|${u.note || ''}`)
+          const seenTitles = new Set(
+            dbStudentUploads.map((u) => (u.title || '').toLowerCase().trim())
           );
           (prev || []).forEach((localUp) => {
-            const key = `${(localUp.title || '').toLowerCase()}|${localUp.fileName || ''}|${localUp.note || ''}`;
-            if (!seenKeys.has(key)) {
-              seenKeys.add(key);
+            const titleKey = (localUp.title || '').toLowerCase().trim();
+            if (titleKey && !seenTitles.has(titleKey)) {
+              seenTitles.add(titleKey);
               merged.push(localUp);
             }
           });
@@ -360,12 +403,7 @@ export default function StudentDashboard({ profile }) {
 
     function handleStorageChange(e) {
       if (e.key === 'earlylearn_teacher_modules') {
-        try {
-          const updated = JSON.parse(e.newValue || '[]');
-          setTeacherUploadedModules(updated);
-        } catch {
-          // ignore
-        }
+        setTeacherUploadedModules(getCleanTeacherModulesList());
       }
       if (
         e.key === 'earlylearn_student_uploads' ||
@@ -380,12 +418,7 @@ export default function StudentDashboard({ profile }) {
       }
     }
     function handleModulesEvent() {
-      try {
-        const saved = localStorage.getItem('earlylearn_teacher_modules');
-        if (saved) setTeacherUploadedModules(JSON.parse(saved));
-      } catch {
-        // ignore
-      }
+      setTeacherUploadedModules(getCleanTeacherModulesList());
       loadDbMaterials();
       loadStudentSubmissions();
     }
@@ -610,9 +643,43 @@ export default function StudentDashboard({ profile }) {
     return teacherActivities.filter((a) => isActivityCompleted(a));
   }, [teacherActivities, isActivityCompleted]);
 
-  const totalCompletedCount = completedTeacherActivities.length + studentUploads.length;
-  const totalTasksCount = Math.max(1, teacherActivities.length + studentUploads.length);
-  const progressPct = Math.min(100, Math.round((totalCompletedCount / totalTasksCount) * 100));
+  // Helper to check if a specific teacher activity has been checked by the teacher
+  const isActivityCheckedByTeacher = useCallback(
+    (a) => {
+      if (!a) return false;
+      const titleKey = (a.title || '').toLowerCase().trim();
+      const sub = submissionsByMaterial[a.id] || (titleKey ? submissionsByMaterial[titleKey] : null);
+      return Boolean(sub?.teacher_checked || sub?.status === 'checked' || sub?.status === 'reviewed');
+    },
+    [submissionsByMaterial]
+  );
+
+  // Accurate, deduplicated real-time progress count (never double-counts teacher activities in studentUploads)
+  const { totalCompletedCount, totalTasksCount, progressPct, checkedActivitiesCount } = useMemo(() => {
+    const teacherTitleSet = new Set(
+      teacherActivities.map((a) => (a.title || '').toLowerCase().trim()).filter(Boolean)
+    );
+    const standaloneUploads = (studentUploads || []).filter((u) => {
+      const t = (u.title || '').toLowerCase().trim();
+      return t && !teacherTitleSet.has(t);
+    });
+
+    const completedCount = completedTeacherActivities.length + standaloneUploads.length;
+    const tasksCount = teacherActivities.length + standaloneUploads.length;
+    const pct = tasksCount > 0 ? Math.min(100, Math.round((completedCount / tasksCount) * 100)) : 0;
+
+    const checkedTeacher = completedTeacherActivities.filter((a) => isActivityCheckedByTeacher(a)).length;
+    const checkedStandalone = standaloneUploads.filter(
+      (u) => u.teacherChecked || (u.status || '').toLowerCase().includes('checked')
+    ).length;
+
+    return {
+      totalCompletedCount: completedCount,
+      totalTasksCount: tasksCount,
+      progressPct: pct,
+      checkedActivitiesCount: checkedTeacher + checkedStandalone,
+    };
+  }, [teacherActivities, completedTeacherActivities, studentUploads, isActivityCheckedByTeacher]);
 
   // --- Category Card Click ---
   function openCategory(cat) {
@@ -676,6 +743,11 @@ export default function StudentDashboard({ profile }) {
     setDoneMsg({ text: '', error: false });
 
     const titleKey = (currentMaterial.title || '').toLowerCase().trim();
+    const existingSub =
+      submissionsByMaterial[currentMaterial.id] ||
+      (titleKey ? submissionsByMaterial[titleKey] : null);
+    const wasChecked = Boolean(existingSub?.teacher_checked);
+
     const updated = new Set(completedIds);
     updated.add(currentMaterial.id);
     if (titleKey) updated.add(titleKey);
@@ -705,26 +777,46 @@ export default function StudentDashboard({ profile }) {
       file_type: activityFileType || '',
       file_size: activityFileSize || '',
       uploaded_at: uploadedAtStr,
+      teacher_checked: wasChecked,
     });
 
+    let savedSubId = existingSub?.id || 'sub-' + Date.now();
     try {
-      const isUuid =
+      const isMatUuid =
         typeof currentMaterial.id === 'string' &&
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentMaterial.id);
+      const isExistingSubUuid =
+        typeof existingSub?.id === 'string' &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(existingSub.id);
 
-      await supabase.from('submissions').insert({
-        material_id: isUuid ? currentMaterial.id : null,
-        student_id: currentUserId,
-        answer_text: submissionPayload,
-        status: 'submitted',
-      });
+      if (isExistingSubUuid) {
+        await supabase
+          .from('submissions')
+          .update({
+            answer_text: submissionPayload,
+            status: wasChecked ? 'checked' : 'submitted',
+          })
+          .eq('id', existingSub.id);
+      } else {
+        const { data: inserted } = await supabase
+          .from('submissions')
+          .insert({
+            material_id: isMatUuid ? currentMaterial.id : null,
+            student_id: currentUserId,
+            answer_text: submissionPayload,
+            status: 'submitted',
+          })
+          .select('id')
+          .single();
+        if (inserted?.id) savedSubId = inserted.id;
+      }
     } catch (err) {
       console.warn('Supabase submission save error:', err);
     }
 
-    // Update local submissions map & studentUploads so it appears immediately everywhere
+    // Update local submissions map & studentUploads so it appears immediately everywhere (1 record per activity)
     const newSubEntry = {
-      id: 'sub-' + Date.now(),
+      id: savedSubId,
       material_id: currentMaterial.id,
       material_title: currentMaterial.title,
       answer_text: trimmed,
@@ -732,7 +824,8 @@ export default function StudentDashboard({ profile }) {
       file_name: activityFileName || '',
       file_type: activityFileType || '',
       file_size: activityFileSize || '',
-      status: 'submitted',
+      status: wasChecked ? 'checked' : 'submitted',
+      teacher_checked: wasChecked,
       created_at: new Date().toISOString(),
     };
     setSubmissionsByMaterial((prev) => ({
@@ -742,7 +835,7 @@ export default function StudentDashboard({ profile }) {
     }));
 
     const newUploadItem = {
-      id: 'stu-act-' + Date.now(),
+      id: savedSubId,
       studentId: currentUserId,
       studentName: greetingName,
       title: currentMaterial.title,
@@ -753,12 +846,13 @@ export default function StudentDashboard({ profile }) {
       fileType: activityFileType || '',
       fileSize: activityFileSize || '',
       uploadedAt: uploadedAtStr,
-      status: 'Submitted to Teacher',
+      teacherChecked: wasChecked,
+      status: wasChecked ? 'Checked by Teacher ✅' : 'Submitted • Waiting for Teacher',
     };
 
     const updatedUploads = [
       newUploadItem,
-      ...studentUploads.filter((u) => (u.title || '').toLowerCase() !== titleKey),
+      ...studentUploads.filter((u) => (u.title || '').toLowerCase().trim() !== titleKey),
     ];
     setStudentUploads(updatedUploads);
     try {
@@ -1062,33 +1156,45 @@ export default function StudentDashboard({ profile }) {
                           <div className="text-[11px] font-extrabold text-[#6b5c42] text-left px-1 flex items-center gap-1">
                             <span>✅</span> Completed Teacher Activities ({completedTeacherActivities.length})
                           </div>
-                          {completedTeacherActivities.map((a) => (
-                            <div
-                              key={a.id}
-                              onClick={() => openMaterial(a, 'home')}
-                              className="bg-white/90 rounded-2xl px-4 py-3 text-left shadow-xs flex items-center gap-3.5 cursor-pointer border-l-[5px] border-emerald-400 hover:translate-x-0.5 transition-transform"
-                            >
-                              <div className="text-2xl flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600">
-                                ✅
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="font-baloo font-bold text-[14.5px] text-[#3a3226] truncate">
-                                  {a.title}
+                          {completedTeacherActivities.map((a) => {
+                            const checkedByTeacher = isActivityCheckedByTeacher(a);
+                            return (
+                              <div
+                                key={a.id}
+                                onClick={() => openMaterial(a, 'home')}
+                                className="bg-white/90 rounded-2xl px-4 py-3 text-left shadow-xs flex items-center gap-3.5 cursor-pointer border-l-[5px] border-emerald-400 hover:translate-x-0.5 transition-transform"
+                              >
+                                <div className="text-2xl flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600">
+                                  {checkedByTeacher ? '🌟' : '✅'}
                                 </div>
-                                <div className="text-[11px] text-[#7a7a7a] font-bold flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                  <span>{a.category_name}</span>
-                                  {(a.content_url || a.file_name) && (
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-extrabold">
-                                      📎 {a.file_name || 'File'}
-                                    </span>
-                                  )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-baloo font-bold text-[14.5px] text-[#3a3226] truncate">
+                                    {a.title}
+                                  </div>
+                                  <div className="text-[11px] text-[#7a7a7a] font-bold flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                    <span>{a.category_name}</span>
+                                    {(a.content_url || a.file_name) && (
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-extrabold">
+                                        📎 {a.file_name || 'File'}
+                                      </span>
+                                    )}
+                                    {checkedByTeacher ? (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-black">
+                                        👩‍🏫 Checked by Teacher ✅
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black">
+                                        ⏳ Waiting for Teacher Check
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
+                                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg shrink-0">
+                                  View / Edit →
+                                </span>
                               </div>
-                              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg shrink-0">
-                                View / Edit →
-                              </span>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -1153,9 +1259,15 @@ export default function StudentDashboard({ profile }) {
                                 <h4 className="font-baloo font-bold text-[15px] text-[#3a3226] m-0 truncate">
                                   {u.title}
                                 </h4>
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 shrink-0">
-                                  {u.status || 'Submitted'}
-                                </span>
+                                {u.teacherChecked || (u.status || '').toLowerCase().includes('checked') ? (
+                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
+                                    👩‍🏫 Checked by Teacher ✅
+                                  </span>
+                                ) : (
+                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
+                                    ⏳ Waiting for Teacher Check
+                                  </span>
+                                )}
                               </div>
                               <div className="text-[11px] text-dash-ink-soft mt-0.5">
                                 Subject: <b className="text-[#3a3226]">{u.category}</b> • {u.uploadedAt}
@@ -1237,8 +1349,23 @@ export default function StudentDashboard({ profile }) {
             {/* ⭐ MY PROGRESS SECTION                                    */}
             {/* -------------------------------------------------------- */}
             <div className="bg-white rounded-[20px] px-5.5 py-4 shadow-soft mt-3">
-              <div className="text-xs text-[#6b5c42] font-extrabold mb-2 text-left">
-                ⭐ My Progress
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="text-xs text-[#6b5c42] font-extrabold text-left">
+                  ⭐ My Progress (Real-Time)
+                </div>
+                {totalCompletedCount > 0 && (
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-black ${
+                      checkedActivitiesCount > 0
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                        : 'bg-amber-50 text-amber-800 border border-amber-200'
+                    }`}
+                  >
+                    {checkedActivitiesCount > 0
+                      ? `👩‍🏫 ${checkedActivitiesCount} of ${totalCompletedCount} Checked by Teacher ✅`
+                      : '⏳ Waiting for Teacher Check'}
+                  </span>
+                )}
               </div>
               <div className="bg-[#F0E9D6] rounded-[20px] h-4 overflow-hidden">
                 <div
@@ -1250,7 +1377,11 @@ export default function StudentDashboard({ profile }) {
                 />
               </div>
               <div className="mt-2 text-[15px] font-bold text-[#3a3226]">
-                🌟 {totalCompletedCount} of {totalTasksCount} activit{totalTasksCount === 1 ? 'y' : 'ies'} completed!
+                {totalTasksCount === 0
+                  ? '🌟 No assigned activities yet — check back soon!'
+                  : `🌟 ${totalCompletedCount} of ${totalTasksCount} ${
+                      totalTasksCount === 1 ? 'activity' : 'activities'
+                    } completed!`}
               </div>
             </div>
           </div>
@@ -1913,6 +2044,35 @@ export default function StudentDashboard({ profile }) {
 
                 {currentMaterial.type === 'activity' && (
                   <div className="mt-3 space-y-4">
+                    {/* TEACHER CHECK STATUS BANNER */}
+                    {isActivityCompleted(currentMaterial) && (
+                      <div
+                        className={`rounded-2xl px-4 py-3 border flex items-center justify-between gap-3 flex-wrap ${
+                          isActivityCheckedByTeacher(currentMaterial)
+                            ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                            : 'bg-amber-50 border-amber-200 text-amber-900'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-2xl">
+                            {isActivityCheckedByTeacher(currentMaterial) ? '👩‍🏫' : '⏳'}
+                          </span>
+                          <div>
+                            <div className="text-xs font-black uppercase tracking-wide">
+                              {isActivityCheckedByTeacher(currentMaterial)
+                                ? 'Checked by Teacher ✅'
+                                : 'Submitted • Waiting for Teacher Check'}
+                            </div>
+                            <div className="text-[11.5px] font-semibold opacity-90">
+                              {isActivityCheckedByTeacher(currentMaterial)
+                                ? 'Great job! Your teacher has reviewed and checked your submitted activity.'
+                                : 'Your work has been sent to your teacher. Status will update automatically once checked!'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* ==================================================== */}
                     {/* 📤 STUDENT FILE / IMAGE UPLOAD FOR THIS ACTIVITY     */}
                     {/* ==================================================== */}

@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
+import {
+  isAuthenticSupabaseMaterial,
+  getCleanTeacherModulesList,
+} from '../../lib/curriculumData.js';
 
 export default function MswdOverview({
   profile,
@@ -13,15 +17,7 @@ export default function MswdOverview({
   const isSuperAdmin = profile?.role === 'superadmin' || profile?.isSuperAdmin;
 
   const getLocalCompliedActivities = () => {
-    try {
-      const saved = localStorage.getItem('earlylearn_teacher_modules');
-      if (!saved) return [];
-      const parsed = JSON.parse(saved);
-      if (!Array.isArray(parsed)) return [];
-      return parsed.filter((m) => m && m.id && !/^mod-0[1-9]$|^mod-1[0-2]$/.test(m.id));
-    } catch {
-      return [];
-    }
+    return getCleanTeacherModulesList();
   };
 
   const [compliedActivities, setCompliedActivities] = useState(getLocalCompliedActivities);
@@ -38,7 +34,7 @@ export default function MswdOverview({
 
       if (!error && Array.isArray(data)) {
         const mapped = data
-          .filter((m) => !m.title?.startsWith('[MSWD_ASSIGNMENT]'))
+          .filter((m) => isAuthenticSupabaseMaterial(m))
           .map((m) => {
           let meta = {};
           let cleanDescription = m.content_text || '';

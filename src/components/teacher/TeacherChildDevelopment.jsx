@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { cleanStudentName } from '../../lib/learnersService.js';
 
 const STORAGE_KEY = 'earlylearn_teacher_eccd_assessments';
 
@@ -62,16 +63,25 @@ export default function TeacherChildDevelopment({
     return map;
   }, [assessments]);
 
-  // Combine learners with their evaluation record
+  // Combine learners with their evaluation record (1 record per student, student name only)
   const enrichedLearners = useMemo(() => {
-    return learners.map((l) => {
-      const normName = (l.full_name || '').trim().toLowerCase();
+    const seen = new Set();
+    const list = [];
+    learners.forEach((l) => {
+      const cleaned = cleanStudentName(l.full_name || '');
+      if (!cleaned) return;
+      const normName = cleaned.toLowerCase();
+      if (seen.has(normName)) return;
+      seen.add(normName);
+
       const existing = (l.id && assessmentMap.get(String(l.id))) || assessmentMap.get(normName) || null;
-      return {
+      list.push({
         ...l,
+        full_name: cleaned,
         assessment: existing,
-      };
+      });
     });
+    return list;
   }, [learners, assessmentMap]);
 
   // Filter learners
@@ -79,8 +89,7 @@ export default function TeacherChildDevelopment({
     return enrichedLearners.filter((l) => {
       const matchSearch =
         !searchTerm ||
-        (l.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (l.parent_name || '').toLowerCase().includes(searchTerm.toLowerCase());
+        (l.full_name || '').toLowerCase().includes(searchTerm.toLowerCase());
 
       if (!matchSearch) return false;
 
@@ -366,7 +375,7 @@ export default function TeacherChildDevelopment({
             <thead>
               <tr className="bg-[#FAF5EC] border-b border-card-border text-[11px] font-bold text-[#8C7F63] uppercase tracking-wider">
                 <th className="px-4 py-3">Learner &amp; Age</th>
-                <th className="px-4 py-3">Parent &amp; Contact</th>
+                <th className="px-4 py-3">Contact &amp; Barangay</th>
                 <th className="px-4 py-3">ECCD 4-Domain Ratings</th>
                 <th className="px-4 py-3 text-center">Overall Evaluation</th>
                 <th className="px-4 py-3 text-right">Classroom Actions</th>
@@ -407,10 +416,10 @@ export default function TeacherChildDevelopment({
                         </div>
                       </td>
 
-                      {/* Parent & Contact */}
+                      {/* Contact & Barangay */}
                       <td className="px-4 py-3.5">
-                        <div className="font-semibold text-dash-ink">{l.parent_name || '—'}</div>
-                        <div className="text-[11px] text-dash-ink-soft">{l.parent_contact || '—'}</div>
+                        <div className="font-semibold text-dash-ink">{l.parent_contact || '—'}</div>
+                        <div className="text-[11px] text-dash-ink-soft">Brgy. {l.barangay || teacherBarangay || '—'}</div>
                       </td>
 
                       {/* 4-Domains ratings */}

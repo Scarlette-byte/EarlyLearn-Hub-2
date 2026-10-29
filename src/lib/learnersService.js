@@ -5,6 +5,18 @@ import { baselineLearners } from './mswdData.js';
 const REGISTERED_LEARNERS_STORAGE_KEY = 'earlylearn_registered_learners';
 
 /**
+ * Strips any "(Parent: ...)" or "(Guardian: ...)" suffix from a student's name so ONLY the student's name is displayed.
+ */
+export function cleanStudentName(rawName) {
+  if (!rawName) return '';
+  return String(rawName)
+    .replace(/\s*\(Parent:[^)]*\)/gi, '')
+    .replace(/\s*\(Guardian:[^)]*\)/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
  * Returns a synchronous list of teachers for a specific barangay based on MSWDO baseline records.
  * Instant, zero-latency response for UI dropdowns.
  */
@@ -81,9 +93,18 @@ export function getStoredLearners() {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     const list = Array.isArray(parsed) ? parsed : [];
-    const filtered = list.filter(
-      (l) => (l.full_name || '').trim().toLowerCase() !== 'hannah mae tion' && l.id !== 'lrn-real-001'
-    );
+    const seenNames = new Set();
+    const filtered = [];
+    list.forEach((l) => {
+      if (!l) return;
+      const cleaned = cleanStudentName(l.full_name);
+      const norm = cleaned.toLowerCase();
+      if (!norm || norm === 'hannah mae tion' || l.id === 'lrn-real-001') return;
+      if (!seenNames.has(norm)) {
+        seenNames.add(norm);
+        filtered.push({ ...l, full_name: cleaned });
+      }
+    });
     if (filtered.length !== list.length) {
       localStorage.setItem(REGISTERED_LEARNERS_STORAGE_KEY, JSON.stringify(filtered));
     }
@@ -100,19 +121,18 @@ export async function recordRegisteredLearner(learnerData) {
   if (!learnerData || !learnerData.full_name) return null;
 
   const current = getStoredLearners();
-  const normalizedName = (learnerData.full_name || '').trim().toLowerCase();
-  const normalizedBarangay = (learnerData.barangay || '').trim().toLowerCase();
+  const cleanedFullName = cleanStudentName(learnerData.full_name);
+  const normalizedName = cleanedFullName.toLowerCase();
 
   const existingIndex = current.findIndex((item) => {
     if (learnerData.id && item.id === learnerData.id) return true;
-    const itemName = (item.full_name || '').trim().toLowerCase();
-    const itemBrgy = (item.barangay || '').trim().toLowerCase();
-    return itemName === normalizedName && (!normalizedBarangay || itemBrgy === normalizedBarangay);
+    const itemName = cleanStudentName(item.full_name).toLowerCase();
+    return itemName === normalizedName;
   });
 
   const record = {
     id: learnerData.id || `lrn-${Date.now()}`,
-    full_name: (learnerData.full_name || '').trim(),
+    full_name: cleanedFullName,
     birthdate: learnerData.birthdate || learnerData.child_age || 'Age 3–4',
     child_age: learnerData.child_age || '3-4',
     barangay: learnerData.barangay || '',
@@ -335,7 +355,10 @@ export async function getLearnersForTeacher({ teacherId, teacherName, barangay, 
   for (const learner of combined) {
     if (!learner || !learner.full_name) continue;
 
-    const lName = (learner.full_name || '').trim().toLowerCase();
+    const cleanedName = cleanStudentName(learner.full_name);
+    if (!cleanedName) continue;
+
+    const lName = cleanedName.toLowerCase();
     const lBarangay = (learner.barangay || '').trim().toLowerCase();
     const lAdviser = (learner.adviser_name || '').trim().toLowerCase();
     const lCdc = (learner.cdc_name || '').trim().toLowerCase();
@@ -363,10 +386,14 @@ export async function getLearnersForTeacher({ teacherId, teacherName, barangay, 
     );
 
     if (matchesTeacherId || matchesAdviser || matchesBarangay || matchesCdc) {
-      const dedupKey = `${lName}|${lBarangay}|${lTeacherId}`;
+      // Strictly 1 record per student name only
+      const dedupKey = lName;
       if (!seenKeys.has(dedupKey)) {
         seenKeys.add(dedupKey);
-        results.push(learner);
+        results.push({
+          ...learner,
+          full_name: cleanedName,
+        });
       }
     }
   }

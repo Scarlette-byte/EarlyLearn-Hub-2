@@ -474,3 +474,146 @@ export function formatAssignmentCoverage(asg) {
 
 // Real Modules Uploaded by Teachers for Activity Monitoring (Populated as teachers post activities)
 export const initialTeacherModules = [];
+
+/**
+ * Checks whether a Supabase `materials` row is an authentic teacher-uploaded material/activity
+ * rather than one of the 70+ seeded student bilingual review flashcards (Alphabet, Numbers, Colors, Shapes, Animals, Stories)
+ * or an internal `[MSWD_ASSIGNMENT]` sync record.
+ */
+export function isAuthenticSupabaseMaterial(m) {
+  if (!m || !m.title) return false;
+  if (m.title.startsWith('[MSWD_ASSIGNMENT]')) return false;
+
+  // All real teacher uploads store a JSON object with `__metadata: true` inside `content_text`
+  if (m.content_text && typeof m.content_text === 'string' && m.content_text.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(m.content_text);
+      if (parsed && parsed.__metadata === true) {
+        return true;
+      }
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Checks whether a localStorage `earlylearn_teacher_modules` entry is an authentic teacher-uploaded module
+ * rather than a seeded student category review card or dummy placeholder.
+ */
+export function isAuthenticLocalTeacherModule(m) {
+  if (!m || !m.id || !m.title) return false;
+  if (/^mod-0[1-9]$|^mod-1[0-2]$/.test(String(m.id))) return false;
+  if (m.title.startsWith('[MSWD_ASSIGNMENT]')) return false;
+
+  // Exclude seeded bilingual category flashcards that were accidentally cached from Supabase
+  if (
+    !m.is_custom_teacher_upload &&
+    ((m.teacher_name === 'CDC Teacher' && m.cdc_name === 'Daycare Center') ||
+      (m.from_supabase && !m.sub_theme && m.theme === 'Early Childhood Learning') ||
+      (m.title.includes(' / ') && !m.title.startsWith('[')))
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Returns the cleaned list of authentic teacher-uploaded modules from localStorage,
+ * automatically purging any seeded student category review items.
+ */
+export function getCleanTeacherModulesList() {
+  try {
+    const saved = localStorage.getItem('earlylearn_teacher_modules');
+    if (!saved) return [];
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return [];
+    const filtered = parsed.filter(isAuthenticLocalTeacherModule);
+    if (filtered.length !== parsed.length) {
+      localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(filtered));
+    }
+    return filtered;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Normalizes a teacher name for strict comparison (stripping titles like "Teacher", parentheticals, etc.)
+ */
+export function normalizeTeacherName(name) {
+  if (!name) return '';
+  return String(name)
+    .toLowerCase()
+    .replace(/\s*\(.*?\)\s*/g, ' ')
+    .replace(/^teacher\s+/i, '')
+    .replace(/\b(teacher|cdw|day\s*care\s*worker|volunteer|mswdo|manolo\s*fortich|admin)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Strictly checks whether an MSWD curriculum assignment targets a specific logged-in teacher.
+ * - If assigned to ONE teacher (`targetType === 'teacher'` or specific `teacherName`/`teacherId`),
+ *   it ONLY matches that exact teacher (never leaking to other teachers in the same barangay/CDC).
+ * - Only matches all teachers when `targetType === 'all'` (or `teacherName === 'All Teachers'`).
+ */
+export function doesAssignmentMatchTeacher(asg, { teacherId, teacherName, barangay, cdcName }) {
+  if (!asg || !asg.topicTitle) return false;
+
+  // 1. Explicitly assigned to ALL teachers
+  if (
+    asg.targetType === 'all' ||
+    asg.teacherName === 'All Teachers' ||
+    asg.cdcName === 'All CDCs' ||
+    asg.barangay === 'all'
+  ) {
+    return true;
+  }
+
+  const normMyName = normalizeTeacherName(teacherName);
+  const normAsgTeacher = normalizeTeacherName(asg.teacherName);
+
+  const idMatch = Boolean(
+    teacherId &&
+      asg.teacherId &&
+      String(teacherId).trim() === String(asg.teacherId).trim()
+  );
+
+  const nameMatch = Boolean(
+    normMyName.length >= 3 &&
+      normAsgTeacher.length >= 3 &&
+      (normMyName === normAsgTeacher ||
+        normMyName.includes(normAsgTeacher) ||
+        normAsgTeacher.includes(normMyName))
+  );
+
+  // 2. If the assignment specifies a teacher (or targetType is 'teacher'), ONLY match by teacher ID or teacher name
+  if (asg.targetType === 'teacher' || normAsgTeacher.length >= 3 || asg.teacherId) {
+    return idMatch || nameMatch;
+  }
+
+  // 3. If explicitly assigned by CDC only (no specific teacher set)
+  if (asg.targetType === 'cdc') {
+    const cleanCdc = (c) =>
+      String(c || '')
+        .toLowerCase()
+        .replace(/\b(child\s*development\s*center|day\s*care\s*center|daycare\s*center|cdc|manolo\s*fortich)\b/gi, '')
+        .trim();
+    const myCdcClean = cleanCdc(cdcName);
+    const asgCdcClean = cleanCdc(asg.cdcName);
+    return Boolean(myCdcClean.length >= 3 && asgCdcClean.length >= 3 && myCdcClean === asgCdcClean);
+  }
+
+  // 4. If explicitly assigned by Barangay only (no specific teacher set)
+  if (asg.targetType === 'barangay') {
+    const myBrgy = String(barangay || '').trim().toLowerCase();
+    const asgBrgy = String(asg.barangay || '').trim().toLowerCase();
+    return Boolean(myBrgy && asgBrgy && myBrgy !== 'manolo fortich' && myBrgy === asgBrgy);
+  }
+
+  return false;
+}

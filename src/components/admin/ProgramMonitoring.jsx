@@ -4,6 +4,8 @@ import {
   initialTeacherModules,
   realTeachersList,
   realCdcsList,
+  isAuthenticSupabaseMaterial,
+  getCleanTeacherModulesList,
 } from '../../lib/curriculumData.js';
 import {
   IconSearch,
@@ -28,22 +30,9 @@ export default function ProgramMonitoring({
   const [inspectingModule, setInspectingModule] = useState(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
-  // Helper to retrieve authentic real teacher modules only, clearing out dummy partial data
+  // Helper to retrieve authentic real teacher modules only, clearing out dummy partial data and category flashcards
   const getCleanTeacherModules = () => {
-    try {
-      const saved = localStorage.getItem('earlylearn_teacher_modules');
-      if (!saved) return [];
-      const parsed = JSON.parse(saved);
-      if (!Array.isArray(parsed)) return [];
-      // Clean out any legacy mod-01 to mod-12 dummy items
-      const filtered = parsed.filter((m) => m && m.id && !/^mod-0[1-9]$|^mod-1[0-2]$/.test(m.id));
-      if (filtered.length !== parsed.length) {
-        localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(filtered));
-      }
-      return filtered;
-    } catch {
-      return [];
-    }
+    return getCleanTeacherModulesList();
   };
 
   // Stored uploaded modules state (real teacher posts only)
@@ -85,7 +74,7 @@ export default function ProgramMonitoring({
 
       if (!error && Array.isArray(data)) {
         const mapped = data
-          .filter((m) => !m.title?.startsWith('[MSWD_ASSIGNMENT]'))
+          .filter((m) => isAuthenticSupabaseMaterial(m))
           .map((m) => {
           let meta = {};
           let cleanDescription = m.content_text || '';
