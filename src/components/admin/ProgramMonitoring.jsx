@@ -84,7 +84,9 @@ export default function ProgramMonitoring({
         .order('created_at', { ascending: false });
 
       if (!error && Array.isArray(data)) {
-        const mapped = data.map((m) => {
+        const mapped = data
+          .filter((m) => !m.title?.startsWith('[MSWD_ASSIGNMENT]'))
+          .map((m) => {
           let meta = {};
           let cleanDescription = m.content_text || '';
           if (m.content_text && m.content_text.trim().startsWith('{')) {
@@ -94,7 +96,7 @@ export default function ProgramMonitoring({
                 meta = parsed;
                 cleanDescription = parsed.description || '';
               }
-            } catch {}
+            } catch { }
           }
 
           const isApproved = m.status === 'approved' || m.status === 'Approved';
@@ -186,7 +188,7 @@ export default function ProgramMonitoring({
           loadSupabaseModules();
         })
         .subscribe();
-    } catch {}
+    } catch { }
 
     return () => {
       window.removeEventListener('storage', handleSync);
@@ -276,8 +278,8 @@ export default function ProgramMonitoring({
       commentDecision === 'approve'
         ? '✅ Complied activity APPROVED by MSWD! The teacher can now post it to their specific Student Dashboard.'
         : commentDecision === 'revision'
-        ? '❌ Complied activity REJECTED by MSWD. The teacher has been notified.'
-        : '✅ Review comment saved! The teacher will see your feedback in their dashboard.'
+          ? '❌ Complied activity REJECTED by MSWD. The teacher has been notified.'
+          : '✅ Review comment saved! The teacher will see your feedback in their dashboard.'
     );
     setTimeout(() => setSuccessToast(''), 4000);
   };
@@ -287,11 +289,11 @@ export default function ProgramMonitoring({
     const updated = modules.map((m) =>
       m.id === moduleId
         ? {
-            ...m,
-            status: 'Approved',
-            verified_by_mswd: true,
-            mswd_approved_date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
-          }
+          ...m,
+          status: 'Approved',
+          verified_by_mswd: true,
+          mswd_approved_date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+        }
         : m
     );
     setModules(updated);
@@ -322,11 +324,11 @@ export default function ProgramMonitoring({
     const updated = modules.map((m) =>
       m.id === moduleId
         ? {
-            ...m,
-            status: 'Rejected',
-            verified_by_mswd: false,
-            posted_to_students: false,
-          }
+          ...m,
+          status: 'Rejected',
+          verified_by_mswd: false,
+          posted_to_students: false,
+        }
         : m
     );
     setModules(updated);
@@ -558,11 +560,10 @@ export default function ProgramMonitoring({
               <button
                 type="button"
                 onClick={() => setViewLayout('table')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  viewLayout === 'table'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-900'
-                }`}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewLayout === 'table'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900'
+                  }`}
                 title="Concise Table View"
               >
                 📑 Concise Table
@@ -570,11 +571,10 @@ export default function ProgramMonitoring({
               <button
                 type="button"
                 onClick={() => setViewLayout('cards')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  viewLayout === 'cards'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-900'
-                }`}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewLayout === 'cards'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900'
+                  }`}
                 title="Expanded Cards View"
               >
                 🗂️ Cards
@@ -606,11 +606,10 @@ export default function ProgramMonitoring({
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-2">
           <button
             onClick={() => setActiveTab('all_posts')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'all_posts'
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${activeTab === 'all_posts'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
           >
             <span>📚 All Posts</span>
             <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'all_posts' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
@@ -620,11 +619,10 @@ export default function ProgramMonitoring({
 
           <button
             onClick={() => setActiveTab('activities')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'activities'
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'bg-amber-50 text-amber-900 hover:bg-amber-100'
-            }`}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${activeTab === 'activities'
+              ? 'bg-amber-600 text-white shadow-xs'
+              : 'bg-amber-50 text-amber-900 hover:bg-amber-100'
+              }`}
           >
             <span>✏️ Activity Worksheets</span>
             <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'activities' ? 'bg-white/20 text-white' : 'bg-amber-200/60 text-amber-900'}`}>
@@ -634,11 +632,10 @@ export default function ProgramMonitoring({
 
           <button
             onClick={() => setActiveTab('files')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'files'
-                ? 'bg-sky-600 text-white shadow-xs'
-                : 'bg-sky-50 text-sky-900 hover:bg-sky-100'
-            }`}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${activeTab === 'files'
+              ? 'bg-sky-600 text-white shadow-xs'
+              : 'bg-sky-50 text-sky-900 hover:bg-sky-100'
+              }`}
           >
             <span>📁 Files &amp; Documents</span>
             <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'files' ? 'bg-white/20 text-white' : 'bg-sky-200/60 text-sky-900'}`}>
@@ -648,11 +645,10 @@ export default function ProgramMonitoring({
 
           <button
             onClick={() => setActiveTab('videos')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'videos'
-                ? 'bg-purple-600 text-white shadow-xs'
-                : 'bg-purple-50 text-purple-900 hover:bg-purple-100'
-            }`}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${activeTab === 'videos'
+              ? 'bg-purple-600 text-white shadow-xs'
+              : 'bg-purple-50 text-purple-900 hover:bg-purple-100'
+              }`}
           >
             <span>🎬 Video Lessons</span>
             <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'videos' ? 'bg-white/20 text-white' : 'bg-purple-200/60 text-purple-900'}`}>
@@ -662,11 +658,10 @@ export default function ProgramMonitoring({
 
           <button
             onClick={() => setActiveTab('compliance')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ml-auto ${
-              activeTab === 'compliance'
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-[#FAF5EC] text-dash-ink hover:bg-[#F0E8D8]'
-            }`}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ml-auto ${activeTab === 'compliance'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'bg-[#FAF5EC] text-dash-ink hover:bg-[#F0E8D8]'
+              }`}
           >
             <span>📊 Center Compliance Tracker</span>
           </button>
@@ -809,11 +804,10 @@ export default function ProgramMonitoring({
                       {/* 4. Level & Quarter */}
                       <td className="px-3 py-3 text-center whitespace-nowrap">
                         <span
-                          className={`inline-block px-2 py-0.5 rounded-full text-[10.5px] font-bold ${
-                            module.level === 'Pre-K1'
-                              ? 'bg-[#DCEBDD] text-[#2E6B38]'
-                              : 'bg-[#E0EFFE] text-[#1E5B94]'
-                          }`}
+                          className={`inline-block px-2 py-0.5 rounded-full text-[10.5px] font-bold ${module.level === 'Pre-K1'
+                            ? 'bg-[#DCEBDD] text-[#2E6B38]'
+                            : 'bg-[#E0EFFE] text-[#1E5B94]'
+                            }`}
                         >
                           {module.level} • Q{module.quarter}
                         </span>
@@ -835,27 +829,25 @@ export default function ProgramMonitoring({
                       <td className="px-3 py-3 text-center whitespace-nowrap">
                         <div className="flex flex-col items-center gap-1">
                           <span
-                            className={`inline-block px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
-                              module.verified_by_mswd || module.status === 'Approved'
-                                ? 'bg-[#DCEBDD] text-[#2E6B38] border border-emerald-200'
-                                : module.status === 'Rejected' || module.status === 'Needs Revision'
+                            className={`inline-block px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${module.verified_by_mswd || module.status === 'Approved'
+                              ? 'bg-[#DCEBDD] text-[#2E6B38] border border-emerald-200'
+                              : module.status === 'Rejected' || module.status === 'Needs Revision'
                                 ? 'bg-rose-100 text-rose-800 border border-rose-200'
                                 : 'bg-amber-100 text-amber-800 border border-amber-200'
-                            }`}
+                              }`}
                           >
                             {module.verified_by_mswd || module.status === 'Approved'
                               ? 'Approved ✓'
                               : module.status === 'Rejected' || module.status === 'Needs Revision'
-                              ? 'Rejected ✕'
-                              : 'Pending Review'}
+                                ? 'Rejected ✕'
+                                : 'Pending Review'}
                           </span>
                           {(module.verified_by_mswd || module.status === 'Approved') && (
                             <span
-                              className={`text-[9.5px] font-bold px-2 py-0.5 rounded ${
-                                module.posted_to_students
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                  : 'bg-amber-50 text-amber-800 border border-amber-200'
-                              }`}
+                              className={`text-[9.5px] font-bold px-2 py-0.5 rounded ${module.posted_to_students
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-amber-50 text-amber-800 border border-amber-200'
+                                }`}
                             >
                               {module.posted_to_students
                                 ? `🚀 Posted (${module.target_student_name || 'Class'})`
@@ -990,11 +982,10 @@ export default function ProgramMonitoring({
                       )}
 
                       <span
-                        className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
-                          module.level === 'Pre-K1'
-                            ? 'bg-[#DCEBDD] text-[#2E6B38]'
-                            : 'bg-[#E0EFFE] text-[#1E5B94]'
-                        }`}
+                        className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${module.level === 'Pre-K1'
+                          ? 'bg-[#DCEBDD] text-[#2E6B38]'
+                          : 'bg-[#E0EFFE] text-[#1E5B94]'
+                          }`}
                       >
                         {module.level} • Q{module.quarter}
                       </span>
@@ -1004,13 +995,12 @@ export default function ProgramMonitoring({
                       </span>
 
                       <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                          module.verified_by_mswd
-                            ? 'bg-[#DCEBDD] text-[#2E6B38]'
-                            : module.status === 'Needs Revision'
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${module.verified_by_mswd
+                          ? 'bg-[#DCEBDD] text-[#2E6B38]'
+                          : module.status === 'Needs Revision'
                             ? 'bg-[#FDE2E2] text-danger'
                             : 'bg-[#FFF3D6] text-[#8C6200]'
-                        }`}
+                          }`}
                       >
                         {module.verified_by_mswd ? 'Verified by MSWDO ✓' : module.status || 'Pending Review'}
                       </span>
@@ -1187,13 +1177,12 @@ export default function ProgramMonitoring({
                           </div>
                           <div className="w-full h-2 rounded-full bg-[#EFE8DC] overflow-hidden">
                             <div
-                              className={`h-full rounded-full transition-all ${
-                                c.complianceRate >= 100
-                                  ? 'bg-[#2E6B38]'
-                                  : c.complianceRate > 0
+                              className={`h-full rounded-full transition-all ${c.complianceRate >= 100
+                                ? 'bg-[#2E6B38]'
+                                : c.complianceRate > 0
                                   ? 'bg-accent'
                                   : 'bg-danger'
-                              }`}
+                                }`}
                               style={{ width: `${c.complianceRate}%` }}
                             />
                           </div>
@@ -1219,13 +1208,12 @@ export default function ProgramMonitoring({
 
                       <td className="px-4 py-3.5 text-center">
                         <span
-                          className={`inline-block px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
-                            c.complianceStatus === 'Compliant'
-                              ? 'bg-[#DCEBDD] text-[#2E6B38]'
-                              : c.complianceStatus === 'Partial'
+                          className={`inline-block px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${c.complianceStatus === 'Compliant'
+                            ? 'bg-[#DCEBDD] text-[#2E6B38]'
+                            : c.complianceStatus === 'Partial'
                               ? 'bg-[#FFF3D6] text-[#8C6200]'
                               : 'bg-[#FDE2E2] text-danger'
-                          }`}
+                            }`}
                         >
                           {c.complianceStatus}
                         </span>
@@ -1249,11 +1237,10 @@ export default function ProgramMonitoring({
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <span
-                    className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
-                      inspectingModule.level === 'Pre-K1'
-                        ? 'bg-[#DCEBDD] text-[#2E6B38]'
-                        : 'bg-[#E0EFFE] text-[#1E5B94]'
-                    }`}
+                    className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${inspectingModule.level === 'Pre-K1'
+                      ? 'bg-[#DCEBDD] text-[#2E6B38]'
+                      : 'bg-[#E0EFFE] text-[#1E5B94]'
+                      }`}
                   >
                     {inspectingModule.level} • Q{inspectingModule.quarter}
                   </span>
@@ -1261,11 +1248,10 @@ export default function ProgramMonitoring({
                     {inspectingModule.week}: {inspectingModule.sub_theme || inspectingModule.theme}
                   </span>
                   <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                      inspectingModule.verified_by_mswd
-                        ? 'bg-[#DCEBDD] text-[#2E6B38]'
-                        : 'bg-[#FFF3D6] text-[#8C6200]'
-                    }`}
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${inspectingModule.verified_by_mswd
+                      ? 'bg-[#DCEBDD] text-[#2E6B38]'
+                      : 'bg-[#FFF3D6] text-[#8C6200]'
+                      }`}
                   >
                     {inspectingModule.verified_by_mswd ? 'Verified by MSWDO ✓' : 'Pending Review'}
                   </span>
@@ -1476,11 +1462,10 @@ export default function ProgramMonitoring({
                   <button
                     type="button"
                     onClick={() => setCommentDecision('approve')}
-                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer font-bold ${
-                      commentDecision === 'approve'
-                        ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-xs'
-                        : 'bg-white border-[#E5DCC9] text-dash-ink-soft hover:bg-slate-50'
-                    }`}
+                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer font-bold ${commentDecision === 'approve'
+                      ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-xs'
+                      : 'bg-white border-[#E5DCC9] text-dash-ink-soft hover:bg-slate-50'
+                      }`}
                   >
                     <div className="text-base mb-0.5">✓</div>
                     <div className="text-[11.5px]">Approve &amp; Link</div>
@@ -1490,11 +1475,10 @@ export default function ProgramMonitoring({
                   <button
                     type="button"
                     onClick={() => setCommentDecision('revision')}
-                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer font-bold ${
-                      commentDecision === 'revision'
-                        ? 'bg-rose-50 border-rose-500 text-rose-800 shadow-xs'
-                        : 'bg-white border-[#E5DCC9] text-dash-ink-soft hover:bg-slate-50'
-                    }`}
+                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer font-bold ${commentDecision === 'revision'
+                      ? 'bg-rose-50 border-rose-500 text-rose-800 shadow-xs'
+                      : 'bg-white border-[#E5DCC9] text-dash-ink-soft hover:bg-slate-50'
+                      }`}
                   >
                     <div className="text-base mb-0.5">✕</div>
                     <div className="text-[11.5px]">Reject / Revision</div>
@@ -1504,11 +1488,10 @@ export default function ProgramMonitoring({
                   <button
                     type="button"
                     onClick={() => setCommentDecision('keep')}
-                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer font-bold ${
-                      commentDecision === 'keep'
-                        ? 'bg-amber-50 border-amber-500 text-amber-800 shadow-xs'
-                        : 'bg-white border-[#E5DCC9] text-dash-ink-soft hover:bg-slate-50'
-                    }`}
+                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer font-bold ${commentDecision === 'keep'
+                      ? 'bg-amber-50 border-amber-500 text-amber-800 shadow-xs'
+                      : 'bg-white border-[#E5DCC9] text-dash-ink-soft hover:bg-slate-50'
+                      }`}
                   >
                     <div className="text-base mb-0.5">💬</div>
                     <div className="text-[11.5px]">Comment Only</div>

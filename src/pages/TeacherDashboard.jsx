@@ -203,19 +203,76 @@ export default function TeacherDashboard({ profile }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // --- Load my uploaded materials from Supabase ---
+  // --- Load my uploaded materials & MSWD assignments from Supabase (cross-device sync) ---
   const loadMyMaterials = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('materials')
-        .select('id, title, type, age_range, status, content_url, content_text, created_at, categories(name)')
-        .eq('created_by', currentUserId)
+        .select('id, title, type, age_range, status, content_url, content_text, created_by, created_at, categories(name)')
         .order('created_at', { ascending: false });
-      if (!error && data) setMyMaterials(data);
+
+      if (!error && Array.isArray(data)) {
+        // 1. Extract any MSWD curriculum topic assignments stored in Supabase
+        const sbAssigns = [];
+        const regularMats = [];
+        const teacherNameLower = (myFullName || profile?.full_name || '').replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase();
+        const cdcNameLower = (myCdcName || profile?.cdc_name || '').trim().toLowerCase();
+
+        data.forEach((m) => {
+          if (m.title?.startsWith('[MSWD_ASSIGNMENT]')) {
+            if (m.content_text && m.content_text.trim().startsWith('{')) {
+              try {
+                const parsed = JSON.parse(m.content_text);
+                if (parsed && parsed.__mswd_assignment && parsed.assignment) {
+                  sbAssigns.push(parsed.assignment);
+                }
+              } catch {}
+            }
+            return;
+          }
+
+          let meta = {};
+          if (m.content_text && m.content_text.trim().startsWith('{')) {
+            try {
+              const parsed = JSON.parse(m.content_text);
+              if (parsed && parsed.__metadata) meta = parsed;
+            } catch {}
+          }
+
+          const metaTeacher = (meta.teacher_name || '').toLowerCase();
+          const metaCdc = (meta.cdc_name || '').toLowerCase();
+          const isMine =
+            m.created_by === currentUserId ||
+            (teacherNameLower && metaTeacher && (metaTeacher.includes(teacherNameLower) || teacherNameLower.includes(metaTeacher))) ||
+            (cdcNameLower && metaCdc && (metaCdc.includes(cdcNameLower) || cdcNameLower.includes(metaCdc)));
+
+          if (isMine) {
+            regularMats.push(m);
+          }
+        });
+
+        setMyMaterials(regularMats);
+
+        if (sbAssigns.length > 0) {
+          const localClean = getCleanCurriculumAssignments();
+          const seen = new Set();
+          const mergedAssigns = [];
+          [...sbAssigns, ...localClean].forEach((a) => {
+            if (a && a.id && !seen.has(a.id)) {
+              seen.add(a.id);
+              mergedAssigns.push(a);
+            }
+          });
+          setAssignments(mergedAssigns);
+          try {
+            localStorage.setItem('earlylearn_curriculum_assignments', JSON.stringify(mergedAssigns));
+          } catch {}
+        }
+      }
     } catch {
       // ignore
     }
-  }, [currentUserId]);
+  }, [currentUserId, myFullName, myCdcName, profile]);
 
   // Real-time Supabase sync for materials status (notified when Admin approves/rejects)
   useEffect(() => {
@@ -351,16 +408,27 @@ export default function TeacherDashboard({ profile }) {
           ? new Date(m.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
           : 'Recently',
         content_text: cleanDescription,
-        file_name: m.content_url?.startsWith('data:application/pdf')
-          ? 'Worksheet File (PDF)'
-          : m.content_url?.startsWith('data:')
-          ? 'Attached Learning Document'
-          : m.file_name || localMatch?.file_name || null,
-        file_size: m.file_size || localMatch?.file_size || null,
+        file_name:
+          meta.file_name ||
+          localMatch?.file_name ||
+          m.file_name ||
+          (m.content_url?.startsWith('data:application/pdf')
+            ? 'Worksheet File (PDF)'
+            : m.content_url?.startsWith('data:image/')
+            ? 'Activity Image'
+            : m.content_url?.startsWith('data:')
+            ? 'Attached Learning Document'
+            : null),
+        file_size: meta.file_size || localMatch?.file_size || m.file_size || null,
         file_type:
-          m.file_type ||
+          meta.file_type ||
           localMatch?.file_type ||
-          (m.content_url?.startsWith('data:application/pdf') ? 'PDF' : m.type?.toUpperCase() || 'FILE'),
+          m.file_type ||
+          (m.content_url?.startsWith('data:application/pdf')
+            ? 'PDF'
+            : m.content_url?.startsWith('data:image/')
+            ? 'IMAGE'
+            : m.type?.toUpperCase() || 'FILE'),
         content_url: m.content_url || localMatch?.content_url || null,
         raw_meta: meta,
         isLocal: false,
@@ -835,33 +903,71 @@ export default function TeacherDashboard({ profile }) {
       window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updatedLocal }));
     } catch {}
 
-    // 2. Also update Supabase materials metadata if applicable
-    if (!postingMaterial.isLocal) {
-      try {
-        const updatedMeta = {
-          ...(postingMaterial.raw_meta || {}),
-          __metadata: true,
-          description: postingMaterial.content_text || '',
-          teacher_name: myFullName || profile?.full_name || 'Teacher',
-          cdc_name: myCdcName || profile?.cdc_name || 'Manolo Fortich CDC',
-          barangay: myBarangay || profile?.barangay || 'Manolo Fortich',
-          level: postingMaterial.level || 'Pre-K1',
-          quarter: postingMaterial.quarter || 1,
-          week: postingMaterial.week || 'Week 1',
-          sub_theme: postingMaterial.sub_theme || '',
-          theme: postingMaterial.theme || '',
-          posted_to_students: true,
-          target_student_id: selectedTargetStudentId,
-          target_student_name: targetName,
-          posted_at: nowFormatted,
-        };
+    // 2. Always sync posted activity & attached file metadata to Supabase materials for cross-device student access
+    try {
+      const updatedMeta = {
+        ...(postingMaterial.raw_meta || {}),
+        __metadata: true,
+        assignment_id: postingMaterial.assignment_id || null,
+        description: postingMaterial.content_text || '',
+        teacher_name: myFullName || profile?.full_name || 'Teacher',
+        cdc_name: myCdcName || profile?.cdc_name || 'Manolo Fortich CDC',
+        barangay: myBarangay || profile?.barangay || 'Manolo Fortich',
+        level: postingMaterial.level || 'Pre-K1',
+        quarter: postingMaterial.quarter || 1,
+        week: postingMaterial.week || 'Week 1',
+        sub_theme: postingMaterial.sub_theme || '',
+        theme: postingMaterial.theme || '',
+        module_type: postingMaterial.formatLabel || 'Activity Worksheet',
+        file_name: postingMaterial.file_name || null,
+        file_size: postingMaterial.file_size || null,
+        file_type: postingMaterial.file_type || null,
+        posted_to_students: true,
+        target_student_id: selectedTargetStudentId,
+        target_student_name: targetName,
+        posted_at: nowFormatted,
+      };
+
+      const isUuid =
+        postingMaterial.id &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(postingMaterial.id));
+
+      if (isUuid) {
         await supabase
           .from('materials')
-          .update({ content_text: JSON.stringify(updatedMeta) })
+          .update({
+            status: 'approved',
+            content_url: postingMaterial.content_url || null,
+            content_text: JSON.stringify(updatedMeta),
+          })
           .eq('id', postingMaterial.id);
-        loadMyMaterials();
-      } catch {}
-    }
+      } else {
+        const catId = categoryOptions.length > 0 ? categoryOptions[0].id : null;
+        const { data: inserted } = await supabase
+          .from('materials')
+          .insert({
+            category_id: catId,
+            type: 'activity',
+            title: postingMaterial.title,
+            age_range: postingMaterial.level?.toLowerCase().includes('1') ? '3-4' : '4-5',
+            content_url: postingMaterial.content_url || null,
+            content_text: JSON.stringify(updatedMeta),
+            created_by: currentUserId,
+            status: 'approved',
+          })
+          .select()
+          .single();
+
+        if (inserted?.id) {
+          const syncedLocal = updatedLocal.map((m) =>
+            m.id === postingMaterial.id ? { ...m, id: inserted.id } : m
+          );
+          setLocalTeacherModules(syncedLocal);
+          localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(syncedLocal));
+        }
+      }
+      loadMyMaterials();
+    } catch {}
 
     setPostModalMsg({
       text: `🚀 Activity successfully posted to Student Dashboard (${targetName})!`,
@@ -924,15 +1030,39 @@ export default function TeacherDashboard({ profile }) {
     loadAnnouncements();
   }
 
-  // --- Submissions ---
+  // --- Submissions (with cross-device student file & image upload support) ---
   const loadSubmissions = useCallback(async () => {
     let list = [];
     try {
       const { data, error } = await supabase
         .from('submissions')
-        .select('id, answer_text, status, profiles(full_name), materials(title)')
+        .select('id, material_id, student_id, answer_text, status, created_at, profiles(full_name), materials(title)')
         .order('created_at', { ascending: false });
-      if (!error && data) list = [...data];
+      if (!error && data) {
+        list = data.map((s) => {
+          let parsedMeta = null;
+          if (s.answer_text && s.answer_text.trim().startsWith('{')) {
+            try {
+              const p = JSON.parse(s.answer_text);
+              if (p && p.__submission_meta) parsedMeta = p;
+            } catch {}
+          }
+          return {
+            ...s,
+            answer_text: parsedMeta ? parsedMeta.answer_text || '' : s.answer_text,
+            profiles: {
+              full_name: s.profiles?.full_name || parsedMeta?.student_name || 'Learner',
+            },
+            materials: {
+              title: s.materials?.title || parsedMeta?.material_title || parsedMeta?.category || 'Activity Submission',
+            },
+            mediaUrl: parsedMeta?.file_url || null,
+            fileName: parsedMeta?.file_name || null,
+            fileType: parsedMeta?.file_type || null,
+            fileSize: parsedMeta?.file_size || null,
+          };
+        });
+      }
     } catch {
       // fallback
     }
@@ -941,11 +1071,14 @@ export default function TeacherDashboard({ profile }) {
       const localStudentUploads = JSON.parse(localStorage.getItem('earlylearn_student_uploads') || '[]');
       const localSubs = localStudentUploads.map((u) => ({
         id: u.id,
-        answer_text: `[${u.category || 'Artwork'}] ${u.title}: ${u.note || ''}`,
+        answer_text: u.note || u.title || '',
         status: u.status === 'Checked' ? 'checked' : 'submitted',
         profiles: { full_name: u.studentName || 'Student Test' },
-        materials: { title: u.title },
-        mediaUrl: u.mediaUrl,
+        materials: { title: u.materialTitle || u.title },
+        mediaUrl: u.mediaUrl || null,
+        fileName: u.fileName || null,
+        fileType: u.fileType || null,
+        fileSize: u.fileSize || null,
         isStudentUpload: true,
       }));
       const existingIds = new Set(list.map((s) => s.id));
@@ -2441,7 +2574,7 @@ export default function TeacherDashboard({ profile }) {
                 <tr>
                   <th className={th}>Student</th>
                   <th className={th}>Activity</th>
-                  <th className={th}>Answer</th>
+                  <th className={th}>Answer &amp; Uploaded File</th>
                   <th className={th}>Status</th>
                   <th className={th}></th>
                 </tr>
@@ -2449,9 +2582,43 @@ export default function TeacherDashboard({ profile }) {
               <tbody>
                 {submissions.map((s) => (
                   <tr key={s.id}>
-                    <td className={td}>{s.profiles?.full_name || '-'}</td>
+                    <td className={td}>
+                      <div className="font-bold text-slate-900">{s.profiles?.full_name || '-'}</div>
+                    </td>
                     <td className={td}>{s.materials?.title || '-'}</td>
-                    <td className={td}>{s.answer_text || '-'}</td>
+                    <td className={td}>
+                      <div className="space-y-1.5">
+                        {s.answer_text && <div className="text-xs text-slate-800">{s.answer_text}</div>}
+                        {s.mediaUrl && (
+                          <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 w-fit">
+                            {s.mediaUrl.startsWith('data:image/') && (
+                              <img
+                                src={s.mediaUrl}
+                                alt={s.fileName || 'Student upload'}
+                                className="w-10 h-10 object-cover rounded border border-slate-200 shrink-0"
+                              />
+                            )}
+                            <div className="text-[11px]">
+                              <div className="font-bold text-slate-800">
+                                📎 {s.fileName || 'Student Uploaded File'}
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <a
+                                  href={s.mediaUrl}
+                                  download={s.fileName || 'student-submission-file'}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-emerald-700 font-bold hover:underline"
+                                >
+                                  ⬇️ View / Download File
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {!s.answer_text && !s.mediaUrl && <span>-</span>}
+                      </div>
+                    </td>
                     <td className={td}>
                       <span className={pillClass(s.status)}>{s.status}</span>
                     </td>

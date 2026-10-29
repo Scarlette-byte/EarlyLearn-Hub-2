@@ -90,12 +90,58 @@ export default function CurriculumGuides({
       }
     }
 
+    async function fetchSupabaseAssignments() {
+      try {
+        const { data, error } = await supabase
+          .from('materials')
+          .select('id, title, content_text, created_at')
+          .ilike('title', '[MSWD_ASSIGNMENT]%')
+          .order('created_at', { ascending: false });
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const sbAssigns = [];
+          data.forEach((row) => {
+            if (row.content_text && row.content_text.trim().startsWith('{')) {
+              try {
+                const parsed = JSON.parse(row.content_text);
+                if (parsed && parsed.__mswd_assignment && parsed.assignment) {
+                  sbAssigns.push({
+                    ...parsed.assignment,
+                    sb_row_id: row.id,
+                  });
+                }
+              } catch {}
+            }
+          });
+          if (sbAssigns.length > 0) {
+            const localClean = getCleanCurriculumAssignments();
+            const seen = new Set();
+            const merged = [];
+            [...sbAssigns, ...localClean].forEach((a) => {
+              if (a && a.id && !seen.has(a.id)) {
+                seen.add(a.id);
+                merged.push(a);
+              }
+            });
+            setAssignments(merged);
+            try {
+              localStorage.setItem('earlylearn_curriculum_assignments', JSON.stringify(merged));
+            } catch {}
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     fetchSupabaseTeachers();
+    fetchSupabaseAssignments();
 
     const handleSync = () => {
       setTeacherUpdateTick((prev) => prev + 1);
       setAssignments(getCleanCurriculumAssignments());
       fetchSupabaseTeachers();
+      fetchSupabaseAssignments();
     };
     window.addEventListener('storage', handleSync);
     window.addEventListener('earlylearn_teachers_updated', handleSync);
@@ -357,9 +403,12 @@ export default function CurriculumGuides({
       assignedDate: new Date().toISOString().split('T')[0],
     });
 
+    const createdOnly = [];
     if (targetType === 'all') {
       activeTeachersList.forEach((teacher) => {
-        newAssignmentsList.push(buildAssignmentForTeacher(teacher, teacher.id));
+        const built = buildAssignmentForTeacher(teacher, teacher.id);
+        newAssignmentsList.push(built);
+        createdOnly.push(built);
       });
     } else if (targetType === 'teacher') {
       const teacher = activeTeachersList.find((t) => t.id === selectedTeacherId);
@@ -367,7 +416,9 @@ export default function CurriculumGuides({
         alert('Please select a teacher.');
         return;
       }
-      newAssignmentsList.push(buildAssignmentForTeacher(teacher, Math.random().toString(36).slice(2, 6)));
+      const built = buildAssignmentForTeacher(teacher, Math.random().toString(36).slice(2, 6));
+      newAssignmentsList.push(built);
+      createdOnly.push(built);
     } else if (targetType === 'barangay') {
       if (!selectedBarangayForAssign) {
         alert('Please select a Barangay.');
@@ -379,7 +430,9 @@ export default function CurriculumGuides({
         return;
       }
       teachersInBrgy.forEach((teacher) => {
-        newAssignmentsList.push(buildAssignmentForTeacher(teacher, teacher.id));
+        const built = buildAssignmentForTeacher(teacher, teacher.id);
+        newAssignmentsList.push(built);
+        createdOnly.push(built);
       });
     } else if (targetType === 'cdc') {
       if (!selectedCdcForAssign) {
@@ -392,7 +445,9 @@ export default function CurriculumGuides({
         return;
       }
       teachersInCdc.forEach((teacher) => {
-        newAssignmentsList.push(buildAssignmentForTeacher(teacher, teacher.id));
+        const built = buildAssignmentForTeacher(teacher, teacher.id);
+        newAssignmentsList.push(built);
+        createdOnly.push(built);
       });
     }
 
@@ -404,6 +459,27 @@ export default function CurriculumGuides({
       // Ignored
     }
 
+    // Sync newly assigned topics to Supabase so teachers on other devices see them immediately
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const rowsToInsert = createdOnly.map((asg) => ({
+          title: `[MSWD_ASSIGNMENT] ${asg.id}`,
+          type: 'text',
+          age_range: asg.level === 'Pre-K1' ? '3-4' : '4-5',
+          status: 'approved',
+          created_by: user?.id || null,
+          content_text: JSON.stringify({
+            __mswd_assignment: true,
+            assignment: asg,
+          }),
+        }));
+        if (rowsToInsert.length > 0) {
+          await supabase.from('materials').insert(rowsToInsert);
+        }
+      } catch {}
+    })();
+
     setAssignSuccessMsg(`✅ Topic "${resolvedTopic}" assigned successfully with deadline ${assignmentDeadline}!`);
     setTimeout(() => {
       setAssignModalOpen(false);
@@ -412,8 +488,9 @@ export default function CurriculumGuides({
   };
 
   // Remove assignment
-  const handleRemoveAssignment = (id) => {
+  const handleRemoveAssignment = async (id) => {
     if (!confirm('Remove this curriculum assignment?')) return;
+    const target = assignments.find((a) => a.id === id);
     const updated = assignments.filter((a) => a.id !== id);
     setAssignments(updated);
     try {
@@ -421,6 +498,13 @@ export default function CurriculumGuides({
     } catch {
       // Ignored
     }
+    try {
+      if (target?.sb_row_id) {
+        await supabase.from('materials').delete().eq('id', target.sb_row_id);
+      } else {
+        await supabase.from('materials').delete().eq('title', `[MSWD_ASSIGNMENT] ${id}`);
+      }
+    } catch {}
   };
 
   // Toggle quarter checkbox

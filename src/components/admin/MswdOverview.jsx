@@ -37,7 +37,9 @@ export default function MswdOverview({
         .order('created_at', { ascending: false });
 
       if (!error && Array.isArray(data)) {
-        const mapped = data.map((m) => {
+        const mapped = data
+          .filter((m) => !m.title?.startsWith('[MSWD_ASSIGNMENT]'))
+          .map((m) => {
           let meta = {};
           let cleanDescription = m.content_text || '';
           if (m.content_text && m.content_text.trim().startsWith('{')) {

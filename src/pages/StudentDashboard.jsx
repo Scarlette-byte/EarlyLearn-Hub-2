@@ -93,8 +93,14 @@ export default function StudentDashboard({ profile }) {
   // Content view state (doing a teacher activity)
   const [currentMaterial, setCurrentMaterial] = useState(null);
   const [answer, setAnswer] = useState('');
+  const [activityFilePreview, setActivityFilePreview] = useState(null);
+  const [activityFileName, setActivityFileName] = useState('');
+  const [activityFileType, setActivityFileType] = useState('');
+  const [activityFileSize, setActivityFileSize] = useState('');
+  const [submittingAnswer, setSubmittingAnswer] = useState(false);
   const [doneMsg, setDoneMsg] = useState({ text: '', error: false });
   const [submitted, setSubmitted] = useState(false);
+  const [submissionsByMaterial, setSubmissionsByMaterial] = useState({});
 
   // Activities sub-tab view: 'teacher' | 'student_uploads'
   const [activityTab, setActivityTab] = useState('teacher');
@@ -118,8 +124,56 @@ export default function StudentDashboard({ profile }) {
   const [uploadNote, setUploadNote] = useState('');
   const [uploadFilePreview, setUploadFilePreview] = useState(null);
   const [uploadFileName, setUploadFileName] = useState('');
+  const [uploadFileType, setUploadFileType] = useState('');
+  const [uploadFileSize, setUploadFileSize] = useState('');
   const [uploadMsg, setUploadMsg] = useState({ text: '', type: '' });
   const [uploading, setUploading] = useState(false);
+
+  // Helper to open or download data: URLs and external URLs reliably across devices
+  const handleOpenOrDownloadFile = useCallback((fileUrl, fileName, mode = 'view') => {
+    if (!fileUrl) return;
+    if (fileUrl.startsWith('data:')) {
+      try {
+        const parts = fileUrl.split(',');
+        const mimeMatch = parts[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+        const bstr = atob(parts[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        const blob = new Blob([u8arr], { type: mime });
+        const blobUrl = URL.createObjectURL(blob);
+        if (mode === 'download') {
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = fileName || 'activity-file';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        } else {
+          window.open(blobUrl, '_blank', 'noopener,noreferrer');
+        }
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+        return;
+      } catch (err) {
+        console.warn('Fallback opening data URL:', err);
+      }
+    }
+    if (mode === 'download') {
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = fileName || 'activity-file';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      window.open(fileUrl, '_blank', 'noopener,noreferrer');
+    }
+  }, []);
 
   // Teacher-uploaded modules from localStorage & Supabase
   const [teacherUploadedModules, setTeacherUploadedModules] = useState(() => {
@@ -161,6 +215,7 @@ export default function StudentDashboard({ profile }) {
         .from('materials')
         .select('*, categories(id, name, icon)')
         .eq('status', 'approved')
+        .not('title', 'like', '[MSWD_ASSIGNMENT]%')
         .order('created_at', { ascending: false });
       if (!error && data) {
         setDbMaterials(data);
@@ -170,10 +225,135 @@ export default function StudentDashboard({ profile }) {
     }
   }, []);
 
-  // Listen to teacher uploads in localStorage
+  // --- Load Student Submissions from Supabase (Cross-Device Sync) ---
+  const loadStudentSubmissions = useCallback(async () => {
+    if (!currentUserId) return;
+    try {
+      const { data, error } = await supabase
+        .from('submissions')
+        .select('*, materials(id, title)')
+        .eq('student_id', currentUserId)
+        .order('created_at', { ascending: false });
+
+      if (!error && data && data.length > 0) {
+        const doneSet = new Set();
+        const subMap = {};
+        const dbStudentUploads = [];
+
+        try {
+          const savedDone = localStorage.getItem(`earlylearn_done_${currentUserId}`);
+          if (savedDone) {
+            JSON.parse(savedDone).forEach((id) => doneSet.add(id));
+          }
+        } catch {
+          // ignore
+        }
+
+        data.forEach((s) => {
+          let meta = null;
+          let cleanAnswer = s.answer_text || '';
+          if (cleanAnswer.trim().startsWith('{')) {
+            try {
+              const parsed = JSON.parse(cleanAnswer);
+              if (parsed && parsed.__submission_meta) {
+                meta = parsed;
+                cleanAnswer = parsed.answer_text || '';
+              }
+            } catch {
+              // ignore
+            }
+          }
+
+          const matId = s.material_id || meta?.material_id || null;
+          const matTitle = meta?.material_title || s.materials?.title || '';
+
+          const submissionEntry = {
+            id: s.id,
+            material_id: matId,
+            material_title: matTitle,
+            answer_text: cleanAnswer,
+            file_url: meta?.file_url || null,
+            file_name: meta?.file_name || '',
+            file_type: meta?.file_type || '',
+            file_size: meta?.file_size || '',
+            status: s.status || 'submitted',
+            created_at: s.created_at,
+          };
+
+          if (matId) {
+            doneSet.add(matId);
+            if (!subMap[matId]) subMap[matId] = submissionEntry;
+          }
+          if (matTitle) {
+            const titleKey = matTitle.toLowerCase().trim();
+            doneSet.add(titleKey);
+            if (!subMap[titleKey]) subMap[titleKey] = submissionEntry;
+          }
+
+          if (meta?.file_url || meta?.file_name || cleanAnswer) {
+            dbStudentUploads.push({
+              id: s.id,
+              studentId: currentUserId,
+              studentName: meta?.student_name || greetingName,
+              title: matTitle || meta?.title || 'Activity Submission',
+              category: meta?.category || 'Teacher Assigned Activity',
+              note: cleanAnswer,
+              mediaUrl: meta?.file_url || null,
+              fileName: meta?.file_name || '',
+              fileType: meta?.file_type || '',
+              fileSize: meta?.file_size || '',
+              uploadedAt:
+                meta?.uploaded_at ||
+                (s.created_at
+                  ? new Date(s.created_at).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })
+                  : 'Recent'),
+              status: s.status === 'reviewed' ? 'Reviewed by Teacher' : 'Submitted to Teacher',
+            });
+          }
+        });
+
+        setCompletedIds(doneSet);
+        setSubmissionsByMaterial(subMap);
+        try {
+          localStorage.setItem(`earlylearn_done_${currentUserId}`, JSON.stringify(Array.from(doneSet)));
+        } catch {
+          // ignore
+        }
+
+        setStudentUploads((prev) => {
+          const merged = [...dbStudentUploads];
+          const seenKeys = new Set(
+            dbStudentUploads.map((u) => `${(u.title || '').toLowerCase()}|${u.fileName || ''}|${u.note || ''}`)
+          );
+          (prev || []).forEach((localUp) => {
+            const key = `${(localUp.title || '').toLowerCase()}|${localUp.fileName || ''}|${localUp.note || ''}`;
+            if (!seenKeys.has(key)) {
+              seenKeys.add(key);
+              merged.push(localUp);
+            }
+          });
+          try {
+            localStorage.setItem(`earlylearn_student_uploads_${currentUserId}`, JSON.stringify(merged));
+          } catch {
+            // ignore
+          }
+          return merged;
+        });
+      }
+    } catch {
+      // fallback
+    }
+  }, [currentUserId, greetingName]);
+
+  // Listen to teacher uploads in localStorage & Supabase Realtime across devices
   useEffect(() => {
     loadAnnouncements();
     loadDbMaterials();
+    loadStudentSubmissions();
 
     // Ensure student registration is synced with teacher dashboard
     syncStudentLogin(null, profile);
@@ -207,15 +387,31 @@ export default function StudentDashboard({ profile }) {
         // ignore
       }
       loadDbMaterials();
+      loadStudentSubmissions();
     }
 
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('earlylearn_modules_updated', handleModulesEvent);
+
+    const channel = supabase
+      .channel(`student-dashboard-sync-${currentUserId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'materials' }, () => {
+        loadDbMaterials();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'submissions' }, () => {
+        loadStudentSubmissions();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, () => {
+        loadAnnouncements();
+      })
+      .subscribe();
+
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('earlylearn_modules_updated', handleModulesEvent);
+      supabase.removeChannel(channel);
     };
-  }, [loadAnnouncements, loadDbMaterials, currentUserId, profile]);
+  }, [loadAnnouncements, loadDbMaterials, loadStudentSubmissions, currentUserId, profile]);
 
   // -------------------------------------------------------------------------
   // "MY ACTIVITIES": STRICTLY BASED ON:
@@ -225,7 +421,7 @@ export default function StudentDashboard({ profile }) {
   // -------------------------------------------------------------------------
   const teacherActivities = useMemo(() => {
     const list = [];
-    const seenTitles = new Set();
+    const seenByTitle = new Map();
 
     const studentTeacherName = (adviserInfo?.adviserName || '').trim().toLowerCase();
     const studentBarangayLower = (studentBarangay || profile?.barangay || '').trim().toLowerCase();
@@ -281,6 +477,61 @@ export default function StudentDashboard({ profile }) {
       return isActivityForMyTeacher(mTeacherId, mTeacherName, mCdcName, mBarangay);
     };
 
+    // 1. Load from Supabase dbMaterials first so cross-device IDs & files are primary
+    (dbMaterials || []).forEach((m) => {
+      if (m.title && !m.title.startsWith('[MSWD_ASSIGNMENT]')) {
+        let meta = {};
+        let cleanDescription = m.content_text || '';
+        if (m.content_text && m.content_text.trim().startsWith('{')) {
+          try {
+            const parsed = JSON.parse(m.content_text);
+            if (parsed && parsed.__metadata) {
+              meta = parsed;
+              cleanDescription = parsed.description || '';
+            }
+          } catch {}
+        }
+
+        const isPostedToStudent =
+          meta.posted_to_students === true ||
+          (m.status === 'approved' && meta.posted_to_students !== false);
+
+        const isTargetedToMe = matchesStudentTarget(
+          meta.target_student_id,
+          meta.target_student_name,
+          m.created_by,
+          meta.teacher_name,
+          meta.cdc_name,
+          meta.barangay
+        );
+
+        const titleKey = m.title.toLowerCase().trim();
+        if (isPostedToStudent && isTargetedToMe && !seenByTitle.has(titleKey)) {
+          const item = {
+            id: m.id,
+            title: m.title,
+            category_id: m.category_id,
+            category_name: meta.sub_theme || meta.theme || m.categories?.name || 'Class Activity',
+            type: 'activity',
+            module_type: meta.module_type || m.type || 'activity',
+            icon: m.categories?.icon || '✏️',
+            content_text: cleanDescription || 'Teacher-assigned learning activity.',
+            content_url: m.content_url || null,
+            file_name: meta.file_name || '',
+            file_type: meta.file_type || '',
+            file_size: meta.file_size || '',
+            teacher_name: meta.teacher_name || 'CDC Teacher',
+            cdc_name: meta.cdc_name || '',
+            target_student_name: meta.target_student_name || null,
+            created_at: meta.posted_at || m.created_at,
+          };
+          seenByTitle.set(titleKey, item);
+          list.push(item);
+        }
+      }
+    });
+
+    // 2. Merge localStorage teacherUploadedModules (filling in any local file data or local-only items)
     (teacherUploadedModules || []).forEach((m) => {
       const isActualTeacherUpload =
         m.is_custom_teacher_upload === true ||
@@ -305,71 +556,36 @@ export default function StudentDashboard({ profile }) {
         m.barangay
       );
 
-      if (
-        isActualTeacherUpload &&
-        isApproved &&
-        isPostedToStudent &&
-        isTargetedToMe &&
-        !seenTitles.has(m.title.toLowerCase())
-      ) {
-        seenTitles.add(m.title.toLowerCase());
-        list.push({
-          id: m.id,
-          title: m.title,
-          category_id: m.category_id,
-          category_name: m.sub_theme || m.theme || m.category_name || 'Class Activity',
-          type: 'activity',
-          icon: '✏️',
-          content_text: m.description || m.content_text || 'Teacher-guided early childhood activity.',
-          content_url: m.content_url || null,
-          teacher_name: m.teacher_name || 'CDC Teacher',
-          cdc_name: m.cdc_name || '',
-          target_student_name: m.target_student_name || null,
-          created_at: m.posted_at || m.upload_date || 'Recent',
-        });
-      }
-    });
-
-    (dbMaterials || []).forEach((m) => {
-      if (m.created_by && !seenTitles.has(m.title.toLowerCase())) {
-        let meta = {};
-        let cleanDescription = m.content_text || '';
-        if (m.content_text && m.content_text.trim().startsWith('{')) {
-          try {
-            const parsed = JSON.parse(m.content_text);
-            if (parsed && parsed.__metadata) {
-              meta = parsed;
-              cleanDescription = parsed.description || '';
-            }
-          } catch {}
-        }
-
-        const isPostedToStudent = meta.posted_to_students === true;
-        const isTargetedToMe = matchesStudentTarget(
-          meta.target_student_id,
-          meta.target_student_name,
-          m.created_by,
-          meta.teacher_name,
-          meta.cdc_name,
-          meta.barangay
-        );
-
-        if (isPostedToStudent && isTargetedToMe) {
-          seenTitles.add(m.title.toLowerCase());
-          list.push({
+      if (isActualTeacherUpload && isApproved && isPostedToStudent && isTargetedToMe && m.title) {
+        const titleKey = m.title.toLowerCase().trim();
+        if (seenByTitle.has(titleKey)) {
+          const existing = seenByTitle.get(titleKey);
+          if (!existing.content_url && m.content_url) existing.content_url = m.content_url;
+          if (!existing.file_name && m.file_name) existing.file_name = m.file_name;
+          if (!existing.file_type && m.file_type) existing.file_type = m.file_type;
+          if (!existing.file_size && m.file_size) existing.file_size = m.file_size;
+          if (!existing.module_type && m.module_type) existing.module_type = m.module_type;
+        } else {
+          const item = {
             id: m.id,
             title: m.title,
             category_id: m.category_id,
-            category_name: meta.sub_theme || meta.theme || m.categories?.name || 'Class Activity',
+            category_name: m.sub_theme || m.theme || m.category_name || 'Class Activity',
             type: 'activity',
-            icon: m.categories?.icon || '✏️',
-            content_text: cleanDescription || 'Teacher-assigned learning activity.',
+            module_type: m.module_type || m.type || 'activity',
+            icon: '✏️',
+            content_text: m.description || m.content_text || 'Teacher-guided early childhood activity.',
             content_url: m.content_url || null,
-            teacher_name: meta.teacher_name || 'CDC Teacher',
-            cdc_name: meta.cdc_name || '',
-            target_student_name: meta.target_student_name || null,
-            created_at: meta.posted_at || m.created_at,
-          });
+            file_name: m.file_name || '',
+            file_type: m.file_type || '',
+            file_size: m.file_size || '',
+            teacher_name: m.teacher_name || 'CDC Teacher',
+            cdc_name: m.cdc_name || '',
+            target_student_name: m.target_student_name || null,
+            created_at: m.posted_at || m.upload_date || 'Recent',
+          };
+          seenByTitle.set(titleKey, item);
+          list.push(item);
         }
       }
     });
@@ -377,13 +593,22 @@ export default function StudentDashboard({ profile }) {
     return list;
   }, [teacherUploadedModules, dbMaterials, adviserInfo, studentBarangay, profile, currentUserId, greetingName]);
 
+  const isActivityCompleted = useCallback(
+    (a) => {
+      if (!a) return false;
+      const titleKey = (a.title || '').toLowerCase().trim();
+      return completedIds.has(a.id) || (titleKey && completedIds.has(titleKey));
+    },
+    [completedIds]
+  );
+
   const pendingTeacherActivities = useMemo(() => {
-    return teacherActivities.filter((a) => !completedIds.has(a.id));
-  }, [teacherActivities, completedIds]);
+    return teacherActivities.filter((a) => !isActivityCompleted(a));
+  }, [teacherActivities, isActivityCompleted]);
 
   const completedTeacherActivities = useMemo(() => {
-    return teacherActivities.filter((a) => completedIds.has(a.id));
-  }, [teacherActivities, completedIds]);
+    return teacherActivities.filter((a) => isActivityCompleted(a));
+  }, [teacherActivities, isActivityCompleted]);
 
   const totalCompletedCount = completedTeacherActivities.length + studentUploads.length;
   const totalTasksCount = Math.max(1, teacherActivities.length + studentUploads.length);
@@ -401,21 +626,59 @@ export default function StudentDashboard({ profile }) {
   function openMaterial(m, from) {
     setBackTarget(from);
     setCurrentMaterial(m);
-    setAnswer('');
-    setDoneMsg({ text: '', error: false });
-    setSubmitted(false);
+    const titleKey = (m?.title || '').toLowerCase().trim();
+    const existingSub = submissionsByMaterial[m?.id] || (titleKey ? submissionsByMaterial[titleKey] : null);
+
+    setAnswer(existingSub?.answer_text || '');
+    setActivityFilePreview(existingSub?.file_url || null);
+    setActivityFileName(existingSub?.file_name || '');
+    setActivityFileType(existingSub?.file_type || '');
+    setActivityFileSize(existingSub?.file_size || '');
+    setDoneMsg(
+      existingSub
+        ? { text: '✅ You already submitted this activity. You can update your answer or file anytime!', error: false }
+        : { text: '', error: false }
+    );
+    setSubmitted(Boolean(existingSub));
     setView('content');
+  }
+
+  function handleActivityFileChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setActivityFileName(file.name);
+    const ext = file.name.split('.').pop()?.toUpperCase() || 'FILE';
+    setActivityFileType(ext);
+    const sizeKB = file.size / 1024;
+    const sizeFormatted =
+      sizeKB >= 1024 ? `${(sizeKB / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(sizeKB))} KB`;
+    setActivityFileSize(sizeFormatted);
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setActivityFilePreview(ev.target?.result || null);
+      setSubmitted(false);
+    };
+    reader.readAsDataURL(file);
   }
 
   async function submitAnswer() {
     const trimmed = answer.trim();
-    if (!trimmed) {
-      alert('Please write your answer or reflection first.');
+    if (!trimmed && !activityFilePreview) {
+      setDoneMsg({
+        text: '⚠️ Please write your answer/comment OR attach a file/image before submitting.',
+        error: true,
+      });
       return;
     }
 
+    setSubmittingAnswer(true);
+    setDoneMsg({ text: '', error: false });
+
+    const titleKey = (currentMaterial.title || '').toLowerCase().trim();
     const updated = new Set(completedIds);
     updated.add(currentMaterial.id);
+    if (titleKey) updated.add(titleKey);
     setCompletedIds(updated);
     try {
       localStorage.setItem(`earlylearn_done_${currentUserId}`, JSON.stringify(Array.from(updated)));
@@ -423,18 +686,93 @@ export default function StudentDashboard({ profile }) {
       // ignore
     }
 
+    const uploadedAtStr = new Date().toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+
+    const submissionPayload = JSON.stringify({
+      __submission_meta: true,
+      answer_text: trimmed || (activityFileName ? `Attached file: ${activityFileName}` : 'Submitted activity'),
+      student_id: currentUserId,
+      student_name: greetingName,
+      material_id: currentMaterial.id,
+      material_title: currentMaterial.title,
+      category: currentMaterial.category_name || 'Teacher Assigned Activity',
+      file_url: activityFilePreview || null,
+      file_name: activityFileName || '',
+      file_type: activityFileType || '',
+      file_size: activityFileSize || '',
+      uploaded_at: uploadedAtStr,
+    });
+
     try {
+      const isUuid =
+        typeof currentMaterial.id === 'string' &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentMaterial.id);
+
       await supabase.from('submissions').insert({
-        material_id: currentMaterial.id,
+        material_id: isUuid ? currentMaterial.id : null,
         student_id: currentUserId,
-        answer_text: trimmed,
+        answer_text: submissionPayload,
         status: 'submitted',
       });
+    } catch (err) {
+      console.warn('Supabase submission save error:', err);
+    }
+
+    // Update local submissions map & studentUploads so it appears immediately everywhere
+    const newSubEntry = {
+      id: 'sub-' + Date.now(),
+      material_id: currentMaterial.id,
+      material_title: currentMaterial.title,
+      answer_text: trimmed,
+      file_url: activityFilePreview || null,
+      file_name: activityFileName || '',
+      file_type: activityFileType || '',
+      file_size: activityFileSize || '',
+      status: 'submitted',
+      created_at: new Date().toISOString(),
+    };
+    setSubmissionsByMaterial((prev) => ({
+      ...prev,
+      [currentMaterial.id]: newSubEntry,
+      ...(titleKey ? { [titleKey]: newSubEntry } : {}),
+    }));
+
+    const newUploadItem = {
+      id: 'stu-act-' + Date.now(),
+      studentId: currentUserId,
+      studentName: greetingName,
+      title: currentMaterial.title,
+      category: currentMaterial.category_name || 'Teacher Assigned Activity',
+      note: trimmed,
+      mediaUrl: activityFilePreview || null,
+      fileName: activityFileName || '',
+      fileType: activityFileType || '',
+      fileSize: activityFileSize || '',
+      uploadedAt: uploadedAtStr,
+      status: 'Submitted to Teacher',
+    };
+
+    const updatedUploads = [
+      newUploadItem,
+      ...studentUploads.filter((u) => (u.title || '').toLowerCase() !== titleKey),
+    ];
+    setStudentUploads(updatedUploads);
+    try {
+      localStorage.setItem(`earlylearn_student_uploads_${currentUserId}`, JSON.stringify(updatedUploads));
+      localStorage.setItem('earlylearn_student_uploads', JSON.stringify(updatedUploads));
     } catch {
       // ignore
     }
 
-    setDoneMsg({ text: '🎉 Nice! Your answer has been submitted to your teacher!', error: false });
+    setSubmittingAnswer(false);
+    setDoneMsg({
+      text: '🎉 Nice! Your answer and file have been saved and submitted to your teacher across all devices!',
+      error: false,
+    });
     setSubmitted(true);
   }
 
@@ -443,6 +781,13 @@ export default function StudentDashboard({ profile }) {
     const file = e.target.files?.[0];
     if (file) {
       setUploadFileName(file.name);
+      const ext = file.name.split('.').pop()?.toUpperCase() || 'FILE';
+      setUploadFileType(ext);
+      const sizeKB = file.size / 1024;
+      const sizeFormatted =
+        sizeKB >= 1024 ? `${(sizeKB / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(sizeKB))} KB`;
+      setUploadFileSize(sizeFormatted);
+
       const reader = new FileReader();
       reader.onload = (uploadEvent) => {
         setUploadFilePreview(uploadEvent.target?.result);
@@ -461,6 +806,12 @@ export default function StudentDashboard({ profile }) {
     setUploading(true);
     setUploadMsg({ text: '', type: '' });
 
+    const uploadedAtStr = new Date().toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+
     const newUpload = {
       id: 'stu-up-' + Date.now(),
       studentId: currentUserId,
@@ -469,12 +820,10 @@ export default function StudentDashboard({ profile }) {
       category: uploadCategory,
       note: uploadNote.trim(),
       mediaUrl: uploadFilePreview || null,
-      fileName: uploadFileName || 'Activity_Photo.png',
-      uploadedAt: new Date().toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      }),
+      fileName: uploadFileName || '',
+      fileType: uploadFileType || '',
+      fileSize: uploadFileSize || '',
+      uploadedAt: uploadedAtStr,
       status: 'Submitted to Teacher',
     };
 
@@ -492,9 +841,24 @@ export default function StudentDashboard({ profile }) {
     }
 
     try {
+      const submissionPayload = JSON.stringify({
+        __submission_meta: true,
+        answer_text: uploadNote.trim() || `Uploaded work: ${uploadTitle.trim()}`,
+        student_id: currentUserId,
+        student_name: greetingName,
+        material_id: null,
+        material_title: uploadTitle.trim(),
+        category: uploadCategory,
+        file_url: uploadFilePreview || null,
+        file_name: uploadFileName || '',
+        file_type: uploadFileType || '',
+        file_size: uploadFileSize || '',
+        uploaded_at: uploadedAtStr,
+      });
+
       await supabase.from('submissions').insert({
         student_id: currentUserId,
-        answer_text: `[${uploadCategory}] ${uploadTitle.trim()}: ${uploadNote.trim()}`,
+        answer_text: submissionPayload,
         status: 'submitted',
       });
     } catch (err) {
@@ -510,6 +874,8 @@ export default function StudentDashboard({ profile }) {
       setUploadNote('');
       setUploadFilePreview(null);
       setUploadFileName('');
+      setUploadFileType('');
+      setUploadFileSize('');
       setUploadMsg({ text: '', type: '' });
       setActivityTab('student_uploads');
     }, 1200);
@@ -628,7 +994,7 @@ export default function StudentDashboard({ profile }) {
                       : 'text-dash-ink-soft hover:text-dash-ink'
                   }`}
                 >
-                  Teacher's Uploads ({pendingTeacherActivities.length})
+                  Teacher's Uploads ({teacherActivities.length})
                 </button>
                 <button
                   onClick={() => setActivityTab('student_uploads')}
@@ -645,14 +1011,14 @@ export default function StudentDashboard({ profile }) {
               {/* TAB 1: TEACHER ASSIGNED ACTIVITIES */}
               {activityTab === 'teacher' && (
                 <div>
-                  {pendingTeacherActivities.length === 0 ? (
+                  {teacherActivities.length === 0 ? (
                     <div className="bg-white rounded-2xl p-5 text-center shadow-soft border border-[#F0E4CE]">
                       <div className="text-2xl mb-1">🎈</div>
                       <div className="font-baloo font-bold text-base text-[#3a3226]">
                         No Teacher Activities at the Moment
                       </div>
                       <div className="text-xs text-[#7a7a7a] mt-1 max-w-sm mx-auto">
-                        Your teacher hasn't uploaded any new activities yet. You can upload your own drawing or artwork using the button above!
+                        Your teacher hasn't uploaded any new activities yet. You can upload your own drawing or file using the button above!
                       </div>
                     </div>
                   ) : (
@@ -670,7 +1036,7 @@ export default function StudentDashboard({ profile }) {
                             <div className="font-baloo font-bold text-[15.5px] text-[#3a3226] truncate">
                               {a.title}
                             </div>
-                            <div className="text-[11.5px] text-[#7a7a7a] font-bold flex items-center gap-1.5 mt-0.5">
+                            <div className="text-[11.5px] text-[#7a7a7a] font-bold flex items-center gap-1.5 mt-0.5 flex-wrap">
                               <span>{a.category_name}</span>
                               {a.teacher_name && (
                                 <>
@@ -678,13 +1044,53 @@ export default function StudentDashboard({ profile }) {
                                   <span className="text-accent font-semibold">{a.teacher_name}</span>
                                 </>
                               )}
+                              {(a.content_url || a.file_name) && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-extrabold">
+                                  📎 {a.file_name || a.file_type || 'Teacher File Attached'}
+                                </span>
+                              )}
                             </div>
                           </div>
-                          <span className="text-xs font-bold text-leaf bg-emerald-50 px-2 py-1 rounded-lg shrink-0">
+                          <span className="text-xs font-bold text-leaf bg-emerald-50 px-2.5 py-1.5 rounded-lg shrink-0">
                             Start →
                           </span>
                         </div>
                       ))}
+
+                      {completedTeacherActivities.length > 0 && (
+                        <div className="pt-2 space-y-2">
+                          <div className="text-[11px] font-extrabold text-[#6b5c42] text-left px-1 flex items-center gap-1">
+                            <span>✅</span> Completed Teacher Activities ({completedTeacherActivities.length})
+                          </div>
+                          {completedTeacherActivities.map((a) => (
+                            <div
+                              key={a.id}
+                              onClick={() => openMaterial(a, 'home')}
+                              className="bg-white/90 rounded-2xl px-4 py-3 text-left shadow-xs flex items-center gap-3.5 cursor-pointer border-l-[5px] border-emerald-400 hover:translate-x-0.5 transition-transform"
+                            >
+                              <div className="text-2xl flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600">
+                                ✅
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-baloo font-bold text-[14.5px] text-[#3a3226] truncate">
+                                  {a.title}
+                                </div>
+                                <div className="text-[11px] text-[#7a7a7a] font-bold flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                  <span>{a.category_name}</span>
+                                  {(a.content_url || a.file_name) && (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-extrabold">
+                                      📎 {a.file_name || 'File'}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg shrink-0">
+                                View / Edit →
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -700,53 +1106,87 @@ export default function StudentDashboard({ profile }) {
                         No Uploaded Activities Yet
                       </div>
                       <div className="text-xs text-[#7a7a7a] mt-1 mb-3">
-                        Take a photo of your drawing, coloring sheet, or homework and upload it directly to your teacher!
+                        Upload an image or file of your drawing, coloring sheet, or homework directly to your teacher!
                       </div>
                       <button
                         onClick={() => setIsUploadModalOpen(true)}
                         className="px-4 py-2 rounded-xl bg-coral hover:bg-coral-deep text-white font-bold text-xs shadow-bump cursor-pointer"
                       >
-                        📸 Upload Your First Artwork
+                        📸 Upload Your First Activity
                       </button>
                     </div>
                   ) : (
                     <div className="space-y-2.5">
-                      {studentUploads.map((u) => (
-                        <div
-                          key={u.id}
-                          className="bg-white rounded-2xl p-3.5 text-left shadow-soft flex items-start gap-3 border-l-[5px] border-[#FFB84D]"
-                        >
-                          {u.mediaUrl ? (
-                            <img
-                              src={u.mediaUrl}
-                              alt={u.title}
-                              className="w-14 h-14 rounded-xl object-cover shrink-0 border border-gray-200"
-                            />
-                          ) : (
-                            <div className="w-14 h-14 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center text-2xl shrink-0 font-bold">
-                              🖼️
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-2">
-                              <h4 className="font-baloo font-bold text-[15px] text-[#3a3226] m-0 truncate">
-                                {u.title}
-                              </h4>
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 shrink-0">
-                                {u.status || 'Submitted'}
-                              </span>
-                            </div>
-                            <div className="text-[11px] text-dash-ink-soft mt-0.5">
-                              Subject: <b className="text-[#3a3226]">{u.category}</b> • {u.uploadedAt}
-                            </div>
-                            {u.note && (
-                              <p className="text-xs text-[#5a4d38] mt-1 leading-snug line-clamp-2 m-0 bg-[#FFFDF8] p-1.5 rounded-lg border border-[#F0E4CE]">
-                                "{u.note}"
-                              </p>
+                      {studentUploads.map((u) => {
+                        const isImg =
+                          u.mediaUrl?.startsWith('data:image') ||
+                          /\.(png|jpe?g|gif|webp|svg)$/i.test(u.fileName || '') ||
+                          ['PNG', 'JPG', 'JPEG', 'GIF', 'WEBP'].includes((u.fileType || '').toUpperCase());
+
+                        return (
+                          <div
+                            key={u.id}
+                            className="bg-white rounded-2xl p-3.5 text-left shadow-soft flex items-start gap-3 border-l-[5px] border-[#FFB84D]"
+                          >
+                            {u.mediaUrl && isImg ? (
+                              <img
+                                src={u.mediaUrl}
+                                alt={u.title}
+                                onClick={() => handleOpenOrDownloadFile(u.mediaUrl, u.fileName || 'activity-image.png', 'view')}
+                                className="w-14 h-14 rounded-xl object-cover shrink-0 border border-gray-200 cursor-pointer hover:opacity-90"
+                              />
+                            ) : u.mediaUrl ? (
+                              <div
+                                onClick={() => handleOpenOrDownloadFile(u.mediaUrl, u.fileName || 'activity-file', 'view')}
+                                className="w-14 h-14 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex flex-col items-center justify-center shrink-0 font-extrabold text-[10px] cursor-pointer hover:bg-blue-100"
+                              >
+                                <span className="text-xl">📄</span>
+                                <span>{u.fileType || 'FILE'}</span>
+                              </div>
+                            ) : (
+                              <div className="w-14 h-14 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center text-2xl shrink-0 font-bold">
+                                🖼️
+                              </div>
                             )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <h4 className="font-baloo font-bold text-[15px] text-[#3a3226] m-0 truncate">
+                                  {u.title}
+                                </h4>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 shrink-0">
+                                  {u.status || 'Submitted'}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-dash-ink-soft mt-0.5">
+                                Subject: <b className="text-[#3a3226]">{u.category}</b> • {u.uploadedAt}
+                              </div>
+                              {u.note && (
+                                <p className="text-xs text-[#5a4d38] mt-1 leading-snug line-clamp-2 m-0 bg-[#FFFDF8] p-1.5 rounded-lg border border-[#F0E4CE]">
+                                  "{u.note}"
+                                </p>
+                              )}
+                              {u.mediaUrl && (
+                                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenOrDownloadFile(u.mediaUrl, u.fileName || 'student-upload', 'view')}
+                                    className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10.5px] font-extrabold cursor-pointer"
+                                  >
+                                    👁️ View {u.fileName ? `(${u.fileName})` : 'File'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenOrDownloadFile(u.mediaUrl, u.fileName || 'student-upload', 'download')}
+                                    className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-extrabold cursor-pointer"
+                                  >
+                                    ⬇️ Download
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1306,92 +1746,310 @@ export default function StudentDashboard({ profile }) {
         {/* ======================================================== */}
         {/* VIEW 3: CONTENT VIEW (Doing teacher assigned activity)   */}
         {/* ======================================================== */}
-        {view === 'content' && currentMaterial && (
-          <div>
-            <button
-              onClick={() => setView(backTarget)}
-              className="border-none bg-white rounded-2xl px-4.5 py-2.5 font-extrabold text-sm text-[#3a3226] cursor-pointer shadow-flat mb-4 flex items-center gap-1.5"
-            >
-              ⬅ Back
-            </button>
-            <div className="bg-white rounded-[24px] p-6 text-left shadow-soft border border-[#F0E4CE]">
-              <div className="flex items-center gap-2 mb-2 text-xs font-bold text-accent">
-                <span className="px-2 py-0.5 rounded-full bg-orange-100 text-[#8C6200]">
-                  {currentMaterial.category_name || 'Class Activity'}
-                </span>
-                {currentMaterial.teacher_name && (
-                  <span>by {currentMaterial.teacher_name}</span>
-                )}
-              </div>
+        {view === 'content' && currentMaterial && (() => {
+          const teacherFileUrl = currentMaterial.content_url || null;
+          const teacherFileName = currentMaterial.file_name || '';
+          const teacherFileType = (currentMaterial.file_type || '').toUpperCase();
+          const teacherFileSize = currentMaterial.file_size || '';
 
-              <h2 className="font-baloo text-2xl m-0 mb-3 text-[#3a3226]">
-                {currentMaterial.title}
-              </h2>
+          const isTeacherImage =
+            teacherFileUrl &&
+            (teacherFileUrl.startsWith('data:image/') ||
+              /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(teacherFileName || teacherFileUrl) ||
+              ['PNG', 'JPG', 'JPEG', 'GIF', 'WEBP', 'SVG'].includes(teacherFileType) ||
+              currentMaterial.module_type === 'image');
 
-              {currentMaterial.type === 'video' && currentMaterial.content_url && (
-                <video
-                  controls
-                  src={currentMaterial.content_url}
-                  className="w-full rounded-2xl aspect-video border-none mb-4"
-                />
-              )}
+          const isTeacherVideo =
+            teacherFileUrl &&
+            (teacherFileUrl.startsWith('data:video/') ||
+              /\.(mp4|webm|ogg|mov)$/i.test(teacherFileName || teacherFileUrl) ||
+              ['MP4', 'WEBM', 'MOV', 'VIDEO'].includes(teacherFileType) ||
+              currentMaterial.module_type === 'video');
 
-              {currentMaterial.type === 'image' && currentMaterial.content_url && (
-                <img
-                  src={currentMaterial.content_url}
-                  alt={currentMaterial.title}
-                  className="w-full rounded-2xl mb-4"
-                />
-              )}
+          const isTeacherPdf =
+            teacherFileUrl &&
+            (teacherFileUrl.startsWith('data:application/pdf') ||
+              /\.pdf$/i.test(teacherFileName || teacherFileUrl) ||
+              teacherFileType === 'PDF');
 
-              {currentMaterial.content_text && (
-                <div className="bg-[#FFFDF8] p-4 rounded-2xl border border-[#F0E4CE] text-[16px] sm:text-[17px] leading-[1.6] text-[#3a3226] mb-4">
-                  {currentMaterial.content_text}
-                </div>
-              )}
+          const isStudentFileImage =
+            activityFilePreview &&
+            (activityFilePreview.startsWith('data:image/') ||
+              /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(activityFileName) ||
+              ['PNG', 'JPG', 'JPEG', 'GIF', 'WEBP', 'SVG'].includes(activityFileType));
 
-              {currentMaterial.type === 'activity' && (
-                <div className="mt-3">
-                  <label className="block text-xs font-extrabold text-[#6b5c42] mb-1.5">
-                    Your Answer or Comment:
-                  </label>
-                  <textarea
-                    value={answer}
-                    onChange={(e) => setAnswer(e.target.value)}
-                    placeholder="Type your answer here..."
-                    className="w-full min-h-[90px] rounded-2xl border-2 border-[#F0E9D6] p-3 font-nunito text-[15px] outline-none focus:border-accent"
-                  />
-                  <div className="mt-3 flex items-center justify-between">
-                    <button
-                      onClick={submitAnswer}
-                      disabled={submitted}
-                      className="border-none bg-[#4CAF7D] hover:bg-[#3d9a69] text-white px-6 py-3 rounded-2xl font-extrabold text-[15px] cursor-pointer shadow-[0_4px_0_rgba(0,0,0,0.1)] active:translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
-                    >
-                      {submitted ? 'Submitted ✅' : 'Submit ✅'}
-                    </button>
-                    {submitted && (
-                      <button
-                        onClick={() => setView('home')}
-                        className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-xs font-bold text-dash-ink"
-                      >
-                        Return Home
-                      </button>
-                    )}
-                  </div>
-                  {doneMsg.text && (
-                    <div
-                      className={`mt-3 font-extrabold text-sm ${
-                        doneMsg.error ? 'text-[#C9553F]' : 'text-[#3D7048]'
-                      }`}
-                    >
-                      {doneMsg.text}
-                    </div>
+          const isStudentFileVideo =
+            activityFilePreview &&
+            (activityFilePreview.startsWith('data:video/') ||
+              /\.(mp4|webm|ogg|mov)$/i.test(activityFileName) ||
+              ['MP4', 'WEBM', 'MOV'].includes(activityFileType));
+
+          return (
+            <div>
+              <button
+                onClick={() => setView(backTarget)}
+                className="border-none bg-white rounded-2xl px-4.5 py-2.5 font-extrabold text-sm text-[#3a3226] cursor-pointer shadow-flat mb-4 flex items-center gap-1.5"
+              >
+                ⬅ Back
+              </button>
+              <div className="bg-white rounded-[24px] p-6 text-left shadow-soft border border-[#F0E4CE]">
+                <div className="flex items-center gap-2 mb-2 text-xs font-bold text-accent flex-wrap">
+                  <span className="px-2 py-0.5 rounded-full bg-orange-100 text-[#8C6200]">
+                    {currentMaterial.category_name || 'Class Activity'}
+                  </span>
+                  {currentMaterial.teacher_name && (
+                    <span>by {currentMaterial.teacher_name}</span>
                   )}
                 </div>
-              )}
+
+                <h2 className="font-baloo text-2xl m-0 mb-3 text-[#3a3226]">
+                  {currentMaterial.title}
+                </h2>
+
+                {currentMaterial.content_text && (
+                  <div className="bg-[#FFFDF8] p-4 rounded-2xl border border-[#F0E4CE] text-[16px] sm:text-[17px] leading-[1.6] text-[#3a3226] mb-4">
+                    {currentMaterial.content_text}
+                  </div>
+                )}
+
+                {/* ==================================================== */}
+                {/* 📎 TEACHER'S UPLOADED FILE / LEARNING MATERIAL       */}
+                {/* ==================================================== */}
+                {(teacherFileUrl || teacherFileName) && (
+                  <div className="mb-5 rounded-2xl border-2 border-[#E2ECF8] bg-[#F5F9FF] p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="text-xs font-extrabold text-blue-900 uppercase tracking-wide flex items-center gap-1.5">
+                        <span>📎</span>
+                        <span>Teacher's Uploaded File / Material</span>
+                      </div>
+                      {teacherFileType && (
+                        <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-black text-[10.5px]">
+                          {teacherFileType} {teacherFileSize ? `• ${teacherFileSize}` : ''}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Inline Preview for Image */}
+                    {isTeacherImage && teacherFileUrl && (
+                      <div className="rounded-xl overflow-hidden border border-blue-200 bg-white">
+                        <img
+                          src={teacherFileUrl}
+                          alt={teacherFileName || currentMaterial.title}
+                          className="w-full max-h-[380px] object-contain mx-auto block"
+                        />
+                      </div>
+                    )}
+
+                    {/* Inline Preview for Video */}
+                    {isTeacherVideo && teacherFileUrl && (
+                      <video
+                        controls
+                        src={teacherFileUrl}
+                        className="w-full rounded-xl aspect-video border border-blue-200 bg-black"
+                      />
+                    )}
+
+                    {/* Inline Preview for PDF */}
+                    {isTeacherPdf && teacherFileUrl && (
+                      <iframe
+                        src={teacherFileUrl}
+                        title={teacherFileName || currentMaterial.title}
+                        className="w-full h-[360px] rounded-xl border border-blue-200 bg-white"
+                      />
+                    )}
+
+                    {/* File Attachment Action Bar (View & Download) */}
+                    <div className="bg-white rounded-xl p-3 border border-blue-200/80 flex items-center justify-between gap-3 flex-wrap">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center text-xl shrink-0">
+                          {isTeacherImage ? '🖼️' : isTeacherVideo ? '🎬' : isTeacherPdf ? '📕' : '📄'}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-bold text-sm text-[#3a3226] truncate">
+                            {teacherFileName || `${currentMaterial.title} (Teacher File)`}
+                          </div>
+                          <div className="text-[11px] text-slate-500 font-semibold">
+                            {teacherFileType || 'Learning Resource'}
+                            {teacherFileSize ? ` • ${teacherFileSize}` : ''}
+                          </div>
+                        </div>
+                      </div>
+
+                      {teacherFileUrl && (
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleOpenOrDownloadFile(
+                                teacherFileUrl,
+                                teacherFileName || `${currentMaterial.title}`,
+                                'view'
+                              )
+                            }
+                            className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold cursor-pointer transition-colors flex items-center gap-1"
+                          >
+                            <span>👁️</span>
+                            <span>View File</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleOpenOrDownloadFile(
+                                teacherFileUrl,
+                                teacherFileName || `${currentMaterial.title}`,
+                                'download'
+                              )
+                            }
+                            className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-extrabold cursor-pointer transition-colors flex items-center gap-1"
+                          >
+                            <span>⬇️</span>
+                            <span>Download</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {currentMaterial.type === 'activity' && (
+                  <div className="mt-3 space-y-4">
+                    {/* ==================================================== */}
+                    {/* 📤 STUDENT FILE / IMAGE UPLOAD FOR THIS ACTIVITY     */}
+                    {/* ==================================================== */}
+                    <div className="rounded-2xl border-2 border-dashed border-[#E5D5B5] bg-[#FFFDF7] p-4">
+                      <label className="block text-xs font-extrabold text-[#6b5c42] mb-1.5 flex items-center gap-1.5">
+                        <span>📤</span>
+                        <span>Upload Your Work (Image or File — Photo, PDF, Word, Worksheet):</span>
+                      </label>
+                      <p className="text-[11.5px] text-[#7a7a7a] m-0 mb-2.5">
+                        Take a photo of your completed activity or choose any image/document file to send to your teacher.
+                      </p>
+
+                      <input
+                        type="file"
+                        accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,video/*"
+                        onChange={handleActivityFileChange}
+                        className="w-full text-xs text-gray-600 file:mr-3 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-extrabold file:bg-coral file:text-white hover:file:bg-coral-deep cursor-pointer"
+                      />
+
+                      {activityFilePreview && (
+                        <div className="mt-3 bg-white rounded-xl p-3 border border-[#E5D5B5] space-y-2.5">
+                          {isStudentFileImage && (
+                            <img
+                              src={activityFilePreview}
+                              alt={activityFileName || 'Uploaded answer'}
+                              className="w-full max-h-56 object-contain rounded-xl border border-gray-200 bg-slate-50"
+                            />
+                          )}
+
+                          {isStudentFileVideo && (
+                            <video
+                              controls
+                              src={activityFilePreview}
+                              className="w-full max-h-56 rounded-xl border border-gray-200 bg-black"
+                            />
+                          )}
+
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-xl shrink-0">
+                                {isStudentFileImage ? '🖼️' : isStudentFileVideo ? '🎬' : '📄'}
+                              </span>
+                              <div className="min-w-0">
+                                <div className="text-xs font-extrabold text-[#3a3226] truncate">
+                                  {activityFileName || 'Attached_Activity_File'}
+                                </div>
+                                <div className="text-[10.5px] text-slate-500 font-bold">
+                                  {activityFileType || 'FILE'}
+                                  {activityFileSize ? ` • ${activityFileSize}` : ''}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleOpenOrDownloadFile(
+                                    activityFilePreview,
+                                    activityFileName || 'student-work',
+                                    'view'
+                                  )
+                                }
+                                className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-extrabold cursor-pointer"
+                              >
+                                👁️ View
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActivityFilePreview(null);
+                                  setActivityFileName('');
+                                  setActivityFileType('');
+                                  setActivityFileSize('');
+                                  setSubmitted(false);
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-extrabold cursor-pointer"
+                              >
+                                ✕ Remove
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-extrabold text-[#6b5c42] mb-1.5">
+                        Your Answer or Comment:
+                      </label>
+                      <textarea
+                        value={answer}
+                        onChange={(e) => {
+                          setAnswer(e.target.value);
+                          if (submitted) setSubmitted(false);
+                        }}
+                        placeholder="Type your answer or comment here..."
+                        className="w-full min-h-[90px] rounded-2xl border-2 border-[#F0E9D6] p-3 font-nunito text-[15px] outline-none focus:border-accent"
+                      />
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between flex-wrap gap-2">
+                      <button
+                        onClick={submitAnswer}
+                        disabled={submittingAnswer}
+                        className="border-none bg-[#4CAF7D] hover:bg-[#3d9a69] text-white px-6 py-3 rounded-2xl font-extrabold text-[15px] cursor-pointer shadow-[0_4px_0_rgba(0,0,0,0.1)] active:translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+                      >
+                        {submittingAnswer
+                          ? 'Submitting...'
+                          : submitted
+                          ? 'Update Submission ✅'
+                          : 'Submit ✅'}
+                      </button>
+                      {submitted && (
+                        <button
+                          onClick={() => setView('home')}
+                          className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-xs font-bold text-dash-ink cursor-pointer"
+                        >
+                          Return Home
+                        </button>
+                      )}
+                    </div>
+                    {doneMsg.text && (
+                      <div
+                        className={`mt-3 font-extrabold text-sm ${
+                          doneMsg.error ? 'text-[#C9553F]' : 'text-[#3D7048]'
+                        }`}
+                      >
+                        {doneMsg.text}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ======================================================== */}
         {/* MODAL: STUDENT UPLOAD ACTIVITY / ARTWORK                 */}
@@ -1407,7 +2065,7 @@ export default function StudentDashboard({ profile }) {
                       Upload My Activity or Artwork
                     </h3>
                     <p className="text-xs text-[#7a7a7a] m-0">
-                      Share your drawing, coloring, or homework with Teacher!
+                      Share your drawing, photo, or activity file with Teacher!
                     </p>
                   </div>
                 </div>
@@ -1455,31 +2113,52 @@ export default function StudentDashboard({ profile }) {
 
                 <div>
                   <label className="block font-bold text-[#3a3226] mb-1">
-                    Take Photo / Attach Artwork (Image or Video)
+                    Attach Image or File (Photo, PDF, Word, Worksheet, Video)
                   </label>
                   <input
                     type="file"
-                    accept="image/*,video/*"
+                    accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,video/*"
                     onChange={handleFileChange}
                     className="w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-coral/10 file:text-coral-deep hover:file:bg-coral/20 cursor-pointer"
                   />
                   {uploadFilePreview && (
-                    <div className="mt-2.5 relative">
-                      <img
-                        src={uploadFilePreview}
-                        alt="Preview"
-                        className="w-full max-h-48 object-cover rounded-2xl border border-gray-200"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUploadFilePreview(null);
-                          setUploadFileName('');
-                        }}
-                        className="absolute top-2 right-2 px-2 py-1 bg-black/60 text-white rounded-lg text-[10px] font-bold"
-                      >
-                        Remove
-                      </button>
+                    <div className="mt-2.5 bg-slate-50 p-2.5 rounded-2xl border border-gray-200 space-y-2">
+                      {uploadFilePreview.startsWith('data:image/') ? (
+                        <img
+                          src={uploadFilePreview}
+                          alt="Preview"
+                          className="w-full max-h-48 object-contain rounded-xl border border-gray-200 bg-white"
+                        />
+                      ) : (
+                        <div className="flex items-center gap-2 p-2 bg-white rounded-xl border border-gray-200">
+                          <span className="text-2xl">📄</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-bold text-[#3a3226] truncate">
+                              {uploadFileName || 'Attached File'}
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-bold">
+                              {uploadFileType || 'FILE'} {uploadFileSize ? `• ${uploadFileSize}` : ''}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10.5px] font-bold text-slate-600 truncate">
+                          📎 {uploadFileName}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUploadFilePreview(null);
+                            setUploadFileName('');
+                            setUploadFileType('');
+                            setUploadFileSize('');
+                          }}
+                          className="px-2 py-1 bg-rose-100 text-rose-700 rounded-lg text-[10px] font-bold cursor-pointer"
+                        >
+                          ✕ Remove
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
