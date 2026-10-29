@@ -17,6 +17,24 @@ export function cleanStudentName(rawName) {
 }
 
 /**
+ * Checks whether a student name is a generic placeholder or test account
+ * ("Student Test", "Student User", "Hannah Mae Tion", etc.) that should be excluded.
+ */
+export function isPlaceholderStudentName(rawName) {
+  const cleaned = cleanStudentName(rawName).toLowerCase();
+  if (!cleaned) return true;
+  return (
+    cleaned === 'student test' ||
+    cleaned === 'student user' ||
+    cleaned === 'test student' ||
+    cleaned === 'demo student' ||
+    cleaned === 'student' ||
+    cleaned === 'learner' ||
+    cleaned === 'hannah mae tion'
+  );
+}
+
+/**
  * Returns a synchronous list of teachers for a specific barangay based on MSWDO baseline records.
  * Instant, zero-latency response for UI dropdowns.
  */
@@ -99,7 +117,7 @@ export function getStoredLearners() {
       if (!l) return;
       const cleaned = cleanStudentName(l.full_name);
       const norm = cleaned.toLowerCase();
-      if (!norm || norm === 'hannah mae tion' || l.id === 'lrn-real-001') return;
+      if (!norm || isPlaceholderStudentName(cleaned) || l.id === 'lrn-real-001') return;
       if (!seenNames.has(norm)) {
         seenNames.add(norm);
         filtered.push({ ...l, full_name: cleaned });
@@ -120,8 +138,10 @@ export function getStoredLearners() {
 export async function recordRegisteredLearner(learnerData) {
   if (!learnerData || !learnerData.full_name) return null;
 
-  const current = getStoredLearners();
   const cleanedFullName = cleanStudentName(learnerData.full_name);
+  if (isPlaceholderStudentName(cleanedFullName)) return null;
+
+  const current = getStoredLearners();
   const normalizedName = cleanedFullName.toLowerCase();
 
   const existingIndex = current.findIndex((item) => {
@@ -356,7 +376,7 @@ export async function getLearnersForTeacher({ teacherId, teacherName, barangay, 
     if (!learner || !learner.full_name) continue;
 
     const cleanedName = cleanStudentName(learner.full_name);
-    if (!cleanedName) continue;
+    if (!cleanedName || isPlaceholderStudentName(cleanedName)) continue;
 
     const lName = cleanedName.toLowerCase();
     const lBarangay = (learner.barangay || '').trim().toLowerCase();
@@ -370,10 +390,10 @@ export async function getLearnersForTeacher({ teacherId, teacherName, barangay, 
     // Name matching
     const matchesAdviser = Boolean(
       normTeacherName &&
-        lAdviser &&
-        (lAdviser === normTeacherName ||
-          lAdviser.includes(normTeacherName) ||
-          normTeacherName.includes(lAdviser))
+      lAdviser &&
+      (lAdviser === normTeacherName ||
+        lAdviser.includes(normTeacherName) ||
+        normTeacherName.includes(lAdviser))
     );
 
     // Barangay matching
@@ -382,7 +402,7 @@ export async function getLearnersForTeacher({ teacherId, teacherName, barangay, 
     // CDC matching
     const matchesCdc = Boolean(
       (cdcId && learner.cdc_id && String(learner.cdc_id) === String(cdcId)) ||
-        (normCdcName && lCdc && lCdc === normCdcName)
+      (normCdcName && lCdc && lCdc === normCdcName)
     );
 
     if (matchesTeacherId || matchesAdviser || matchesBarangay || matchesCdc) {

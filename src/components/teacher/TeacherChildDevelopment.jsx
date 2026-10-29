@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { cleanStudentName } from '../../lib/learnersService.js';
+import { cleanStudentName, isPlaceholderStudentName } from '../../lib/learnersService.js';
 
 const STORAGE_KEY = 'earlylearn_teacher_eccd_assessments';
 
@@ -20,8 +20,8 @@ export default function TeacherChildDevelopment({
       if (!raw) return [];
       const parsed = JSON.parse(raw);
       return Array.isArray(parsed)
-        ? parsed.filter((a) => (a.child_name || '').trim().toLowerCase() !== 'hannah mae tion')
-        : [];
+          ? parsed.filter((a) => !isPlaceholderStudentName(a.child_name || ''))
+          : [];
     } catch {
       return [];
     }
@@ -69,7 +69,7 @@ export default function TeacherChildDevelopment({
     const list = [];
     learners.forEach((l) => {
       const cleaned = cleanStudentName(l.full_name || '');
-      if (!cleaned) return;
+      if (!cleaned || isPlaceholderStudentName(cleaned)) return;
       const normName = cleaned.toLowerCase();
       if (seen.has(normName)) return;
       seen.add(normName);
@@ -277,11 +277,10 @@ export default function TeacherChildDevelopment({
 
       {msg.text && (
         <div
-          className={`p-3.5 rounded-2xl text-xs font-bold ${
-            msg.type === 'error'
+          className={`p-3.5 rounded-2xl text-xs font-bold ${msg.type === 'error'
               ? 'bg-rose-50 text-rose-800 border border-rose-200'
               : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-          }`}
+            }`}
         >
           {msg.text}
         </div>
@@ -567,11 +566,10 @@ export default function TeacherChildDevelopment({
                         type="button"
                         key={status}
                         onClick={() => handleDomainChange('cognitive_status', status)}
-                        className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-                          evalForm.cognitive_status === status
+                        className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${evalForm.cognitive_status === status
                             ? 'bg-emerald-600 text-white shadow-xs'
                             : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         {status}
                       </button>
@@ -595,11 +593,10 @@ export default function TeacherChildDevelopment({
                         type="button"
                         key={status}
                         onClick={() => handleDomainChange('physical_status', status)}
-                        className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-                          evalForm.physical_status === status
+                        className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${evalForm.physical_status === status
                             ? 'bg-emerald-600 text-white shadow-xs'
                             : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         {status}
                       </button>
@@ -623,11 +620,10 @@ export default function TeacherChildDevelopment({
                         type="button"
                         key={status}
                         onClick={() => handleDomainChange('social_status', status)}
-                        className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-                          evalForm.social_status === status
+                        className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${evalForm.social_status === status
                             ? 'bg-emerald-600 text-white shadow-xs'
                             : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         {status}
                       </button>
@@ -651,11 +647,10 @@ export default function TeacherChildDevelopment({
                         type="button"
                         key={status}
                         onClick={() => handleDomainChange('language_status', status)}
-                        className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-                          evalForm.language_status === status
+                        className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${evalForm.language_status === status
                             ? 'bg-emerald-600 text-white shadow-xs'
                             : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         {status}
                       </button>

@@ -13,7 +13,12 @@ import {
   doesAssignmentMatchTeacher,
   normalizeTeacherName,
 } from '../lib/curriculumData.js';
-import { getLearnersForTeacher, getCdcForBarangay, cleanStudentName } from '../lib/learnersService.js';
+import {
+  getLearnersForTeacher,
+  getCdcForBarangay,
+  cleanStudentName,
+  isPlaceholderStudentName,
+} from '../lib/learnersService.js';
 import TeacherChildDevelopment from '../components/teacher/TeacherChildDevelopment.jsx';
 import TeacherUploadModal from '../components/teacher/TeacherUploadModal.jsx';
 import {
@@ -106,7 +111,7 @@ export default function TeacherDashboard({ profile }) {
       if (previewBlobUrl && previewBlobUrl.startsWith('blob:')) {
         try {
           URL.revokeObjectURL(previewBlobUrl);
-        } catch {}
+        } catch { }
       }
       const nextBlob = item?.fileUrl ? createViewableUrl(item.fileUrl) : null;
       setPreviewBlobUrl(nextBlob);
@@ -119,7 +124,7 @@ export default function TeacherDashboard({ profile }) {
     if (previewBlobUrl && previewBlobUrl.startsWith('blob:')) {
       try {
         URL.revokeObjectURL(previewBlobUrl);
-      } catch {}
+      } catch { }
     }
     setPreviewBlobUrl(null);
     setPreviewModalItem(null);
@@ -269,7 +274,7 @@ export default function TeacherDashboard({ profile }) {
                 if (parsed && parsed.__mswd_assignment && parsed.assignment) {
                   sbAssigns.push(parsed.assignment);
                 }
-              } catch {}
+              } catch { }
             }
             return;
           }
@@ -284,7 +289,7 @@ export default function TeacherDashboard({ profile }) {
             try {
               const parsed = JSON.parse(m.content_text);
               if (parsed && parsed.__metadata) meta = parsed;
-            } catch {}
+            } catch { }
           }
 
           const normMetaTeacher = normalizeTeacherName(meta.teacher_name || '');
@@ -316,7 +321,7 @@ export default function TeacherDashboard({ profile }) {
           setAssignments(mergedAssigns);
           try {
             localStorage.setItem('earlylearn_curriculum_assignments', JSON.stringify(mergedAssigns));
-          } catch {}
+          } catch { }
         }
       }
     } catch {
@@ -340,7 +345,7 @@ export default function TeacherDashboard({ profile }) {
           loadProgress();
         })
         .subscribe();
-    } catch {}
+    } catch { }
 
     return () => {
       if (channel) supabase.removeChannel(channel);
@@ -385,8 +390,8 @@ export default function TeacherDashboard({ profile }) {
           type: m.module_type?.toLowerCase().includes('video')
             ? 'video'
             : m.module_type?.toLowerCase().includes('worksheet')
-            ? 'activity'
-            : m.type || 'activity',
+              ? 'activity'
+              : m.type || 'activity',
           formatLabel: m.module_type || 'Activity Worksheet',
           age_range: m.level === 'Pre-K1' ? '3.11' : '4.11',
           status: isRejected ? 'Rejected' : isApproved ? 'Approved' : 'Pending Review',
@@ -417,7 +422,7 @@ export default function TeacherDashboard({ profile }) {
             meta = parsed;
             cleanDescription = parsed.description || '';
           }
-        } catch {}
+        } catch { }
       }
       const localMatch = localMap.get(m.id);
       const tagMatch = m.title?.match(/\[(Pre-K1|Pre-K2)?\s*Q?(\d+)?\s*(W[^\s\]]+|Week\s*[\d&]+)?\]/i);
@@ -454,10 +459,10 @@ export default function TeacherDashboard({ profile }) {
           m.type === 'activity'
             ? 'Activity Worksheet / PDF'
             : m.type === 'video'
-            ? 'Video Lesson'
-            : m.type === 'image'
-            ? 'Visual Worksheet'
-            : 'Reading Story',
+              ? 'Video Lesson'
+              : m.type === 'image'
+                ? 'Visual Worksheet'
+                : 'Reading Story',
         age_range: m.age_range,
         status: isRejected ? 'Rejected' : isApproved ? 'Approved' : 'Pending Review',
         verified_by_mswd: isApproved,
@@ -478,10 +483,10 @@ export default function TeacherDashboard({ profile }) {
           (m.content_url?.startsWith('data:application/pdf')
             ? 'Worksheet File (PDF)'
             : m.content_url?.startsWith('data:image/')
-            ? 'Activity Image'
-            : m.content_url?.startsWith('data:')
-            ? 'Attached Learning Document'
-            : null),
+              ? 'Activity Image'
+              : m.content_url?.startsWith('data:')
+                ? 'Attached Learning Document'
+                : null),
         file_size: meta.file_size || localMatch?.file_size || m.file_size || null,
         file_type:
           meta.file_type ||
@@ -490,8 +495,8 @@ export default function TeacherDashboard({ profile }) {
           (m.content_url?.startsWith('data:application/pdf')
             ? 'PDF'
             : m.content_url?.startsWith('data:image/')
-            ? 'IMAGE'
-            : m.type?.toUpperCase() || 'FILE'),
+              ? 'IMAGE'
+              : m.type?.toUpperCase() || 'FILE'),
         content_url: m.content_url || localMatch?.content_url || null,
         raw_meta: meta,
         isLocal: false,
@@ -543,8 +548,8 @@ export default function TeacherDashboard({ profile }) {
         .from('materials')
         .delete()
         .in('id', staleDupIds)
-        .then(() => {})
-        .catch(() => {});
+        .then(() => { })
+        .catch(() => { });
     }
 
     return Array.from(byTitleMap.values());
@@ -794,12 +799,12 @@ export default function TeacherDashboard({ profile }) {
         uploadType === 'activity'
           ? 'Activity Worksheet'
           : uploadType === 'file'
-          ? 'Official PDF Document'
-          : uploadType === 'video'
-          ? 'Video Lesson'
-          : uploadType === 'image'
-          ? 'Worksheet Image'
-          : 'Reading Story',
+            ? 'Official PDF Document'
+            : uploadType === 'video'
+              ? 'Video Lesson'
+              : uploadType === 'image'
+                ? 'Worksheet Image'
+                : 'Reading Story',
       file_type: effectiveFileType,
       file_size: effectiveFileSize,
       file_name: effectiveFileName,
@@ -883,12 +888,12 @@ export default function TeacherDashboard({ profile }) {
         uploadType === 'activity'
           ? 'Activity Worksheet'
           : uploadType === 'file'
-          ? 'Official PDF Document'
-          : uploadType === 'video'
-          ? 'Video Lesson'
-          : uploadType === 'image'
-          ? 'Worksheet Image'
-          : 'Reading Story',
+            ? 'Official PDF Document'
+            : uploadType === 'video'
+              ? 'Video Lesson'
+              : uploadType === 'image'
+                ? 'Worksheet Image'
+                : 'Reading Story',
       file_type: effectiveFileType,
       file_size: effectiveFileSize,
       file_name: effectiveFileName,
@@ -926,10 +931,10 @@ export default function TeacherDashboard({ profile }) {
       const updatedAssignments = assignments.map((a) =>
         a.id === activeAssignmentId
           ? {
-              ...a,
-              status: 'Completed',
-              completedDate: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
-            }
+            ...a,
+            status: 'Completed',
+            completedDate: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+          }
           : a
       );
       setAssignments(updatedAssignments);
@@ -1036,7 +1041,7 @@ export default function TeacherDashboard({ profile }) {
     try {
       localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(updatedLocal));
       window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updatedLocal }));
-    } catch {}
+    } catch { }
 
     // 2. Always sync posted activity & attached file metadata to Supabase materials for cross-device student access
     try {
@@ -1102,7 +1107,7 @@ export default function TeacherDashboard({ profile }) {
         }
       }
       loadMyMaterials();
-    } catch {}
+    } catch { }
 
     setPostModalMsg({
       text: `🚀 Activity successfully posted to Student Dashboard (${targetName})!`,
@@ -1180,7 +1185,7 @@ export default function TeacherDashboard({ profile }) {
             try {
               const p = JSON.parse(s.answer_text);
               if (p && p.__submission_meta) parsedMeta = p;
-            } catch {}
+            } catch { }
           }
           const studentOnlyName = cleanStudentName(
             s.profiles?.full_name || parsedMeta?.student_name || 'Learner'
@@ -1251,8 +1256,9 @@ export default function TeacherDashboard({ profile }) {
     // Strictly 1 record per student only (merging any duplicate submission rows for the same student)
     const byStudent = new Map();
     rawList.forEach((item) => {
-      const studentKey = cleanStudentName(item.profiles?.full_name || '').toLowerCase();
-      if (!studentKey) return;
+      const cleanedName = cleanStudentName(item.profiles?.full_name || '');
+      const studentKey = cleanedName.toLowerCase();
+      if (!studentKey || isPlaceholderStudentName(cleanedName)) return;
 
       if (!byStudent.has(studentKey)) {
         byStudent.set(studentKey, {
@@ -1362,11 +1368,15 @@ export default function TeacherDashboard({ profile }) {
       .from('submissions')
       .select('id, student_id, material_id, answer_text, status');
 
-    // Group students by cleaned student name so there is strictly 1 record per student
+    // Group students by cleaned student name so there is strictly 1 record per student (excluding placeholder/test accounts)
     const studentMap = new Map();
+    const placeholderIds = [];
     (students || []).forEach((st) => {
       const cleaned = cleanStudentName(st.full_name || '');
-      if (!cleaned) return;
+      if (!cleaned || isPlaceholderStudentName(cleaned)) {
+        if (st?.id) placeholderIds.push(st.id);
+        return;
+      }
       const key = cleaned.toLowerCase();
       if (!studentMap.has(key)) {
         studentMap.set(key, {
@@ -1378,6 +1388,15 @@ export default function TeacherDashboard({ profile }) {
         studentMap.get(key).studentIds.add(st.id);
       }
     });
+
+    if (placeholderIds.length > 0) {
+      supabase
+        .from('profiles')
+        .delete()
+        .in('id', placeholderIds)
+        .then(() => { })
+        .catch(() => { });
+    }
 
     const uniqueStudents = Array.from(studentMap.values());
     setTotalStudents(uniqueStudents.length);
@@ -1392,7 +1411,7 @@ export default function TeacherDashboard({ profile }) {
           try {
             const p = JSON.parse(s.answer_text);
             if (p && p.__submission_meta) meta = p;
-          } catch {}
+          } catch { }
         }
         const actKey = (meta?.material_title || s.material_id || s.id || 'activity').toString().toLowerCase().trim();
         const isChecked =
@@ -1575,7 +1594,7 @@ export default function TeacherDashboard({ profile }) {
             contact_number: updatedTeacher.contact_number,
           })
           .eq('id', currentUserId);
-      } catch {}
+      } catch { }
     } catch (err) {
       console.warn('Note on Supabase profiles update:', err);
     }
@@ -2048,11 +2067,10 @@ export default function TeacherDashboard({ profile }) {
               <button
                 type="button"
                 onClick={() => setTopicStatusFilter('all')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  topicStatusFilter === 'all'
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${topicStatusFilter === 'all'
                     ? 'bg-slate-900 text-white shadow-xs'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
+                  }`}
               >
                 <span>All Topics</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${topicStatusFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
@@ -2063,11 +2081,10 @@ export default function TeacherDashboard({ profile }) {
               <button
                 type="button"
                 onClick={() => setTopicStatusFilter('pending')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  topicStatusFilter === 'pending'
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${topicStatusFilter === 'pending'
                     ? 'bg-amber-600 text-white shadow-xs'
                     : 'bg-amber-50 text-amber-900 hover:bg-amber-100'
-                }`}
+                  }`}
               >
                 <span>⏳ Open / Pending</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${topicStatusFilter === 'pending' ? 'bg-white/20 text-white' : 'bg-amber-200 text-amber-900'}`}>
@@ -2078,11 +2095,10 @@ export default function TeacherDashboard({ profile }) {
               <button
                 type="button"
                 onClick={() => setTopicStatusFilter('completed')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  topicStatusFilter === 'completed'
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${topicStatusFilter === 'completed'
                     ? 'bg-emerald-600 text-white shadow-xs'
                     : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
-                }`}
+                  }`}
               >
                 <span>✅ Complied</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${topicStatusFilter === 'completed' ? 'bg-white/20 text-white' : 'bg-emerald-200 text-emerald-900'}`}>
@@ -2093,11 +2109,10 @@ export default function TeacherDashboard({ profile }) {
               <button
                 type="button"
                 onClick={() => setTopicStatusFilter('expired')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  topicStatusFilter === 'expired'
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${topicStatusFilter === 'expired'
                     ? 'bg-rose-600 text-white shadow-xs'
                     : 'bg-rose-50 text-rose-900 hover:bg-rose-100'
-                }`}
+                  }`}
               >
                 <span>⚠️ Past Deadline</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${topicStatusFilter === 'expired' ? 'bg-white/20 text-white' : 'bg-rose-200 text-rose-900'}`}>
@@ -2156,23 +2171,21 @@ export default function TeacherDashboard({ profile }) {
               return (
                 <div
                   key={item.id}
-                  className={`p-5 rounded-2xl border transition-all ${
-                    item.isCompleted
+                  className={`p-5 rounded-2xl border transition-all ${item.isCompleted
                       ? 'bg-[#F9FCFA] border-emerald-300 shadow-xs'
                       : item.isPastDeadline
-                      ? 'bg-[#FFF8F8] border-rose-300 shadow-xs'
-                      : 'bg-white border-card-border hover:border-accent shadow-xs'
-                  }`}
+                        ? 'bg-[#FFF8F8] border-rose-300 shadow-xs'
+                        : 'bg-white border-card-border hover:border-accent shadow-xs'
+                    }`}
                 >
                   <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                     <div className="space-y-2 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span
-                          className={`text-[10.5px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
-                            item.level === 'Pre-K1'
+                          className={`text-[10.5px] px-2.5 py-0.5 rounded-full font-bold uppercase ${item.level === 'Pre-K1'
                               ? 'bg-[#DCEBDD] text-[#2E6B38]'
                               : 'bg-[#E0EFFE] text-[#1E5B94]'
-                          }`}
+                            }`}
                         >
                           {item.level || 'Pre-K1'}
                         </span>
@@ -2265,13 +2278,12 @@ export default function TeacherDashboard({ profile }) {
                         {item.deadline ? (
                           <div className="mt-1">
                             <span
-                              className={`px-3 py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 ${
-                                item.isCompleted
+                              className={`px-3 py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 ${item.isCompleted
                                   ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
                                   : item.isPastDeadline
-                                  ? 'bg-rose-100 text-rose-800 border border-rose-300 animate-pulse'
-                                  : 'bg-amber-50 text-amber-900 border border-amber-300'
-                              }`}
+                                    ? 'bg-rose-100 text-rose-800 border border-rose-300 animate-pulse'
+                                    : 'bg-amber-50 text-amber-900 border border-amber-300'
+                                }`}
                             >
                               <span>📅</span>
                               <span>{item.deadline}</span>
@@ -2514,11 +2526,10 @@ export default function TeacherDashboard({ profile }) {
                         setUploadMsg({ text: '', type: '' });
                         setIsUploadModalOpen(true);
                       }}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
-                        alreadyComplied
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${alreadyComplied
                           ? 'bg-emerald-50 border-emerald-300 text-emerald-900 hover:bg-emerald-100'
                           : 'bg-amber-50/70 border-amber-300 text-amber-950 hover:bg-amber-100'
-                      }`}
+                        }`}
                     >
                       <span>{alreadyComplied ? '✓' : '📤'}</span>
                       <span>
@@ -2577,17 +2588,15 @@ export default function TeacherDashboard({ profile }) {
                   key={tab.key}
                   type="button"
                   onClick={() => setUploadedFilterStatus(tab.key)}
-                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    uploadedFilterStatus === tab.key
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${uploadedFilterStatus === tab.key
                       ? 'bg-slate-900 text-white shadow-2xs'
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
+                    }`}
                 >
                   <span>{tab.label}</span>
                   <span
-                    className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                      uploadedFilterStatus === tab.key ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-                    }`}
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] ${uploadedFilterStatus === tab.key ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                      }`}
                   >
                     {tab.count}
                   </span>
@@ -2679,11 +2688,10 @@ export default function TeacherDashboard({ profile }) {
                         <td className="px-4 py-3.5 whitespace-nowrap">
                           <div className="flex flex-col gap-1">
                             <span
-                              className={`inline-block px-2 py-0.5 rounded text-[10.5px] font-bold w-fit ${
-                                m.level?.toLowerCase().includes('pre-k1')
+                              className={`inline-block px-2 py-0.5 rounded text-[10.5px] font-bold w-fit ${m.level?.toLowerCase().includes('pre-k1')
                                   ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                                   : 'bg-blue-50 text-blue-800 border border-blue-200'
-                              }`}
+                                }`}
                             >
                               {m.level?.toUpperCase().includes('PRE-K') ? m.level : 'Pre-K1'}
                             </span>
@@ -2695,19 +2703,18 @@ export default function TeacherDashboard({ profile }) {
 
                         <td className="px-4 py-3.5 text-center whitespace-nowrap">
                           <span
-                            className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                              isApproved
+                            className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${isApproved
                                 ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
                                 : isRejected
-                                ? 'bg-rose-50 text-rose-800 border border-rose-300'
-                                : 'bg-amber-50 text-amber-800 border border-amber-300'
-                            }`}
+                                  ? 'bg-rose-50 text-rose-800 border border-rose-300'
+                                  : 'bg-amber-50 text-amber-800 border border-amber-300'
+                              }`}
                           >
                             {isApproved
                               ? '✅ Approved by MSWD'
                               : isRejected
-                              ? '❌ Rejected by MSWD'
-                              : '⏳ Pending MSWD Decision'}
+                                ? '❌ Rejected by MSWD'
+                                : '⏳ Pending MSWD Decision'}
                           </span>
                         </td>
 
@@ -3081,11 +3088,10 @@ export default function TeacherDashboard({ profile }) {
 
           {profileMsg.text && (
             <div
-              className={`p-4 rounded-2xl text-xs font-bold flex items-center justify-between shadow-xs animate-fadeIn ${
-                profileMsg.type === 'error'
+              className={`p-4 rounded-2xl text-xs font-bold flex items-center justify-between shadow-xs animate-fadeIn ${profileMsg.type === 'error'
                   ? 'bg-rose-50 border border-rose-300 text-rose-800'
                   : 'bg-[#DCEBDD] border border-emerald-300 text-[#2E6B38]'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-2">
                 <span className="text-base">{profileMsg.type === 'error' ? '⚠️' : '✅'}</span>
