@@ -18,6 +18,13 @@ import {
   getCdcForBarangay,
   cleanStudentName,
   isPlaceholderStudentName,
+  getTeacherRegistrationCode,
+  saveTeacherRegistrationCode,
+  generateNewTeacherCode,
+  updateParentApprovalStatus,
+  createParentAccountByTeacher,
+  parseTeacherContactAndCode,
+  packTeacherContactAndCode,
 } from '../lib/learnersService.js';
 import TeacherChildDevelopment from '../components/teacher/TeacherChildDevelopment.jsx';
 import TeacherUploadModal from '../components/teacher/TeacherUploadModal.jsx';
@@ -215,6 +222,21 @@ export default function TeacherDashboard({ profile }) {
   // My Learners tab — auto-filtered by this teacher's assigned CDC
   const [myLearners, setMyLearners] = useState([]);
   const [learnersLoading, setLearnersLoading] = useState(true);
+  const [teacherRegCode, setTeacherRegCode] = useState('');
+  const [codeCopied, setCodeCopied] = useState(false);
+  const [codeSaving, setCodeSaving] = useState(false);
+  const [learnerActionMsg, setLearnerActionMsg] = useState({ text: '', type: '' });
+  const [approvingLearnerId, setApprovingLearnerId] = useState(null);
+
+  // Create Parent Account Modal state (Teacher directly creates Parent & Child account)
+  const [createParentModalOpen, setCreateParentModalOpen] = useState(false);
+  const [newParentName, setNewParentName] = useState('');
+  const [newChildName, setNewChildName] = useState('');
+  const [newChildAge, setNewChildAge] = useState('3-4');
+  const [newParentIdentifier, setNewParentIdentifier] = useState('');
+  const [newParentPassword, setNewParentPassword] = useState('');
+  const [creatingParent, setCreatingParent] = useState(false);
+  const [createdParentCredentials, setCreatedParentCredentials] = useState(null);
 
   // Filter assignments targeted strictly to this logged-in teacher (only matches all teachers if explicitly assigned to All Teachers)
   const myAssignedTopics = useMemo(() => {
@@ -1517,9 +1539,13 @@ export default function TeacherDashboard({ profile }) {
       }
     }
 
+    const { contactNumber: cleanLoadedContact, registrationCode: loadedRegCode } =
+      parseTeacherContactAndCode(loadedContact);
+    if (loadedRegCode) setTeacherRegCode(loadedRegCode);
+
     setMyFullName(loadedName);
     setMyBarangay(loadedBarangay);
-    setMyContact(loadedContact);
+    setMyContact(cleanLoadedContact);
     setMyEmail(loadedEmail);
     setMyCdcId(loadedCdcId);
     setMyCdcName(loadedCdcName);
@@ -1547,6 +1573,9 @@ export default function TeacherDashboard({ profile }) {
     setProfileSaving(true);
     setProfileMsg({ text: '', type: '' });
 
+    const cleanContact = parseTeacherContactAndCode(myContact).contactNumber;
+    const packedContact = packTeacherContactAndCode(cleanContact, teacherRegCode);
+
     const updatedTeacher = {
       id: currentUserId,
       full_name: myFullName.trim(),
@@ -1554,7 +1583,7 @@ export default function TeacherDashboard({ profile }) {
       barangay: myBarangay,
       cdc_id: myCdcId || null,
       cdc_name: finalCdc,
-      contact_number: myContact.trim() || null,
+      contact_number: cleanContact || null,
       bio: myBio.trim() || null,
       updated_at: new Date().toISOString(),
     };
@@ -1605,7 +1634,7 @@ export default function TeacherDashboard({ profile }) {
         full_name: updatedTeacher.full_name,
         email: updatedTeacher.email,
         barangay: updatedTeacher.barangay,
-        contact_number: updatedTeacher.contact_number,
+        contact_number: packedContact,
       };
       if (updatedTeacher.cdc_id) teacherPayload.cdc_id = updatedTeacher.cdc_id;
 
@@ -1656,7 +1685,7 @@ export default function TeacherDashboard({ profile }) {
     try {
       const { data } = await supabase
         .from('teachers')
-        .select('id, full_name, barangay, cdc_id, cdcs(id, name, barangay)')
+        .select('id, full_name, barangay, contact_number, cdc_id, cdcs(id, name, barangay)')
         .eq('id', currentUserId)
         .single();
       dbTeacher = data;
@@ -1712,6 +1741,17 @@ export default function TeacherDashboard({ profile }) {
     }
 
     try {
+      const resolvedCode = await getTeacherRegistrationCode({
+        teacherId: currentUserId || baselineMatch?.id,
+        teacherName: teacherName || baselineMatch?.full_name || '',
+        barangay: effectiveBarangay,
+      });
+      if (resolvedCode) setTeacherRegCode(resolvedCode);
+    } catch {
+      // ignore
+    }
+
+    try {
       const learners = await getLearnersForTeacher({
         teacherId: currentUserId,
         teacherName: teacherName || baselineMatch?.full_name || '',
@@ -1728,6 +1768,115 @@ export default function TeacherDashboard({ profile }) {
       setLearnersLoading(false);
     }
   }, [currentUserId, profile, myBarangay, myCdcName]);
+
+  // Regenerate Teacher's Parent Registration Code & save to Supabase
+  async function handleRegenerateTeacherCode() {
+    setCodeSaving(true);
+    setLearnerActionMsg({ text: '', type: '' });
+    try {
+      const freshCode = generateNewTeacherCode(myBarangay || profile?.barangay || 'MF');
+      await saveTeacherRegistrationCode({
+        teacherId: currentUserId,
+        contactNumber: myContact,
+        registrationCode: freshCode,
+      });
+      setTeacherRegCode(freshCode);
+      setLearnerActionMsg({
+        text: `✅ New Parent Registration Code (${freshCode}) saved to Supabase! Parents can now use this code to register.`,
+        type: 'ok',
+      });
+    } catch (err) {
+      setLearnerActionMsg({
+        text: `❌ Could not update registration code: ${err.message}`,
+        type: 'error',
+      });
+    } finally {
+      setCodeSaving(false);
+    }
+  }
+
+  // Approve or Reject a Parent's Registration in Supabase
+  async function handleApproveOrRejectParent(learner, nextStatus) {
+    if (!learner) return;
+    setApprovingLearnerId(learner.id || learner.full_name);
+    setLearnerActionMsg({ text: '', type: '' });
+    try {
+      await updateParentApprovalStatus(learner, nextStatus);
+      await loadMyLearners();
+      setLearnerActionMsg({
+        text:
+          nextStatus === 'approved'
+            ? `✅ Approved parent & learner account for "${cleanStudentName(learner.full_name)}". They can now log in and access their dashboard on any device!`
+            : `❌ Declined parent registration for "${cleanStudentName(learner.full_name)}".`,
+        type: nextStatus === 'approved' ? 'ok' : 'error',
+      });
+    } catch (err) {
+      setLearnerActionMsg({
+        text: `❌ Failed updating approval status: ${err.message}`,
+        type: 'error',
+      });
+    } finally {
+      setApprovingLearnerId(null);
+    }
+  }
+
+  // Teacher directly creates a Parent & Child Account (saved directly to Supabase as Approved)
+  async function handleCreateParentAccount(e) {
+    e.preventDefault();
+    if (!newParentName.trim() || !newChildName.trim()) {
+      alert('Please enter both the Parent/Guardian name and the Child/Learner name.');
+      return;
+    }
+    if (!newParentIdentifier.trim()) {
+      alert('Please enter a mobile phone number or email address for the parent.');
+      return;
+    }
+    if (!newParentPassword || newParentPassword.length < 6) {
+      alert('Password must be at least 6 characters long.');
+      return;
+    }
+
+    setCreatingParent(true);
+    setLearnerActionMsg({ text: '', type: '' });
+    try {
+      const effectiveBrgy = myBarangay || profile?.barangay || 'Dalirig';
+      const effectiveCdc =
+        myCdcName ||
+        profile?.cdc_name ||
+        `${effectiveBrgy} Child Development Center`;
+      const effectiveTeacherName = myFullName || profile?.full_name || 'Day Care Teacher';
+
+      const res = await createParentAccountByTeacher({
+        parentName: newParentName.trim(),
+        childName: newChildName.trim(),
+        childAge: newChildAge,
+        identifier: newParentIdentifier.trim(),
+        password: newParentPassword,
+        teacherId: currentUserId,
+        teacherName: effectiveTeacherName,
+        barangay: effectiveBrgy,
+        cdcName: effectiveCdc,
+        cdcId: myCdcId || null,
+        registrationCode: teacherRegCode,
+      });
+
+      setCreateParentModalOpen(false);
+      setNewParentName('');
+      setNewChildName('');
+      setNewParentIdentifier('');
+      setNewParentPassword('');
+      setCreatedParentCredentials(res.credentials);
+      await loadMyLearners();
+      setLearnerActionMsg({
+        text: `✅ Parent & Learner account for "${res.credentials.childName}" created and approved in Supabase!`,
+        type: 'ok',
+      });
+    } catch (err) {
+      alert('Failed to create parent account: ' + err.message);
+    } finally {
+      setCreatingParent(false);
+    }
+  }
 
   // Live synchronization: auto-reload learners when a student signs up or logs in
   useEffect(() => {
@@ -1962,6 +2111,31 @@ export default function TeacherDashboard({ profile }) {
               </div>
             </div>
           </div>
+
+          {/* Pending Parent Account Approvals Banner on Overview */}
+          {myLearners.some((l) => l.approval_status === 'pending') && (
+            <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+              <div>
+                <div className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>⏳ Parent Account Registrations Awaiting Your Approval</span>
+                </div>
+                <p className="text-xs text-amber-800 mt-1 m-0">
+                  You have{' '}
+                  <strong>
+                    {myLearners.filter((l) => l.approval_status === 'pending').length}
+                  </strong>{' '}
+                  parent/learner registration(s) waiting for your approval before they can access their child&apos;s dashboard.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('mylearners')}
+                className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs cursor-pointer shrink-0"
+              >
+                Review &amp; Approve in My Learners →
+              </button>
+            </div>
+          )}
 
           {/* Ready-to-Post Banner when MSWD Approves an Activity */}
           {approvedReadyToPost.length > 0 && (
@@ -2378,81 +2552,408 @@ export default function TeacherDashboard({ profile }) {
         </div>
       )}
 
-      {/* MY LEARNERS — auto-matched by CDC and Barangay */}
+      {/* MY LEARNERS — auto-matched by CDC and Barangay + Parent Registration Code, Direct Parent Account Creation & Approval */}
       {activeTab === 'mylearners' && (
-        <div className={cardBox}>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <div>
-              <h3 className={cardBoxTitle}>My Learners</h3>
-              <p className="text-[12.5px] text-dash-ink-soft m-0">
-                Showing learners assigned to <strong>{myCdcName || (myBarangay ? `${myBarangay} Child Development Center` : 'Child Development Center')}</strong>.
+        <div className="space-y-4">
+          {/* Teacher's Unique Parent Registration Code & Direct Account Creation Card */}
+          <div className="bg-white p-5 rounded-2xl border border-amber-200 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold">
+                <span>🔑</span>
+                <span>Parent Registration &amp; Approval Center</span>
+              </div>
+              <h4 className="text-base font-bold text-slate-900 m-0">
+                Your Class Parent Registration Code:{' '}
+                <span className="font-mono text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200 select-all">
+                  {teacherRegCode || 'ELH-DALIRIG'}
+                </span>
+              </h4>
+              <p className="text-xs text-slate-500 m-0">
+                Share this code with parents so they can register on the Sign Up page, or create a parent account directly below. Parents who register with your code require your approval before accessing their child&apos;s dashboard.
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                👥 {myLearners.length} {myLearners.length === 1 ? 'Learner' : 'Learners'} Enrolled
-              </span>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               <button
                 type="button"
-                onClick={loadMyLearners}
-                className="px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold cursor-pointer flex items-center gap-1"
-                title="Refresh learner list"
+                onClick={() => {
+                  navigator.clipboard?.writeText(teacherRegCode || '');
+                  setCodeCopied(true);
+                  setTimeout(() => setCodeCopied(false), 2000);
+                }}
+                className="px-3 py-2 rounded-xl bg-[#FAF5EC] hover:bg-[#F2E8D5] text-slate-800 font-bold text-xs border border-[#E5DAC4] cursor-pointer flex items-center gap-1.5"
+              >
+                <span>{codeCopied ? '✅ Copied!' : '📋 Copy Code'}</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={codeSaving}
+                onClick={handleRegenerateTeacherCode}
+                className="px-3 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs border border-slate-200 cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                title="Generate a new unique registration code and save to Supabase"
               >
                 <span>🔄</span>
-                <span>Refresh</span>
+                <span>{codeSaving ? 'Saving...' : 'New Code'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+                  let pass = '';
+                  for (let i = 0; i < 8; i++) pass += chars.charAt(Math.floor(Math.random() * chars.length));
+                  setNewParentPassword(pass);
+                  setCreateParentModalOpen(true);
+                }}
+                className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <span>➕ Create Parent Account</span>
               </button>
             </div>
           </div>
 
-          {learnersLoading && <p className="text-[13px] text-dash-ink-soft">Loading learners...</p>}
+          {learnerActionMsg.text && (
+            <div
+              className={`p-3 rounded-xl text-xs font-bold flex items-center justify-between ${
+                learnerActionMsg.type === 'error'
+                  ? 'bg-rose-50 text-rose-800 border border-rose-200'
+                  : 'bg-emerald-50 text-emerald-900 border border-emerald-200'
+              }`}
+            >
+              <span>{learnerActionMsg.text}</span>
+              <button
+                type="button"
+                onClick={() => setLearnerActionMsg({ text: '', type: '' })}
+                className="text-xs font-bold px-2 cursor-pointer bg-transparent border-none"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
-          {!learnersLoading && (
-            <>
-              <div className="overflow-x-auto">
-                <table className={table}>
-                  <thead>
-                    <tr>
-                      <th className={th}>STUDENT NAME</th>
-                      <th className={th}>AGE / BIRTHDATE</th>
-                      <th className={th}>BARANGAY</th>
-                      <th className={th}>CONTACT</th>
-                      <th className={th}>ACTIONS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {myLearners.map((l) => (
-                      <tr key={l.id}>
-                        <td className={td}>
-                          <div className="flex items-center gap-2">
-                            <span>🧒</span>
-                            <span className="font-bold text-slate-900">{cleanStudentName(l.full_name)}</span>
-                          </div>
-                        </td>
-                        <td className={td}>{l.birthdate || l.child_age || '-'}</td>
-                        <td className={td}>{l.barangay || myBarangay || '-'}</td>
-                        <td className={td}>{l.parent_contact || '-'}</td>
-                        <td className={td}>
-                          <button
-                            type="button"
-                            onClick={() => setActiveTab('child_development')}
-                            className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
-                          >
-                            <span>🌱</span>
-                            <span>Assess ECCD</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {myLearners.length === 0 && (
-                <p className="text-[13px] mt-3 text-dash-ink-soft">
-                  No learners recorded yet for {myCdcName || (myBarangay ? `${myBarangay} Child Development Center` : 'this Child Development Center')}.
+          <div className={cardBox}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div>
+                <h3 className={cardBoxTitle}>My Learners</h3>
+                <p className="text-[12.5px] text-dash-ink-soft m-0">
+                  Showing learners assigned to{' '}
+                  <strong>
+                    {myCdcName ||
+                      (myBarangay ? `${myBarangay} Child Development Center` : 'Child Development Center')}
+                  </strong>
+                  .
                 </p>
-              )}
-            </>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {myLearners.some((l) => l.approval_status === 'pending') && (
+                  <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                    ⏳ {myLearners.filter((l) => l.approval_status === 'pending').length} Pending Approval
+                  </span>
+                )}
+                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  👥 {myLearners.length} {myLearners.length === 1 ? 'Learner' : 'Learners'}
+                </span>
+                <button
+                  type="button"
+                  onClick={loadMyLearners}
+                  className="px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold cursor-pointer flex items-center gap-1"
+                  title="Refresh learner list from Supabase"
+                >
+                  <span>🔄</span>
+                  <span>Refresh</span>
+                </button>
+              </div>
+            </div>
+
+            {learnersLoading && <p className="text-[13px] text-dash-ink-soft">Loading learners from Supabase...</p>}
+
+            {!learnersLoading && (
+              <>
+                <div className="overflow-x-auto">
+                  <table className={table}>
+                    <thead>
+                      <tr>
+                        <th className={th}>STUDENT NAME</th>
+                        <th className={th}>AGE / BIRTHDATE</th>
+                        <th className={th}>BARANGAY</th>
+                        <th className={th}>CONTACT</th>
+                        <th className={th}>APPROVAL STATUS</th>
+                        <th className={th}>ACTIONS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {myLearners.map((l) => {
+                        const isPending = l.approval_status === 'pending';
+                        const isRejected = l.approval_status === 'rejected';
+                        const isBusy = approvingLearnerId === (l.id || l.full_name);
+
+                        return (
+                          <tr
+                            key={l.id || l.full_name}
+                            className={isPending ? 'bg-amber-50/40' : ''}
+                          >
+                            <td className={td}>
+                              <div className="flex items-center gap-2">
+                                <span>🧒</span>
+                                <span className="font-bold text-slate-900">
+                                  {cleanStudentName(l.full_name)}
+                                </span>
+                              </div>
+                            </td>
+                            <td className={td}>{l.birthdate || l.child_age || '-'}</td>
+                            <td className={td}>{l.barangay || myBarangay || '-'}</td>
+                            <td className={td}>{l.parent_contact || '-'}</td>
+                            <td className={td}>
+                              {isPending ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                  ⏳ Pending Approval
+                                </span>
+                              ) : isRejected ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                                  ✕ Declined
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                  ✓ Approved
+                                </span>
+                              )}
+                            </td>
+                            <td className={td}>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {isPending && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      disabled={isBusy}
+                                      onClick={() => handleApproveOrRejectParent(l, 'approved')}
+                                      className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                                    >
+                                      ✓ Approve
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={isBusy}
+                                      onClick={() => handleApproveOrRejectParent(l, 'rejected')}
+                                      className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                                    >
+                                      ✕ Decline
+                                    </button>
+                                  </>
+                                )}
+                                {isRejected && (
+                                  <button
+                                    type="button"
+                                    disabled={isBusy}
+                                    onClick={() => handleApproveOrRejectParent(l, 'approved')}
+                                    className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                                  >
+                                    ✓ Approve
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveTab('child_development')}
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
+                                >
+                                  <span>🌱</span>
+                                  <span>Assess ECCD</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {myLearners.length === 0 && (
+                  <p className="text-[13px] mt-3 text-dash-ink-soft">
+                    No learners recorded yet for{' '}
+                    {myCdcName ||
+                      (myBarangay
+                        ? `${myBarangay} Child Development Center`
+                        : 'this Child Development Center')}
+                    . Share your Registration Code (<strong>{teacherRegCode}</strong>) or click{' '}
+                    <strong>+ Create Parent Account</strong> above.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Modal: Teacher Directly Creates a Parent & Child Account */}
+          {createParentModalOpen && (
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl border border-slate-200 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div>
+                    <h4 className="font-fraunces text-lg font-bold text-slate-900 m-0">
+                      Create Parent &amp; Learner Account
+                    </h4>
+                    <p className="text-xs text-slate-500 m-0 mt-0.5">
+                      Directly register a parent and child under {myCdcName || 'your Day Care Center'}.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCreateParentModalOpen(false)}
+                    className="text-slate-400 hover:text-slate-700 bg-transparent border-none cursor-pointer text-base font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <form onSubmit={handleCreateParentAccount} className="space-y-3 text-left">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                      Child / Learner Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Lucas Dela Cruz"
+                      value={newChildName}
+                      onChange={(e) => setNewChildName(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs outline-none focus:border-slate-800"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                      Learner Age Level
+                    </label>
+                    <select
+                      value={newChildAge}
+                      onChange={(e) => setNewChildAge(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white outline-none focus:border-slate-800"
+                    >
+                      <option value="3-4">3–4 yrs (Pre-K1)</option>
+                      <option value="5-6">5–6 yrs (Pre-K2)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                      Parent / Guardian Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Maria Dela Cruz"
+                      value={newParentName}
+                      onChange={(e) => setNewParentName(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs outline-none focus:border-slate-800"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                      Parent Mobile Number or Email (Login Username) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="09123456789 or parent@example.com"
+                      value={newParentIdentifier}
+                      onChange={(e) => setNewParentIdentifier(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs outline-none focus:border-slate-800"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                      Temporary / Initial Password *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      minLength={6}
+                      value={newParentPassword}
+                      onChange={(e) => setNewParentPassword(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono text-xs outline-none focus:border-slate-800"
+                    />
+                  </div>
+
+                  <div className="pt-2 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCreateParentModalOpen(false)}
+                      className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={creatingParent}
+                      className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs cursor-pointer disabled:opacity-50"
+                    >
+                      {creatingParent ? 'Creating in Supabase...' : 'Create & Approve Account'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Modal: Created Parent Account Credentials Summary */}
+          {createdParentCredentials && (
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl border border-slate-200 text-center space-y-4">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-2xl mx-auto">
+                  ✅
+                </div>
+                <div>
+                  <h4 className="font-fraunces text-base font-bold text-slate-900 m-0">
+                    Parent Account Created &amp; Approved
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-1 m-0">
+                    Share these login credentials with the parent.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-left text-xs font-mono space-y-1.5">
+                  <div>
+                    <span className="text-slate-500">Child / Learner:</span>{' '}
+                    <strong>{createdParentCredentials.childName}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Parent / Guardian:</span>{' '}
+                    <strong>{createdParentCredentials.parentName}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Login ID:</span>{' '}
+                    <strong className="select-all">{createdParentCredentials.identifier}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Password:</span>{' '}
+                    <strong className="text-rose-700 select-all">{createdParentCredentials.password}</strong>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const text = `EarlyLearn Hub Parent Account:\nLearner: ${createdParentCredentials.childName}\nLogin: ${createdParentCredentials.identifier}\nPassword: ${createdParentCredentials.password}\nCenter: ${createdParentCredentials.cdcName}`;
+                      navigator.clipboard?.writeText(text);
+                      alert('Parent credentials copied to clipboard!');
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs cursor-pointer"
+                  >
+                    📋 Copy Credentials
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCreatedParentCredentials(null)}
+                    className="flex-1 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs cursor-pointer"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       )}

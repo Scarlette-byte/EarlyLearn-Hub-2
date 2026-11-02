@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase, normalizeAuthIdentifier } from '../lib/supabaseClient';
 import { getEffectiveRole } from '../lib/roles.js';
-import { syncStudentLogin } from '../lib/learnersService.js';
+import { syncStudentLogin, getStudentApprovalStatus } from '../lib/learnersService.js';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -15,9 +15,12 @@ export default function Login() {
     e.preventDefault();
     setMsg({ text: '', type: '' });
 
-    const { authEmail, isPhone } = normalizeAuthIdentifier(identifier);
+    const { authEmail } = normalizeAuthIdentifier(identifier);
     if (!authEmail) {
-      setMsg({ text: '⚠️ Please enter your email or mobile phone number.', type: 'error' });
+      setMsg({
+        text: '⚠️ Please enter your Teacher ID, mobile phone number, or email address.',
+        type: 'error',
+      });
       return;
     }
 
@@ -42,13 +45,18 @@ export default function Login() {
       .single();
 
     if (profileError || !profile) {
-      // Auto-heal missing profile row using metadata
+      // Auto-heal missing profile row using metadata (only existing profiles columns)
       const metaRole = user.user_metadata?.role || 'student';
       const metaName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
       const metaBarangay = user.user_metadata?.barangay || null;
       const metaCdc = user.user_metadata?.cdc_name || null;
-      const metaAdviser = user.user_metadata?.adviser_name || user.user_metadata?.teacher_name || null;
-      const dbRole = metaRole === 'teacher' ? 'teacher' : (metaRole === 'admin' || metaRole === 'superadmin' ? 'admin' : 'student');
+      const metaContact = user.user_metadata?.contact_number || null;
+      const dbRole =
+        metaRole === 'teacher'
+          ? 'teacher'
+          : metaRole === 'admin' || metaRole === 'superadmin'
+            ? 'admin'
+            : 'student';
 
       const { data: createdProf } = await supabase
         .from('profiles')
@@ -58,17 +66,18 @@ export default function Login() {
           role: dbRole,
           barangay: metaBarangay,
           cdc_name: metaCdc,
-          adviser_name: metaAdviser,
+          contact_number: metaContact,
         })
         .select('*')
         .single();
 
       profile = createdProf || {
+        id: user.id,
         role: dbRole,
         full_name: metaName,
         barangay: metaBarangay,
         cdc_name: metaCdc,
-        adviser_name: metaAdviser,
+        contact_number: metaContact,
       };
     }
 
@@ -79,17 +88,38 @@ export default function Login() {
       user_metadata: user.user_metadata,
     });
 
-    const roleTag = effectiveRole === 'superadmin' ? ' • Superadmin' : '';
-    setMsg({ text: `✅ Welcome, ${profile.full_name || user.email}!${roleTag}`, type: 'ok' });
-
-    // Link student to teacher dashboard according to assigned barangay upon successful login
+    // Enforce Teacher Approval for Parent/Student accounts before allowing access
     if (effectiveRole === 'student' || (!effectiveRole && profile?.role === 'student')) {
       try {
+        const approvalInfo = await getStudentApprovalStatus(user, profile);
+        if (approvalInfo.approval_status === 'pending') {
+          await supabase.auth.signOut();
+          setLoading(false);
+          const teacherLabel = approvalInfo.adviser_name || 'your assigned Day Care Teacher';
+          setMsg({
+            text: `⏳ Your parent account is pending approval from ${teacherLabel}. Please wait for your teacher to approve your registration.`,
+            type: 'error',
+          });
+          return;
+        }
+        if (approvalInfo.approval_status === 'rejected') {
+          await supabase.auth.signOut();
+          setLoading(false);
+          setMsg({
+            text: '❌ Your registration was declined by the assigned teacher. Please coordinate with your Child Development Center.',
+            type: 'error',
+          });
+          return;
+        }
+
         await syncStudentLogin(user, profile);
       } catch (err) {
         console.warn('Could not sync student login to teacher dashboard:', err);
       }
     }
+
+    const roleTag = effectiveRole === 'superadmin' ? ' • Superadmin' : '';
+    setMsg({ text: `✅ Welcome, ${profile.full_name || user.email}!${roleTag}`, type: 'ok' });
 
     setTimeout(() => {
       if (effectiveRole === 'superadmin' || effectiveRole === 'admin') {
@@ -99,7 +129,7 @@ export default function Login() {
       } else {
         navigate('/student-dashboard');
       }
-    }, 900);
+    }, 700);
   }
 
   return (
@@ -121,7 +151,7 @@ export default function Login() {
         </div>
       </div>
 
-      <div className="animate-pop safe-x relative z-10 bg-cream w-full max-w-[380px] my-6 p-8 sm:p-10 rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.18)] text-center">
+      <div className="animate-pop safe-x relative z-10 bg-cream w-full max-w-[390px] my-6 p-8 sm:p-10 rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.18)] text-center">
         <div className="inline-flex items-center justify-center w-16 h-16 sm:w-14 sm:h-14 rounded-[20px] bg-gradient-to-br from-sun to-coral text-3xl mb-3.5">
           🌻
         </div>
@@ -133,25 +163,28 @@ export default function Login() {
         </p>
 
         <form onSubmit={handleSubmit} className="text-left">
-          <label htmlFor="identifier" className="block font-bold text-[13px] sm:text-xs text-ink mt-3.5 mb-1.5">
-            Email or Mobile Phone Number
+          <label
+            htmlFor="identifier"
+            className="block font-bold text-[13px] sm:text-xs text-ink mt-3.5 mb-1.5"
+          >
+            Teacher ID, Mobile Number, or Email
           </label>
           <div className="relative">
             <input
               id="identifier"
               type="text"
               required
-              placeholder="09123456789 or you@example.com"
+              placeholder="TCH-2026-001, 09123456789, or email"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               className="w-full px-3.5 py-3 rounded-2xl border-2 border-[#E6E6E6] font-nunito text-base outline-none transition-colors focus:border-sky-deep pr-10"
             />
             <div className="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-ink-soft text-sm">
-              📱
+              🔑
             </div>
           </div>
           <p className="text-[11px] text-ink-soft mt-1">
-            💡 Log in with either your 11-digit mobile number or email address.
+            💡 Teachers: use your Teacher ID &amp; temporary password. Parents: use your registered mobile number or email.
           </p>
 
           <label
@@ -180,7 +213,7 @@ export default function Login() {
 
           {msg.text && (
             <p
-              className={`mt-3.5 text-[13.5px] font-semibold text-center min-h-[18px] ${
+              className={`mt-3.5 text-[13px] font-semibold text-center min-h-[18px] leading-snug ${
                 msg.type === 'error' ? 'text-coral-deep' : 'text-[#2f9e44]'
               }`}
             >
@@ -193,7 +226,7 @@ export default function Login() {
           to="/signup"
           className="block mt-4.5 text-[13px] text-sky-deep no-underline font-bold hover:underline"
         >
-          Don't have an account? Sign Up here
+          Parent with a Teacher Code? Sign Up here
         </Link>
         <Link
           to="/"

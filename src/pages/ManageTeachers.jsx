@@ -1,6 +1,17 @@
 import { useEffect, useState, useCallback } from 'react';
-import { supabase, barangays, normalizeAuthIdentifier } from '../lib/supabaseClient';
+import {
+  supabase,
+  supabaseSecondaryAuth,
+  barangays,
+  normalizeAuthIdentifier,
+} from '../lib/supabaseClient';
 import { realTeachersList, realCdcsList, cleanTeacherDisplayName } from '../lib/curriculumData.js';
+import {
+  parseTeacherContactAndCode,
+  packTeacherContactAndCode,
+  buildDefaultTeacherCode,
+  isValidUuid,
+} from '../lib/learnersService.js';
 import {
   cardBox,
   table,
@@ -8,7 +19,6 @@ import {
   td,
 } from '../lib/ui.js';
 import {
-  IconSearch,
   IconPlus,
   IconRefresh,
   IconEdit,
@@ -18,9 +28,7 @@ import {
   IconCopy,
   IconCheck,
   IconClose,
-  IconTeachers,
   IconBuilding,
-  IconPin,
 } from '../components/Icons.jsx';
 
 export default function ManageTeachers() {
@@ -67,6 +75,24 @@ export default function ManageTeachers() {
   const [newCdcBarangay, setNewCdcBarangay] = useState('');
   const [cdcsaving, setCdcSaving] = useState(false);
 
+  function generateTeacherId(brgy = '') {
+    const prefix = brgy
+      ? brgy.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3)
+      : '2026';
+    const num = Math.floor(100 + Math.random() * 900);
+    return `TCH-${prefix}-${num}`;
+  }
+
+  function formatDisplayTeacherId(t) {
+    if (t.teacher_id) return t.teacher_id.toUpperCase();
+    if (t.email && t.email.endsWith('@earlylearn.ph')) {
+      const prefix = t.email.split('@')[0];
+      if (/[a-zA-Z]/.test(prefix)) return prefix.toUpperCase();
+    }
+    if (t.id && String(t.id).startsWith('tch-')) return String(t.id).toUpperCase();
+    return t.id ? `TCH-${String(t.id).slice(0, 6).toUpperCase()}` : '-';
+  }
+
   // Load teachers and CDCs
   const loadTeachers = useCallback(async () => {
     setLoading(true);
@@ -99,7 +125,9 @@ export default function ManageTeachers() {
           if (existing) {
             existing.full_name = prof.full_name || existing.full_name;
             existing.barangay = prof.barangay || existing.barangay;
-            if (prof.contact_number) existing.contact_number = prof.contact_number;
+            if (prof.contact_number && !existing.contact_number) {
+              existing.contact_number = prof.contact_number;
+            }
             if (prof.cdc_name) {
               existing.cdc_name = prof.cdc_name;
               existing.cdcs = { name: prof.cdc_name, barangay: prof.barangay };
@@ -156,7 +184,6 @@ export default function ManageTeachers() {
           return t;
         });
 
-        // Include any newly active teacher profile not yet in baseline
         Object.values(overrides).forEach((ov) => {
           if (ov && ov.id && !combined.some((t) => t.id === ov.id || (ov.email && t.email === ov.email))) {
             combined.unshift({
@@ -176,10 +203,16 @@ export default function ManageTeachers() {
       }
 
       setTeachers(
-        combined.map((t) => ({
-          ...t,
-          full_name: cleanTeacherDisplayName(t.full_name) || t.full_name,
-        }))
+        combined.map((t) => {
+          const { contactNumber, registrationCode } = parseTeacherContactAndCode(t.contact_number);
+          return {
+            ...t,
+            full_name: cleanTeacherDisplayName(t.full_name) || t.full_name,
+            raw_contact_number: t.contact_number,
+            contact_number: contactNumber,
+            registration_code: registrationCode || buildDefaultTeacherCode(t),
+          };
+        })
       );
     } catch {
       setTeachers(realTeachersList);
@@ -222,8 +255,10 @@ export default function ManageTeachers() {
   // Filtered teachers list
   const filteredTeachers = teachers.filter((t) => {
     const cdcName = t.cdcs?.name || t.cdc_name || '';
+    const tId = formatDisplayTeacherId(t).toLowerCase();
     const matchesSearch =
       (t.full_name || '').toLowerCase().includes(search.toLowerCase()) ||
+      tId.includes(search.toLowerCase()) ||
       (t.email || '').toLowerCase().includes(search.toLowerCase()) ||
       (t.contact_number || '').includes(search) ||
       cdcName.toLowerCase().includes(search.toLowerCase()) ||
@@ -258,7 +293,7 @@ export default function ManageTeachers() {
     return p;
   }
 
-  // --- Add Teacher ---
+  // --- Add Teacher (Admin creates Teacher account with Teacher ID & Temporary Password) ---
   async function handleAddTeacher(e) {
     e.preventDefault();
     if (!newFullName.trim()) {
@@ -266,7 +301,7 @@ export default function ManageTeachers() {
       return;
     }
     if (!newIdentifier.trim()) {
-      alert('Please enter a mobile phone number or email address.');
+      alert('Please enter a Teacher ID (e.g. TCH-2026-001).');
       return;
     }
     if (!newBarangay) {
@@ -274,7 +309,7 @@ export default function ManageTeachers() {
       return;
     }
     if (!newUserPassword || newUserPassword.length < 6) {
-      alert('Password must be at least 6 characters long.');
+      alert('Temporary password must be at least 6 characters long.');
       return;
     }
 
@@ -282,11 +317,16 @@ export default function ManageTeachers() {
     setMsg({ text: '', type: '' });
 
     const { authEmail, isPhone, display } = normalizeAuthIdentifier(newIdentifier);
-    const finalContact = newContactNumber.trim() || (isPhone ? display : null);
+    const cleanFullName = cleanTeacherDisplayName(newFullName.trim()) || newFullName.trim();
+    const finalContact = newContactNumber.trim() || (isPhone ? display : '');
+    const selectedCdcObj = cdcs.find((c) => c.id === newCdcId);
+    const selectedCdcName =
+      selectedCdcObj?.name || `${newBarangay} Child Development Center`;
+    const validCdcUuid = isValidUuid(newCdcId) ? newCdcId : null;
 
-    // Try edge function first
     let createdViaEdge = false;
     let tempPass = newUserPassword;
+    let createdUserId = null;
 
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -295,11 +335,11 @@ export default function ManageTeachers() {
       if (token) {
         const { data: edgeData, error: edgeErr } = await supabase.functions.invoke('create-teacher', {
           body: {
-            fullName: newFullName.trim(),
+            fullName: cleanFullName,
             email: authEmail,
             barangay: newBarangay,
-            cdcId: newCdcId || null,
-            contactNumber: finalContact,
+            cdcId: validCdcUuid,
+            contactNumber: finalContact || null,
           },
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -307,23 +347,27 @@ export default function ManageTeachers() {
         if (!edgeErr && !edgeData?.error && edgeData?.email) {
           createdViaEdge = true;
           tempPass = edgeData.tempPassword || newUserPassword;
+          createdUserId = edgeData.id || edgeData.user?.id || null;
         }
       }
     } catch {
-      // Proceed to fallback
+      // Proceed to direct secondary auth creation
     }
 
-    // Direct fallback if edge function was not available
+    // Use secondary non-persisting auth client so Admin stays logged in!
     if (!createdViaEdge) {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      const { data: authData, error: authError } = await supabaseSecondaryAuth.auth.signUp({
         email: authEmail,
         password: newUserPassword,
         options: {
           data: {
-            full_name: newFullName.trim(),
+            full_name: cleanFullName,
             role: 'teacher',
+            teacher_id: display,
             barangay: newBarangay,
-            contact_number: finalContact,
+            cdc_name: selectedCdcName,
+            contact_number: finalContact || null,
+            must_change_password: true,
           },
         },
       });
@@ -334,36 +378,48 @@ export default function ManageTeachers() {
         return;
       }
 
-      const createdUserId = authData.user?.id;
-      if (createdUserId) {
-        // Upsert profiles
-        await supabase.from('profiles').upsert({
-          id: createdUserId,
-          full_name: newFullName.trim(),
-          role: 'teacher',
-          barangay: newBarangay,
-        });
+      createdUserId = authData.user?.id;
+    }
 
-        // Upsert teachers table
-        await supabase.from('teachers').upsert({
-          id: createdUserId,
-          full_name: newFullName.trim(),
-          email: authEmail,
-          barangay: newBarangay,
-          cdc_id: newCdcId || null,
-          contact_number: finalContact,
-        });
-      }
+    const parentRegCode = buildDefaultTeacherCode({
+      id: createdUserId || display,
+      full_name: cleanFullName,
+      barangay: newBarangay,
+    });
+    const packedContact = packTeacherContactAndCode(finalContact, parentRegCode);
+
+    if (createdUserId) {
+      // Save to Supabase profiles table
+      await supabase.from('profiles').upsert({
+        id: createdUserId,
+        full_name: cleanFullName,
+        role: 'teacher',
+        barangay: newBarangay,
+        cdc_name: selectedCdcName,
+        contact_number: finalContact || null,
+      });
+
+      // Save to Supabase teachers table
+      await supabase.from('teachers').upsert({
+        id: createdUserId,
+        full_name: cleanFullName,
+        email: authEmail,
+        barangay: newBarangay,
+        cdc_id: validCdcUuid,
+        contact_number: packedContact,
+        must_change_password: true,
+      });
     }
 
     setAddSaving(false);
     setCredentialsModal({
-      fullName: newFullName.trim(),
+      fullName: cleanFullName,
       email: authEmail,
-      identifier: newIdentifier.trim(),
+      identifier: display,
       password: tempPass,
       barangay: newBarangay,
-      cdcName: cdcs.find((c) => c.id === newCdcId)?.name || 'Unassigned',
+      cdcName: selectedCdcName,
+      registrationCode: parentRegCode,
     });
 
     setNewFullName('');
@@ -373,7 +429,7 @@ export default function ManageTeachers() {
     setNewContactNumber('');
     setNewUserPassword('');
     setAddTeacherModal(false);
-    setMsg({ text: 'Teacher account created successfully.', type: 'ok' });
+    setMsg({ text: `Teacher account "${cleanFullName}" (ID: ${display}) created in Supabase.`, type: 'ok' });
     loadTeachers();
   }
 
@@ -396,14 +452,27 @@ export default function ManageTeachers() {
 
     setEditSaving(true);
 
+    const cleanName = cleanTeacherDisplayName(editFullName.trim()) || editFullName.trim();
+    const validCdcUuid = isValidUuid(editCdcId) ? editCdcId : null;
+    const selectedCdcObj = cdcs.find((c) => c.id === editCdcId);
+    const selectedCdcName =
+      selectedCdcObj?.name ||
+      editTeacherModal.cdc_name ||
+      (editBarangay ? `${editBarangay} Child Development Center` : null);
+
+    const packedContact = packTeacherContactAndCode(
+      editContact.trim(),
+      editTeacherModal.registration_code
+    );
+
     // Update teachers table
     const { error: teachError } = await supabase
       .from('teachers')
       .update({
-        full_name: editFullName.trim(),
+        full_name: cleanName,
         barangay: editBarangay || null,
-        cdc_id: editCdcId || null,
-        contact_number: editContact.trim() || null,
+        cdc_id: validCdcUuid,
+        contact_number: packedContact,
       })
       .eq('id', editTeacherModal.id);
 
@@ -411,8 +480,10 @@ export default function ManageTeachers() {
     await supabase
       .from('profiles')
       .update({
-        full_name: editFullName.trim(),
+        full_name: cleanName,
         barangay: editBarangay || null,
+        cdc_name: selectedCdcName,
+        contact_number: editContact.trim() || null,
       })
       .eq('id', editTeacherModal.id);
 
@@ -421,7 +492,7 @@ export default function ManageTeachers() {
     if (teachError) {
       alert('Failed to update teacher: ' + teachError.message);
     } else {
-      setMsg({ text: `Teacher "${editFullName.trim()}" updated successfully.`, type: 'ok' });
+      setMsg({ text: `Teacher "${cleanName}" updated in Supabase.`, type: 'ok' });
       setEditTeacherModal(null);
       loadTeachers();
     }
@@ -459,7 +530,7 @@ export default function ManageTeachers() {
       password: newPassword,
     });
     setMsg({
-      text: `Password credentials prepared for "${passwordModalTeacher.full_name}".`,
+      text: `Temporary password prepared for "${passwordModalTeacher.full_name}".`,
       type: 'ok',
     });
   }
@@ -474,7 +545,6 @@ export default function ManageTeachers() {
       return;
     }
 
-    // Try edge function first
     let edgeSuccess = false;
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -492,7 +562,6 @@ export default function ManageTeachers() {
       // Fallback
     }
 
-    // Direct deletion fallback
     if (!edgeSuccess) {
       await supabase.from('teachers').delete().eq('id', t.id);
       await supabase.from('profiles').delete().eq('id', t.id);
@@ -588,10 +657,10 @@ export default function ManageTeachers() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#F5EDE0] mb-4">
           <div>
             <h3 className="font-fraunces text-lg font-bold text-dash-ink m-0">
-              Child Development Teachers & Centers
+              Child Development Teachers &amp; Centers
             </h3>
             <p className="text-xs text-dash-ink-soft mt-1 m-0">
-              Manage accredited educators, assign Day Care Centers, and update contact information.
+              Create teacher accounts using a Teacher ID and temporary password, assign Day Care Centers, and manage credentials.
             </p>
           </div>
 
@@ -599,12 +668,13 @@ export default function ManageTeachers() {
             <button
               onClick={() => {
                 setAddTeacherModal(true);
+                setNewIdentifier(generateTeacherId(newBarangay));
                 setNewUserPassword(generatePassword());
               }}
               className="px-3.5 py-2 rounded-xl bg-accent hover:opacity-90 text-white font-nunito font-bold text-xs shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <IconPlus className="w-4 h-4" />
-              <span>Add Teacher</span>
+              <span>Add Teacher Account</span>
             </button>
 
             <button
@@ -655,7 +725,7 @@ export default function ManageTeachers() {
           <div className="relative">
             <input
               type="text"
-              placeholder="Search by name, contact, or center..."
+              placeholder="Search by Teacher ID, name, contact, or center..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] font-nunito text-xs text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent"
@@ -695,97 +765,110 @@ export default function ManageTeachers() {
           <table className={table}>
             <thead>
               <tr>
-                <th className={th}>Teacher Name</th>
+                <th className={th}>Teacher Name &amp; ID</th>
                 <th className={th}>Barangay</th>
                 <th className={th}>Assigned Center (CDC)</th>
                 <th className={th}>Contact Number</th>
-                <th className={th}>Email / Login</th>
+                <th className={th}>Teacher ID / Login</th>
                 <th className={`${th} text-right`}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredTeachers.map((t) => (
-                <tr key={t.id} className="hover:bg-[#FAF8F5] transition-colors">
-                  {/* Name & Avatar */}
-                  <td className={td}>
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full bg-[#EDF6EE] text-[#2E6B39] flex items-center justify-center font-bold text-xs shrink-0">
-                        {(t.full_name || 'T').charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="font-bold text-sm text-dash-ink">
-                          {cleanTeacherDisplayName(t.full_name) || '(No name set)'}
+              {filteredTeachers.map((t) => {
+                const displayTeacherId = formatDisplayTeacherId(t);
+                return (
+                  <tr key={t.id} className="hover:bg-[#FAF8F5] transition-colors">
+                    {/* Name & Teacher ID */}
+                    <td className={td}>
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-[#EDF6EE] text-[#2E6B39] flex items-center justify-center font-bold text-xs shrink-0">
+                          {(t.full_name || 'T').charAt(0).toUpperCase()}
                         </div>
-                        <div className="text-[11px] text-dash-ink-soft font-mono">
-                          ID: {t.id ? t.id.slice(0, 8) + '...' : '-'}
+                        <div>
+                          <div className="font-bold text-sm text-dash-ink">
+                            {cleanTeacherDisplayName(t.full_name) || '(No name set)'}
+                          </div>
+                          <div className="text-[11px] text-dash-ink-soft font-mono flex items-center gap-2">
+                            <span>ID: {displayTeacherId}</span>
+                            {t.registration_code && (
+                              <span className="px-1.5 py-0.2 rounded bg-amber-50 border border-amber-200 text-amber-900 text-[10px]">
+                                Parent Code: {t.registration_code}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </td>
+                    </td>
 
-                  {/* Barangay */}
-                  <td className={td}>
-                    {t.barangay ? (
-                      <span className="text-xs font-semibold text-dash-ink">{t.barangay}</span>
-                    ) : (
-                      <span className="text-xs text-dash-ink-soft italic">Unassigned</span>
-                    )}
-                  </td>
+                    {/* Barangay */}
+                    <td className={td}>
+                      {t.barangay ? (
+                        <span className="text-xs font-semibold text-dash-ink">{t.barangay}</span>
+                      ) : (
+                        <span className="text-xs text-dash-ink-soft italic">Unassigned</span>
+                      )}
+                    </td>
 
-                  {/* Assigned Center (CDC) */}
-                  <td className={td}>
-                    {t.cdcs?.name || t.cdc_name ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#EDF6EE] border border-[#D1E5D3] text-[#22572C] text-xs font-semibold">
-                        <IconBuilding className="w-3.5 h-3.5" />
-                        <span>{t.cdcs?.name || t.cdc_name}</span>
-                      </span>
-                    ) : (
-                      <span className="text-xs text-dash-ink-soft italic">No center assigned</span>
-                    )}
-                  </td>
+                    {/* Assigned Center (CDC) */}
+                    <td className={td}>
+                      {t.cdcs?.name || t.cdc_name ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#EDF6EE] border border-[#D1E5D3] text-[#22572C] text-xs font-semibold">
+                          <IconBuilding className="w-3.5 h-3.5" />
+                          <span>{t.cdcs?.name || t.cdc_name}</span>
+                        </span>
+                      ) : (
+                        <span className="text-xs text-dash-ink-soft italic">No center assigned</span>
+                      )}
+                    </td>
 
-                  {/* Contact Number */}
-                  <td className={td}>
-                    <span className="text-xs text-dash-ink font-mono">{t.contact_number || '-'}</span>
-                  </td>
+                    {/* Contact Number */}
+                    <td className={td}>
+                      <span className="text-xs text-dash-ink font-mono">{t.contact_number || '-'}</span>
+                    </td>
 
-                  {/* Email */}
-                  <td className={td}>
-                    <span className="text-xs text-dash-ink">{t.email || '-'}</span>
-                  </td>
+                    {/* Teacher ID / Login */}
+                    <td className={td}>
+                      <div className="text-xs font-mono font-bold text-dash-ink">
+                        {displayTeacherId}
+                      </div>
+                      {t.email && (
+                        <div className="text-[11px] text-dash-ink-soft">{t.email}</div>
+                      )}
+                    </td>
 
-                  {/* Action Buttons */}
-                  <td className={`${td} text-right whitespace-nowrap`}>
-                    <div className="inline-flex items-center gap-1.5">
-                      <button
-                        onClick={() => openEditModal(t)}
-                        className="px-2.5 py-1 rounded-lg bg-[#FAF5EC] hover:bg-[#F2E8D5] text-dash-ink font-semibold text-xs transition-colors cursor-pointer border border-[#E5DAC4] flex items-center gap-1"
-                        title="Edit teacher details"
-                      >
-                        <IconEdit className="w-3 h-3 text-dash-ink-soft" />
-                        <span>Edit</span>
-                      </button>
+                    {/* Action Buttons */}
+                    <td className={`${td} text-right whitespace-nowrap`}>
+                      <div className="inline-flex items-center gap-1.5">
+                        <button
+                          onClick={() => openEditModal(t)}
+                          className="px-2.5 py-1 rounded-lg bg-[#FAF5EC] hover:bg-[#F2E8D5] text-dash-ink font-semibold text-xs transition-colors cursor-pointer border border-[#E5DAC4] flex items-center gap-1"
+                          title="Edit teacher details"
+                        >
+                          <IconEdit className="w-3 h-3 text-dash-ink-soft" />
+                          <span>Edit</span>
+                        </button>
 
-                      <button
-                        onClick={() => openPasswordModal(t)}
-                        className="px-2.5 py-1 rounded-lg bg-[#FFF7EB] hover:bg-[#FFEED4] text-[#8A6420] font-semibold text-xs transition-colors cursor-pointer border border-[#F3E2C8] flex items-center gap-1"
-                        title="Reset password"
-                      >
-                        <IconKey className="w-3 h-3 text-[#8A6420]" />
-                        <span>Password</span>
-                      </button>
+                        <button
+                          onClick={() => openPasswordModal(t)}
+                          className="px-2.5 py-1 rounded-lg bg-[#FFF7EB] hover:bg-[#FFEED4] text-[#8A6420] font-semibold text-xs transition-colors cursor-pointer border border-[#F3E2C8] flex items-center gap-1"
+                          title="Manage temporary password"
+                        >
+                          <IconKey className="w-3 h-3 text-[#8A6420]" />
+                          <span>Password</span>
+                        </button>
 
-                      <button
-                        onClick={() => handleDeleteTeacher(t)}
-                        className="p-1.5 rounded-lg hover:bg-danger/10 text-danger transition-colors cursor-pointer border border-transparent hover:border-danger/20"
-                        title="Delete teacher account"
-                      >
-                        <IconTrash className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        <button
+                          onClick={() => handleDeleteTeacher(t)}
+                          className="p-1.5 rounded-lg hover:bg-danger/10 text-danger transition-colors cursor-pointer border border-transparent hover:border-danger/20"
+                          title="Delete teacher account"
+                        >
+                          <IconTrash className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -798,7 +881,7 @@ export default function ManageTeachers() {
       </div>
 
       {/* ---------------------------------------------------- */}
-      {/* MODAL 1: ADD TEACHER                                 */}
+      {/* MODAL 1: ADD TEACHER (Teacher ID + Temporary Password)*/}
       {/* ---------------------------------------------------- */}
       {addTeacherModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
@@ -806,10 +889,10 @@ export default function ManageTeachers() {
             <div className="flex items-center justify-between pb-3 border-b border-[#F5EDE0] mb-4">
               <div>
                 <h3 className="font-fraunces text-lg font-bold text-dash-ink m-0">
-                  Register Child Development Teacher
+                  Create Teacher Account
                 </h3>
                 <p className="text-xs text-dash-ink-soft mt-0.5 m-0">
-                  Create an account and assign to a Manolo Fortich Day Care Center.
+                  Create a teacher account using their Teacher ID and temporary password.
                 </p>
               </div>
               <button
@@ -823,7 +906,7 @@ export default function ManageTeachers() {
             <form onSubmit={handleAddTeacher} className="space-y-3.5 text-left">
               <div>
                 <label className="block text-xs font-bold text-dash-ink mb-1">
-                  Full Name <span className="text-coral">*</span>
+                  Teacher Full Name <span className="text-coral">*</span>
                 </label>
                 <input
                   type="text"
@@ -836,19 +919,29 @@ export default function ManageTeachers() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-dash-ink mb-1">
-                  Login Identifier (Email or Mobile Number) <span className="text-coral">*</span>
-                </label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-bold text-dash-ink">
+                    Teacher ID (Login Username) <span className="text-coral">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setNewIdentifier(generateTeacherId(newBarangay))}
+                    className="text-[11px] text-accent font-semibold hover:underline bg-transparent border-none cursor-pointer flex items-center gap-1"
+                  >
+                    <IconDice className="w-3.5 h-3.5" />
+                    <span>Generate Teacher ID</span>
+                  </button>
+                </div>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. 09123456789 or teacher@example.com"
+                  placeholder="e.g. TCH-2026-001"
                   value={newIdentifier}
-                  onChange={(e) => setNewIdentifier(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] font-nunito text-sm text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent"
+                  onChange={(e) => setNewIdentifier(e.target.value.toUpperCase())}
+                  className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] font-mono text-sm font-bold text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent"
                 />
                 <p className="text-[11px] text-dash-ink-soft mt-0.5">
-                  Accepts standard 11-digit Philippine mobile phone numbers or email addresses.
+                  The teacher will log in using this Teacher ID and their temporary password.
                 </p>
               </div>
 
@@ -861,8 +954,12 @@ export default function ManageTeachers() {
                     required
                     value={newBarangay}
                     onChange={(e) => {
-                      setNewBarangay(e.target.value);
+                      const val = e.target.value;
+                      setNewBarangay(val);
                       setNewCdcId('');
+                      if (!newIdentifier || newIdentifier.startsWith('TCH-2026-')) {
+                        setNewIdentifier(generateTeacherId(val));
+                      }
                     }}
                     className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] font-nunito text-sm text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent cursor-pointer"
                   >
@@ -911,7 +1008,7 @@ export default function ManageTeachers() {
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-xs font-bold text-dash-ink">
-                    Initial Password <span className="text-coral">*</span>
+                    Temporary Password <span className="text-coral">*</span>
                   </label>
                   <button
                     type="button"
@@ -926,7 +1023,7 @@ export default function ManageTeachers() {
                   type="text"
                   required
                   minLength={6}
-                  placeholder="Enter or generate password"
+                  placeholder="Enter or generate temporary password"
                   value={newUserPassword}
                   onChange={(e) => setNewUserPassword(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] font-mono text-sm text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent"
@@ -946,7 +1043,7 @@ export default function ManageTeachers() {
                   disabled={addSaving}
                   className="px-5 py-2 rounded-xl bg-accent hover:opacity-90 text-white text-sm font-bold cursor-pointer shadow-xs disabled:opacity-50"
                 >
-                  {addSaving ? 'Registering...' : 'Register Teacher'}
+                  {addSaving ? 'Creating Account...' : 'Create Teacher Account'}
                 </button>
               </div>
             </form>
@@ -1093,7 +1190,7 @@ export default function ManageTeachers() {
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <label className="text-xs font-bold text-dash-ink">
-                      New Password (Minimum 6 characters)
+                      New Temporary Password (Minimum 6 characters)
                     </label>
                     <button
                       type="button"
@@ -1114,7 +1211,7 @@ export default function ManageTeachers() {
                     className="w-full px-3 py-2.5 rounded-xl border border-[#E5DCC9] font-mono text-sm text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent"
                   />
                   <p className="text-[11px] text-dash-ink-soft mt-1">
-                    Provide this new password to the teacher so they can access their portal.
+                    Provide this temporary password to the teacher so they can access their portal.
                   </p>
                 </div>
 
@@ -1131,7 +1228,7 @@ export default function ManageTeachers() {
                     disabled={passwordSaving}
                     className="px-5 py-2 rounded-xl bg-accent hover:opacity-90 text-white text-sm font-bold cursor-pointer shadow-xs disabled:opacity-50"
                   >
-                    {passwordSaving ? 'Updating...' : 'Set New Password'}
+                    {passwordSaving ? 'Updating...' : 'Set Temporary Password'}
                   </button>
                 </div>
               </form>
@@ -1152,15 +1249,15 @@ export default function ManageTeachers() {
                 <div className="bg-[#FAF8F5] rounded-xl p-4 text-left text-xs font-mono space-y-2 border border-[#EFE7D8]">
                   <div>
                     <span className="text-dash-ink-soft block text-[10px] uppercase font-bold">
-                      Account:
+                      Teacher ID:
                     </span>
                     <span className="font-bold text-sm text-dash-ink">
-                      {passwordSuccessData.teacher.full_name}
+                      {formatDisplayTeacherId(passwordSuccessData.teacher)}
                     </span>
                   </div>
                   <div>
                     <span className="text-dash-ink-soft block text-[10px] uppercase font-bold">
-                      New Password:
+                      Temporary Password:
                     </span>
                     <span className="font-bold text-sm text-coral select-all">
                       {passwordSuccessData.password}
@@ -1289,7 +1386,7 @@ export default function ManageTeachers() {
                 Teacher Account Created Successfully
               </h4>
               <p className="text-xs text-dash-ink-soft mt-1">
-                Share these initial credentials with the teacher.
+                Share this Teacher ID and temporary password with the teacher.
               </p>
             </div>
 
@@ -1304,7 +1401,7 @@ export default function ManageTeachers() {
               </div>
               <div>
                 <span className="text-dash-ink-soft block text-[10px] uppercase font-bold">
-                  Login Identifier:
+                  Teacher ID (Login Username):
                 </span>
                 <span className="font-bold text-sm text-dash-ink select-all">
                   {credentialsModal.identifier}
@@ -1318,9 +1415,19 @@ export default function ManageTeachers() {
                   {credentialsModal.password}
                 </span>
               </div>
+              {credentialsModal.registrationCode && (
+                <div>
+                  <span className="text-dash-ink-soft block text-[10px] uppercase font-bold">
+                    Parent Registration Code:
+                  </span>
+                  <span className="font-bold text-sm text-[#2E6B39] select-all">
+                    {credentialsModal.registrationCode}
+                  </span>
+                </div>
+              )}
               <div>
                 <span className="text-dash-ink-soft block text-[10px] uppercase font-bold">
-                  Barangay & Center:
+                  Barangay &amp; Center:
                 </span>
                 <span className="text-dash-ink">
                   {credentialsModal.barangay} • {credentialsModal.cdcName}
@@ -1331,7 +1438,7 @@ export default function ManageTeachers() {
             <button
               type="button"
               onClick={() => {
-                const text = `EarlyLearn Hub Teacher Account:\nTeacher: ${credentialsModal.fullName}\nLogin: ${credentialsModal.identifier}\nPassword: ${credentialsModal.password}\nCenter: ${credentialsModal.cdcName}`;
+                const text = `EarlyLearn Hub Teacher Account:\nTeacher: ${credentialsModal.fullName}\nTeacher ID: ${credentialsModal.identifier}\nTemporary Password: ${credentialsModal.password}\nParent Registration Code: ${credentialsModal.registrationCode || ''}\nCenter: ${credentialsModal.cdcName}`;
                 navigator.clipboard?.writeText(text);
                 alert('Credentials copied to clipboard');
               }}
