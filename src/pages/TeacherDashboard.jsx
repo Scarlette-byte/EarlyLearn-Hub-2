@@ -232,7 +232,7 @@ export default function TeacherDashboard({ profile }) {
   const [createParentModalOpen, setCreateParentModalOpen] = useState(false);
   const [newParentName, setNewParentName] = useState('');
   const [newChildName, setNewChildName] = useState('');
-  const [newChildAge, setNewChildAge] = useState('3-4');
+  const [newChildAge, setNewChildAge] = useState('3-3.11');
   const [newParentIdentifier, setNewParentIdentifier] = useState('');
   const [newParentPassword, setNewParentPassword] = useState('');
   const [creatingParent, setCreatingParent] = useState(false);
@@ -2829,8 +2829,8 @@ export default function TeacherDashboard({ profile }) {
                       onChange={(e) => setNewChildAge(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white outline-none focus:border-slate-800"
                     >
-                      <option value="3-4">3–4 yrs (Pre-K1)</option>
-                      <option value="5-6">5–6 yrs (Pre-K2)</option>
+                      <option value="3-3.11">3 to 3.11 months (Pre-K1)</option>
+                      <option value="4-4.11">4 to 4.11 months (Pre-K2)</option>
                     </select>
                   </div>
 

@@ -240,6 +240,14 @@ export async function verifyTeacherRegistrationCode(codeInput) {
   return { valid: false };
 }
 
+export function formatLearnerAgeLabel(ageVal) {
+  const s = String(ageVal || '').toLowerCase();
+  if (s.includes('4-4.11') || s.includes('5-6') || s.includes('pre-k2') || s.includes('5–6') || s === '4') {
+    return '4 to 4.11 months (Pre-K2)';
+  }
+  return '3 to 3.11 months (Pre-K1)';
+}
+
 /**
  * Packs learner metadata (approval_status, teacher_id, adviser_name, cdc_name, child_age, registration_code)
  * into `parent_contact` so all fields persist in the existing Supabase `learners` table across devices.
@@ -251,7 +259,7 @@ export function packLearnerContactMeta(cleanContact, metaObj = {}) {
     teacher_id: metaObj.teacher_id || null,
     adviser_name: metaObj.adviser_name || null,
     cdc_name: metaObj.cdc_name || null,
-    child_age: metaObj.child_age || '3-4',
+    child_age: metaObj.child_age || '3-3.11',
     registration_code: metaObj.registration_code || null,
   };
   return `${baseContact} ||META:${JSON.stringify(payload)}`.trim();
@@ -291,6 +299,10 @@ export function unpackLearnerRow(row) {
     meta.cdc_name ||
     (barangay ? `${barangay} Child Development Center` : '');
 
+  const rawAge = row.child_age || meta.child_age || (row.birthdate?.includes('4') || row.birthdate?.includes('5') ? '4-4.11' : '3-3.11');
+  const normalizedAgeCode =
+    String(rawAge).includes('4-4.11') || String(rawAge).includes('5-6') ? '4-4.11' : '3-3.11';
+
   return {
     ...row,
     full_name: cleanStudentName(row.full_name),
@@ -305,7 +317,11 @@ export function unpackLearnerRow(row) {
     teacher_id: row.teacher_id || meta.teacher_id || null,
     adviser_name: row.adviser_name || meta.adviser_name || '',
     cdc_name: cdcName,
-    child_age: row.child_age || meta.child_age || (row.birthdate?.includes('5') ? '5-6' : '3-4'),
+    child_age: normalizedAgeCode,
+    birthdate:
+      row.birthdate && /^\d{4}-\d{2}-\d{2}$/.test(String(row.birthdate))
+        ? row.birthdate
+        : formatLearnerAgeLabel(normalizedAgeCode),
     registration_code: row.registration_code || meta.registration_code || null,
   };
 }
@@ -425,8 +441,11 @@ export async function recordRegisteredLearner(learnerData) {
   const record = {
     id: learnerData.id || `lrn-${Date.now()}`,
     full_name: cleanedFullName,
-    birthdate: learnerData.birthdate || (learnerData.child_age === '5-6' ? 'Age 5–6' : 'Age 3–4'),
-    child_age: learnerData.child_age || unpackedInput.child_age || '3-4',
+    birthdate:
+      learnerData.birthdate && /^\d{4}-\d{2}-\d{2}$/.test(String(learnerData.birthdate))
+        ? learnerData.birthdate
+        : formatLearnerAgeLabel(learnerData.child_age || unpackedInput.child_age || '3-3.11'),
+    child_age: learnerData.child_age || unpackedInput.child_age || '3-3.11',
     barangay: learnerData.barangay || '',
     parent_name: (learnerData.parent_name || '').trim(),
     parent_contact: unpackedInput.parent_contact || '',
@@ -690,7 +709,7 @@ export async function updateParentApprovalStatus(learner, newStatus = 'approved'
 export async function createParentAccountByTeacher({
   parentName,
   childName,
-  childAge = '3-4',
+  childAge = '3-3.11',
   identifier,
   password,
   teacherId,
@@ -765,7 +784,7 @@ export async function createParentAccountByTeacher({
   const learnerRecord = await recordRegisteredLearner({
     id: createdUserId,
     full_name: cleanChild,
-    birthdate: childAge === '5-6' ? 'Age 5–6' : 'Age 3–4',
+    birthdate: formatLearnerAgeLabel(childAge),
     child_age: childAge,
     barangay,
     parent_name: cleanParent,
@@ -868,8 +887,8 @@ export async function syncStudentLogin(user, profile) {
   return recordRegisteredLearner({
     id: userId,
     full_name: childName,
-    birthdate: metadata.child_age === '5-6' ? 'Age 5–6' : 'Age 3–4',
-    child_age: metadata.child_age || '3-4',
+    birthdate: formatLearnerAgeLabel(metadata.child_age || existingCheck?.learner?.child_age || '3-3.11'),
+    child_age: metadata.child_age || existingCheck?.learner?.child_age || '3-3.11',
     barangay,
     parent_name: parentName,
     parent_contact: rawContact,

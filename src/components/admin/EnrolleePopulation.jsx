@@ -174,12 +174,6 @@ export default function EnrolleePopulation({
           >
             <span>🖨️</span> Print / Export
           </button>
-          <button
-            onClick={handleOpenAdd}
-            className="px-4 py-2 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
-          >
-            <span>+</span> Enroll Real Student
-          </button>
         </div>
       </div>
 
@@ -448,16 +442,9 @@ export default function EnrolleePopulation({
                 Enrolled Students Register
               </div>
               <div className="text-[11px] text-dash-ink-soft">
-                Showing {filteredLearners.length} active registered learner(s). Example dummy names have been cleared for clean municipal usage.
+                Showing {filteredLearners.length} active registered learner(s).
               </div>
             </div>
-
-            <button
-              onClick={handleOpenAdd}
-              className="px-3.5 py-1.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
-            >
-              + Register New Student
-            </button>
           </div>
 
           <div className="overflow-x-auto">
@@ -475,7 +462,7 @@ export default function EnrolleePopulation({
                 {filteredLearners.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="py-8 text-center text-dash-ink-soft">
-                      No student records found matching filter criteria. Click "+ Register New Student" to enroll a child.
+                      No student records found matching filter criteria.
                     </td>
                   </tr>
                 ) : (

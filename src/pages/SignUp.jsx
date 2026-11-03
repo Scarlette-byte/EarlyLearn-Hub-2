@@ -26,7 +26,7 @@ export default function SignUp() {
   // Parent & Child Registration Fields
   const [parentName, setParentName] = useState('');
   const [childName, setChildName] = useState('');
-  const [childAge, setChildAge] = useState('3-4');
+  const [childAge, setChildAge] = useState('3-3.11');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
 
@@ -190,7 +190,10 @@ export default function SignUp() {
       await recordRegisteredLearner({
         id: createdUserId,
         full_name: cleanChild,
-        birthdate: childAge === '5-6' ? 'Age 5–6' : 'Age 3–4',
+        birthdate:
+          childAge === '4-4.11'
+            ? '4 to 4.11 months (Pre-K2)'
+            : '3 to 3.11 months (Pre-K1)',
         child_age: childAge,
         barangay: assignedBarangay,
         parent_name: cleanParent,
@@ -490,8 +493,8 @@ export default function SignUp() {
                   onChange={(e) => setChildAge(e.target.value)}
                   className="w-full px-2.5 py-2.5 rounded-2xl border-2 border-[#E6E6E6] font-nunito text-sm bg-white outline-none transition-colors focus:border-sky-deep"
                 >
-                  <option value="3-4">3–4 yrs (Pre-K1)</option>
-                  <option value="5-6">5–6 yrs (Pre-K2)</option>
+                  <option value="3-3.11">3 to 3.11 months (Pre-K1)</option>
+                  <option value="4-4.11">4 to 4.11 months (Pre-K2)</option>
                 </select>
               </div>
             </div>
