@@ -10,6 +10,15 @@ import {
   cleanTeacherDisplayName,
 } from '../../lib/curriculumData.js';
 import {
+  validateActivityFile,
+  isVideoItem,
+  isImageItem,
+  isPdfItem,
+  getEmbeddedVideoUrl,
+  saveMediaBlobToIndexedDB,
+  resolveViewableMediaUrl,
+} from '../../lib/mediaStorage.js';
+import {
   IconSearch,
   IconCheck,
   IconClose,
@@ -23,13 +32,14 @@ export default function ProgramMonitoring({
   cdcs = [],
   onVerifyReport,
 }) {
-  const [activeTab, setActiveTab] = useState('all_posts'); // 'all_posts' | 'activities' | 'files' | 'videos' | 'compliance'
+  const [activeTab, setActiveTab] = useState('all_posts'); // 'all_posts' | 'activities' | 'files' | 'videos' | 'trash' | 'compliance'
   const [viewLayout, setViewLayout] = useState('table'); // 'table' | 'cards'
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBarangay, setSelectedBarangay] = useState('');
   const [selectedLevel, setSelectedLevel] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [inspectingModule, setInspectingModule] = useState(null);
+  const [inspectingMediaUrl, setInspectingMediaUrl] = useState(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
   // Helper to retrieve authentic real teacher modules only, clearing out dummy partial data and category flashcards
@@ -43,6 +53,7 @@ export default function ProgramMonitoring({
   const [commentText, setCommentText] = useState('');
   const [commentDecision, setCommentDecision] = useState('approve'); // 'approve' | 'revision' | 'keep'
   const [successToast, setSuccessToast] = useState('');
+  const [lastDeletedModule, setLastDeletedModule] = useState(null);
   const [isLoadingSupabase, setIsLoadingSupabase] = useState(false);
 
   // Manual record post modal state
@@ -54,13 +65,43 @@ export default function ProgramMonitoring({
   const [newSubTheme, setNewSubTheme] = useState('');
   const [newModuleType, setNewModuleType] = useState('Activity Worksheet');
   const [newDescription, setNewDescription] = useState('');
+  const [newFilePreview, setNewFilePreview] = useState(null);
+  const [newFileName, setNewFileName] = useState('');
+  const [newFileSize, setNewFileSize] = useState('');
+  const [newFileType, setNewFileType] = useState('');
+  const [newFileError, setNewFileError] = useState('');
   const [uploadSuccess, setUploadSuccess] = useState('');
+
+  // Resolve viewable media URL whenever inspectingModule changes
+  useEffect(() => {
+    let active = true;
+    if (inspectingModule?.content_url) {
+      resolveViewableMediaUrl(inspectingModule.content_url).then((resolved) => {
+        if (active) setInspectingMediaUrl(resolved || inspectingModule.content_url);
+      });
+    } else {
+      setInspectingMediaUrl(null);
+    }
+    return () => {
+      active = false;
+    };
+  }, [inspectingModule]);
 
   // Helper to categorize a teacher post into 'activity' | 'file' | 'video'
   const getItemCategory = (mod) => {
     if (!mod) return 'activity';
+    if (
+      isVideoItem({
+        fileUrl: mod.content_url,
+        fileName: mod.file_name,
+        fileType: mod.file_type,
+        moduleType: mod.module_type || mod.type,
+      })
+    ) {
+      return 'video';
+    }
     const t = (mod.type || mod.module_type || mod.file_type || '').toLowerCase();
-    if (t.includes('video') || t.includes('mp4')) return 'video';
+    if (t.includes('video') || t.includes('mp4') || t.includes('webm') || t.includes('mov')) return 'video';
     if (t.includes('file') || t.includes('doc') || t.includes('guide') || t.includes('plan')) return 'file';
     return 'activity';
   };
@@ -108,7 +149,7 @@ export default function ProgramMonitoring({
             sub_theme: meta.sub_theme || '',
             theme: meta.theme || 'Early Childhood Learning',
             module_type: meta.module_type || (m.type === 'video' ? 'Video Lesson' : m.type === 'image' ? 'Worksheet Image' : 'Activity Worksheet'),
-            file_type: meta.file_type || (m.content_url?.startsWith('data:application/pdf') ? 'PDF' : m.type?.toUpperCase() || 'PDF'),
+            file_type: meta.file_type || (m.content_url?.startsWith('data:application/pdf') ? 'PDF' : m.content_url?.startsWith('data:video/') ? 'MP4' : m.type?.toUpperCase() || 'PDF'),
             file_size: meta.file_size || '2.4 MB',
             file_name: meta.file_name || (m.content_url?.startsWith('data:application/pdf') ? 'Worksheet File (PDF)' : null),
             upload_date: m.created_at ? new Date(m.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : 'Recent',
@@ -119,6 +160,9 @@ export default function ProgramMonitoring({
             target_student_name: meta.target_student_name || 'All Class Learners',
             mswd_comments: meta.mswd_comments || '',
             revision_notes: meta.revision_notes || '',
+            is_deleted: Boolean(meta.is_deleted),
+            deleted_at: meta.deleted_at || null,
+            raw_meta: meta,
             description: cleanDescription || 'Curriculum activity worksheet for daycare learners.',
             content_url: m.content_url || null,
             content_text: cleanDescription,
@@ -156,11 +200,14 @@ export default function ProgramMonitoring({
             if (loc) {
               return {
                 ...sbItem,
+                is_deleted: Boolean(loc.is_deleted ?? sbItem.is_deleted),
+                deleted_at: loc.deleted_at || sbItem.deleted_at || null,
                 posted_to_students: Boolean(loc.posted_to_students ?? sbItem.posted_to_students),
                 target_student_id: loc.target_student_id || sbItem.target_student_id || 'all',
                 target_student_name: loc.target_student_name || sbItem.target_student_name || 'All Class Learners',
                 mswd_comments: loc.mswd_comments || sbItem.mswd_comments || '',
                 revision_notes: loc.revision_notes || sbItem.revision_notes || '',
+                content_url: sbItem.content_url || loc.content_url || null,
               };
             }
             return sbItem;
@@ -210,20 +257,168 @@ export default function ProgramMonitoring({
     };
   }, [loadSupabaseModules]);
 
-  // Download or open file attachment helper
-  const handleDownloadFile = (mod) => {
+  // Download or open file attachment helper (supports data: URLs, idb:// URLs, and external URLs)
+  const handleDownloadFile = async (mod, mode = 'download') => {
     if (!mod) return;
     if (mod.content_url) {
-      const link = document.createElement('a');
-      link.href = mod.content_url;
-      link.download = mod.file_name || `${(mod.title || 'learning_material').replace(/[^a-z0-9]/gi, '_')}.${mod.file_type?.toLowerCase() || 'pdf'}`;
-      link.target = '_blank';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const resolvedUrl = (await resolveViewableMediaUrl(mod.content_url)) || mod.content_url;
+      if (mode === 'view') {
+        window.open(resolvedUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        const link = document.createElement('a');
+        link.href = resolvedUrl;
+        link.download =
+          mod.file_name ||
+          `${(mod.title || 'learning_material').replace(/[^a-z0-9]/gi, '_')}.${mod.file_type?.toLowerCase() || 'pdf'}`;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
     } else {
       alert(`No attached file found for "${mod.title}".`);
     }
+  };
+
+  // Soft Delete Activity (Moves to Deleted / Retrieve Tab so Admin can Retrieve or Permanently Delete)
+  const handleDeleteModule = async (mod) => {
+    if (!mod) return;
+    const deletedAt = new Date().toLocaleDateString('en-US', {
+      month: 'short',
+      day: '2-digit',
+      year: 'numeric',
+    });
+
+    const updated = modules.map((m) =>
+      m.id === mod.id ? { ...m, is_deleted: true, deleted_at: deletedAt } : m
+    );
+    setModules(updated);
+    setLastDeletedModule(mod);
+
+    try {
+      localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updated }));
+    } catch { }
+
+    // Sync soft-delete metadata to Supabase materials
+    try {
+      const updatedMeta = {
+        ...(mod.raw_meta || {}),
+        __metadata: true,
+        assignment_id: mod.assignment_id || null,
+        description: mod.description || '',
+        teacher_name: mod.teacher_name || 'Teacher',
+        cdc_name: mod.cdc_name || 'Daycare Center',
+        barangay: mod.barangay || 'Manolo Fortich',
+        level: mod.level || 'Pre-K1',
+        quarter: mod.quarter || 1,
+        week: mod.week || 'Week 1',
+        sub_theme: mod.sub_theme || '',
+        theme: mod.theme || '',
+        module_type: mod.module_type || 'Activity Worksheet',
+        file_type: mod.file_type || 'PDF',
+        file_size: mod.file_size || '2.4 MB',
+        file_name: mod.file_name || null,
+        posted_to_students: false,
+        mswd_comments: mod.mswd_comments || '',
+        revision_notes: mod.revision_notes || '',
+        is_deleted: true,
+        deleted_at: deletedAt,
+      };
+      await supabase
+        .from('materials')
+        .update({ content_text: JSON.stringify(updatedMeta) })
+        .eq('id', mod.id);
+    } catch { }
+
+    if (inspectingModule?.id === mod.id) {
+      setInspectingModule(null);
+    }
+
+    setSuccessToast(
+      `🗑️ "${mod.title}" moved to Deleted / Retrieve tab. You can retrieve it anytime.`
+    );
+    setTimeout(() => setSuccessToast(''), 5000);
+  };
+
+  // Retrieve / Restore Soft-Deleted Activity back to Active Monitoring
+  const handleRetrieveModule = async (mod) => {
+    if (!mod) return;
+    const updated = modules.map((m) =>
+      m.id === mod.id ? { ...m, is_deleted: false, deleted_at: null } : m
+    );
+    setModules(updated);
+    if (lastDeletedModule?.id === mod.id) {
+      setLastDeletedModule(null);
+    }
+
+    try {
+      localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updated }));
+    } catch { }
+
+    try {
+      const updatedMeta = {
+        ...(mod.raw_meta || {}),
+        __metadata: true,
+        assignment_id: mod.assignment_id || null,
+        description: mod.description || '',
+        teacher_name: mod.teacher_name || 'Teacher',
+        cdc_name: mod.cdc_name || 'Daycare Center',
+        barangay: mod.barangay || 'Manolo Fortich',
+        level: mod.level || 'Pre-K1',
+        quarter: mod.quarter || 1,
+        week: mod.week || 'Week 1',
+        sub_theme: mod.sub_theme || '',
+        theme: mod.theme || '',
+        module_type: mod.module_type || 'Activity Worksheet',
+        file_type: mod.file_type || 'PDF',
+        file_size: mod.file_size || '2.4 MB',
+        file_name: mod.file_name || null,
+        posted_to_students: Boolean(mod.posted_to_students),
+        mswd_comments: mod.mswd_comments || '',
+        revision_notes: mod.revision_notes || '',
+        is_deleted: false,
+        deleted_at: null,
+      };
+      await supabase
+        .from('materials')
+        .update({ content_text: JSON.stringify(updatedMeta) })
+        .eq('id', mod.id);
+    } catch { }
+
+    if (inspectingModule?.id === mod.id) {
+      setInspectingModule((prev) => (prev ? { ...prev, is_deleted: false, deleted_at: null } : null));
+    }
+
+    setSuccessToast(`♻️ Retrieved "${mod.title}" back to active Activity Monitoring!`);
+    setTimeout(() => setSuccessToast(''), 4000);
+  };
+
+  // Permanently Delete Activity from Trash
+  const handlePermanentDeleteModule = async (mod) => {
+    if (!mod) return;
+    if (!confirm(`Permanently delete "${mod.title}"? This action cannot be undone.`)) return;
+
+    const updated = modules.filter((m) => m.id !== mod.id);
+    setModules(updated);
+    if (lastDeletedModule?.id === mod.id) setLastDeletedModule(null);
+
+    try {
+      localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updated }));
+    } catch { }
+
+    try {
+      await supabase.from('materials').delete().eq('id', mod.id);
+    } catch { }
+
+    if (inspectingModule?.id === mod.id) {
+      setInspectingModule(null);
+    }
+
+    setSuccessToast(`🗑️ Permanently deleted "${mod.title}".`);
+    setTimeout(() => setSuccessToast(''), 3500);
   };
 
   // Open Comment dialog
@@ -366,6 +561,44 @@ export default function ProgramMonitoring({
     setTimeout(() => setSuccessToast(''), 3500);
   };
 
+  // Handle File Selection in Admin Record Post Modal (with size limit validation)
+  const handleAdminFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setNewFileError('');
+
+    const validation = validateActivityFile(file);
+    if (!validation.valid) {
+      setNewFileError(validation.error);
+      e.target.value = '';
+      return;
+    }
+
+    setNewFileName(file.name);
+    setNewFileSize(validation.sizeFormatted);
+    setNewFileType(validation.fileType);
+
+    if (validation.category === 'video') {
+      setNewModuleType('Video Lesson Guide');
+    } else if (validation.category === 'document') {
+      setNewModuleType('Official PDF Document');
+    }
+
+    // Store large video/files (> 3 MB) in IndexedDB so localStorage never overflows
+    if (file.size > 3 * 1024 * 1024) {
+      const idbKey = `idb://${validation.category}-${Date.now()}-${file.name.replace(/[^a-z0-9.]/gi, '_')}`;
+      await saveMediaBlobToIndexedDB(idbKey, file);
+      setNewFilePreview(idbKey);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setNewFilePreview(ev.target?.result || null);
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Handle Add Module manually
   const handleCreateModule = (e) => {
     e.preventDefault();
@@ -388,13 +621,17 @@ export default function ProgramMonitoring({
       sub_theme: newSubTheme,
       theme: newLevel === 'Pre-K1' ? 'TELL ME ABOUT YOURSELF' : 'MORE ABOUT MYSELF AND MY SCHOOL',
       module_type: newModuleType,
-      file_type: newModuleType.toLowerCase().includes('video') ? 'MP4' : 'PDF',
-      file_size: '2.5 MB',
+      file_type: newFileType || (newModuleType.toLowerCase().includes('video') ? 'MP4' : 'PDF'),
+      file_size: newFileSize || '2.5 MB',
+      file_name: newFileName || null,
+      content_url: newFilePreview || null,
       upload_date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
       status: 'Approved',
       verified_by_mswd: true,
+      is_deleted: false,
       description: newDescription.trim() || 'Teacher-prepared early childhood module for daycare learners.',
       downloads_count: 0,
+      is_custom_teacher_upload: true,
     };
 
     const updated = [newModuleObj, ...modules];
@@ -412,12 +649,21 @@ export default function ProgramMonitoring({
       setUploadSuccess('');
       setNewTitle('');
       setNewDescription('');
+      setNewFilePreview(null);
+      setNewFileName('');
+      setNewFileSize('');
+      setNewFileType('');
+      setNewFileError('');
     }, 1200);
   };
 
+  const activeModules = useMemo(() => modules.filter((m) => !m.is_deleted), [modules]);
+  const deletedModules = useMemo(() => modules.filter((m) => m.is_deleted), [modules]);
+
   // Filtered Modules Feed
   const filteredModules = useMemo(() => {
-    return modules.filter((m) => {
+    const sourceList = activeTab === 'trash' ? deletedModules : activeModules;
+    return sourceList.filter((m) => {
       const cat = getItemCategory(m);
 
       // Tab filtering
@@ -442,16 +688,17 @@ export default function ProgramMonitoring({
 
       return matchesSearch && matchesBarangay && matchesLevel && matchesStatus;
     });
-  }, [modules, activeTab, searchTerm, selectedBarangay, selectedLevel, selectedStatus]);
+  }, [activeModules, deletedModules, activeTab, searchTerm, selectedBarangay, selectedLevel, selectedStatus]);
 
-  // Aggregate counts
-  const totalModules = modules.length;
-  const activityCount = modules.filter((m) => getItemCategory(m) === 'activity').length;
-  const fileCount = modules.filter((m) => getItemCategory(m) === 'file').length;
-  const videoCount = modules.filter((m) => getItemCategory(m) === 'video').length;
-  const approvedModules = modules.filter((m) => m.verified_by_mswd).length;
-  const pendingModules = modules.filter((m) => !m.verified_by_mswd).length;
-  const activeTeachersCount = new Set(modules.map((m) => m.teacher_name)).size;
+  // Aggregate counts (active items + deleted count)
+  const totalModules = activeModules.length;
+  const activityCount = activeModules.filter((m) => getItemCategory(m) === 'activity').length;
+  const fileCount = activeModules.filter((m) => getItemCategory(m) === 'file').length;
+  const videoCount = activeModules.filter((m) => getItemCategory(m) === 'video').length;
+  const deletedCount = deletedModules.length;
+  const approvedModules = activeModules.filter((m) => m.verified_by_mswd).length;
+  const pendingModules = activeModules.filter((m) => !m.verified_by_mswd).length;
+  const activeTeachersCount = new Set(activeModules.map((m) => m.teacher_name)).size;
 
   // Center Upload Compliance calculation
   const cdcComplianceData = useMemo(() => {
@@ -482,18 +729,29 @@ export default function ProgramMonitoring({
     <div className="space-y-6">
       {/* Toast Feedback Notification */}
       {successToast && (
-        <div className="p-3.5 rounded-2xl bg-[#DCEBDD] border border-emerald-300 text-[#2E6B38] font-bold text-xs flex items-center justify-between shadow-xs animate-fadeIn">
+        <div className="p-3.5 rounded-2xl bg-[#DCEBDD] border border-emerald-300 text-[#2E6B38] font-bold text-xs flex items-center justify-between gap-2 shadow-xs animate-fadeIn">
           <div className="flex items-center gap-2">
             <span className="text-sm">🔔</span>
             <span>{successToast}</span>
           </div>
-          <button
-            type="button"
-            onClick={() => setSuccessToast('')}
-            className="text-[#2E6B38] hover:text-[#23532B] font-bold text-sm px-2 cursor-pointer"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {lastDeletedModule && (
+              <button
+                type="button"
+                onClick={() => handleRetrieveModule(lastDeletedModule)}
+                className="px-2.5 py-1 rounded-lg bg-[#2E6B38] hover:bg-[#23532B] text-white text-[11px] font-bold cursor-pointer"
+              >
+                ♻️ Retrieve / Undo
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setSuccessToast('')}
+              className="text-[#2E6B38] hover:text-[#23532B] font-bold text-sm px-2 cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
         </div>
       )}
 
@@ -666,6 +924,20 @@ export default function ProgramMonitoring({
             <span>🎬 Video Lessons</span>
             <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'videos' ? 'bg-white/20 text-white' : 'bg-purple-200/60 text-purple-900'}`}>
               {videoCount}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('trash')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${activeTab === 'trash'
+              ? 'bg-rose-600 text-white shadow-xs'
+              : 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200'
+              }`}
+            title="View deleted activities and retrieve or permanently remove them"
+          >
+            <span>♻️ Deleted / Retrieve</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'trash' ? 'bg-white/20 text-white' : 'bg-rose-200/70 text-rose-900'}`}>
+              {deletedCount}
             </span>
           </button>
 
@@ -870,64 +1142,97 @@ export default function ProgramMonitoring({
                         </div>
                       </td>
 
-                      {/* 8. Actions: View, Comment, Approve */}
+                      {/* 8. Actions: View, Comment, Approve, Delete / Retrieve */}
                       <td className="px-4 py-3 text-right whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1.5 justify-end">
-                          {/* 1. View Button */}
+                        <div className="inline-flex items-center gap-1.5 justify-end flex-wrap">
+                          {/* 1. View Button (Available before & after checking) */}
                           <button
                             onClick={() => setInspectingModule(module)}
                             className="px-2.5 py-1.5 rounded-lg bg-[#FAF5EC] hover:bg-[#EFE8DC] text-dash-ink font-bold text-[11px] transition-colors cursor-pointer border border-[#E5DAC4] flex items-center gap-1 shadow-2xs"
-                            title="View activity details and file"
+                            title="View or play activity file, image, or video before & after checking"
                           >
                             <span>👁️</span>
                             <span>View</span>
                           </button>
 
-                          {/* 2. Comment Button */}
-                          <button
-                            onClick={() => handleOpenComment(module)}
-                            className="px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-900 font-bold text-[11px] transition-colors cursor-pointer border border-sky-200 flex items-center gap-1 shadow-2xs"
-                            title="Add MSWD review notes & comments"
-                          >
-                            <span>💬</span>
-                            <span>{module.mswd_comments ? 'Commented' : 'Comment'}</span>
-                          </button>
+                          {!module.is_deleted ? (
+                            <>
+                              {/* 2. Comment Button */}
+                              <button
+                                onClick={() => handleOpenComment(module)}
+                                className="px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-900 font-bold text-[11px] transition-colors cursor-pointer border border-sky-200 flex items-center gap-1 shadow-2xs"
+                                title="Add MSWD review notes & comments"
+                              >
+                                <span>💬</span>
+                                <span>{module.mswd_comments ? 'Commented' : 'Comment'}</span>
+                              </button>
 
-                          {/* 3. Approve / Reject Action Buttons */}
-                          {!module.verified_by_mswd ? (
-                            <div className="inline-flex items-center gap-1">
+                              {/* 3. Approve / Reject Action Buttons */}
+                              {!module.verified_by_mswd ? (
+                                <div className="inline-flex items-center gap-1">
+                                  <button
+                                    onClick={() => handleApproveModule(module.id)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-[#2E6B38] hover:bg-[#23532B] text-white font-bold text-[11px] shadow-xs transition-colors cursor-pointer flex items-center gap-1"
+                                    title="Approve and publish to this teacher's students"
+                                  >
+                                    <span>✓</span>
+                                    <span>Approve</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleRejectModule(module.id)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] border border-rose-200 transition-colors cursor-pointer flex items-center gap-1"
+                                    title="Reject / Request revisions from teacher"
+                                  >
+                                    <span>✕</span>
+                                    <span>Reject</span>
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="inline-flex items-center gap-1">
+                                  <span
+                                    className="px-2.5 py-1.5 rounded-lg bg-[#DCEBDD] text-[#2E6B38] font-bold text-[11px] border border-emerald-300 inline-flex items-center gap-1"
+                                    title="Officially approved by MSWD & live on student dashboard"
+                                  >
+                                    <span>✓</span>
+                                    <span>Approved</span>
+                                  </span>
+                                  <button
+                                    onClick={() => handleRejectModule(module.id)}
+                                    className="px-2 py-1.5 rounded-lg text-slate-400 hover:text-rose-700 hover:bg-rose-50 text-[10px] font-bold transition-colors cursor-pointer"
+                                    title="Revoke approval or reject"
+                                  >
+                                    <span>Revoke</span>
+                                  </button>
+                                </div>
+                              )}
+
+                              {/* 4. Delete Button (Soft Delete to Deleted / Retrieve tab) */}
                               <button
-                                onClick={() => handleApproveModule(module.id)}
-                                className="px-2.5 py-1.5 rounded-lg bg-[#2E6B38] hover:bg-[#23532B] text-white font-bold text-[11px] shadow-xs transition-colors cursor-pointer flex items-center gap-1"
-                                title="Approve and publish to this teacher's students"
-                              >
-                                <span>✓</span>
-                                <span>Approve</span>
-                              </button>
-                              <button
-                                onClick={() => handleRejectModule(module.id)}
+                                onClick={() => handleDeleteModule(module)}
                                 className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] border border-rose-200 transition-colors cursor-pointer flex items-center gap-1"
-                                title="Reject / Request revisions from teacher"
+                                title="Delete activity (can be retrieved from Deleted / Retrieve tab)"
                               >
-                                <span>✕</span>
-                                <span>Reject</span>
+                                <span>🗑️</span>
+                                <span>Delete</span>
                               </button>
-                            </div>
+                            </>
                           ) : (
-                            <div className="inline-flex items-center gap-1">
-                              <span
-                                className="px-2.5 py-1.5 rounded-lg bg-[#DCEBDD] text-[#2E6B38] font-bold text-[11px] border border-emerald-300 inline-flex items-center gap-1"
-                                title="Officially approved by MSWD & live on student dashboard"
-                              >
-                                <span>✓</span>
-                                <span>Approved</span>
-                              </span>
+                            <div className="inline-flex items-center gap-1.5">
                               <button
-                                onClick={() => handleRejectModule(module.id)}
-                                className="px-2 py-1.5 rounded-lg text-slate-400 hover:text-rose-700 hover:bg-rose-50 text-[10px] font-bold transition-colors cursor-pointer"
-                                title="Revoke approval or reject"
+                                onClick={() => handleRetrieveModule(module)}
+                                className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shadow-xs transition-colors cursor-pointer flex items-center gap-1"
+                                title="Retrieve and restore this deleted activity"
                               >
-                                <span>Revoke</span>
+                                <span>♻️</span>
+                                <span>Retrieve</span>
+                              </button>
+                              <button
+                                onClick={() => handlePermanentDeleteModule(module)}
+                                className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] shadow-xs transition-colors cursor-pointer flex items-center gap-1"
+                                title="Permanently delete this activity"
+                              >
+                                <span>🗑️</span>
+                                <span>Delete Forever</span>
                               </button>
                             </div>
                           )}
@@ -1060,61 +1365,94 @@ export default function ProgramMonitoring({
                     </div>
                   </div>
 
-                  {/* Actions Cluster: View, Comment, Approve */}
+                  {/* Actions Cluster: View, Comment, Approve, Delete / Retrieve */}
                   <div className="flex sm:flex-row md:flex-col items-end justify-center gap-2 shrink-0">
                     <div className="flex items-center gap-1.5 flex-wrap justify-end">
                       {/* 1. View Button */}
                       <button
                         onClick={() => setInspectingModule(module)}
                         className="px-3 py-1.5 rounded-xl bg-[#FAF5EC] hover:bg-[#EFE8DC] text-dash-ink font-bold text-xs transition-colors cursor-pointer border border-[#E5DAC4] flex items-center gap-1 shadow-2xs"
-                        title="View activity details and file"
+                        title="View or play activity file, image, or video before & after checking"
                       >
                         <span>👁️</span>
                         <span>View</span>
                       </button>
 
-                      {/* 2. Comment Button */}
-                      <button
-                        onClick={() => handleOpenComment(module)}
-                        className="px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-900 font-bold text-xs transition-colors cursor-pointer border border-sky-200 flex items-center gap-1 shadow-2xs"
-                        title="Add MSWD review feedback & comment"
-                      >
-                        <span>💬</span>
-                        <span>{module.mswd_comments ? 'Edit Comment' : 'Comment'}</span>
-                      </button>
+                      {!module.is_deleted ? (
+                        <>
+                          {/* 2. Comment Button */}
+                          <button
+                            onClick={() => handleOpenComment(module)}
+                            className="px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-900 font-bold text-xs transition-colors cursor-pointer border border-sky-200 flex items-center gap-1 shadow-2xs"
+                            title="Add MSWD review feedback & comment"
+                          >
+                            <span>💬</span>
+                            <span>{module.mswd_comments ? 'Edit Comment' : 'Comment'}</span>
+                          </button>
 
-                      {/* 3. Approve & Reject Buttons */}
-                      {!module.verified_by_mswd ? (
-                        <div className="inline-flex items-center gap-1.5">
+                          {/* 3. Approve & Reject Buttons */}
+                          {!module.verified_by_mswd ? (
+                            <div className="inline-flex items-center gap-1.5">
+                              <button
+                                onClick={() => handleApproveModule(module.id)}
+                                className="px-3 py-1.5 rounded-xl bg-[#2E6B38] hover:bg-[#23532B] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1"
+                                title="Approve and publish to this teacher's students"
+                              >
+                                <span>✓</span>
+                                <span>Approve</span>
+                              </button>
+                              <button
+                                onClick={() => handleRejectModule(module.id)}
+                                className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition-colors cursor-pointer flex items-center gap-1"
+                                title="Reject / Request revisions from teacher"
+                              >
+                                <span>✕</span>
+                                <span>Reject</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="inline-flex items-center gap-1.5">
+                              <span className="px-3 py-1.5 rounded-xl bg-[#DCEBDD] text-[#2E6B38] font-bold text-xs border border-emerald-300 flex items-center gap-1">
+                                <span>✓</span>
+                                <span>Approved</span>
+                              </span>
+                              <button
+                                onClick={() => handleRejectModule(module.id)}
+                                className="px-2 py-1.5 rounded-lg text-slate-400 hover:text-rose-700 hover:bg-rose-50 text-[11px] font-bold transition-colors cursor-pointer"
+                                title="Revoke approval or reject"
+                              >
+                                <span>Revoke</span>
+                              </button>
+                            </div>
+                          )}
+
+                          {/* 4. Delete Button */}
                           <button
-                            onClick={() => handleApproveModule(module.id)}
-                            className="px-3 py-1.5 rounded-xl bg-[#2E6B38] hover:bg-[#23532B] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1"
-                            title="Approve and publish to this teacher's students"
-                          >
-                            <span>✓</span>
-                            <span>Approve</span>
-                          </button>
-                          <button
-                            onClick={() => handleRejectModule(module.id)}
+                            onClick={() => handleDeleteModule(module)}
                             className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition-colors cursor-pointer flex items-center gap-1"
-                            title="Reject / Request revisions from teacher"
+                            title="Delete activity (can be retrieved from Deleted / Retrieve tab)"
                           >
-                            <span>✕</span>
-                            <span>Reject</span>
+                            <span>🗑️</span>
+                            <span>Delete</span>
                           </button>
-                        </div>
+                        </>
                       ) : (
                         <div className="inline-flex items-center gap-1.5">
-                          <span className="px-3 py-1.5 rounded-xl bg-[#DCEBDD] text-[#2E6B38] font-bold text-xs border border-emerald-300 flex items-center gap-1">
-                            <span>✓</span>
-                            <span>Approved</span>
-                          </span>
                           <button
-                            onClick={() => handleRejectModule(module.id)}
-                            className="px-2 py-1.5 rounded-lg text-slate-400 hover:text-rose-700 hover:bg-rose-50 text-[11px] font-bold transition-colors cursor-pointer"
-                            title="Revoke approval or reject"
+                            onClick={() => handleRetrieveModule(module)}
+                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1"
+                            title="Retrieve and restore this deleted activity"
                           >
-                            <span>Revoke</span>
+                            <span>♻️</span>
+                            <span>Retrieve</span>
+                          </button>
+                          <button
+                            onClick={() => handlePermanentDeleteModule(module)}
+                            className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1"
+                            title="Permanently delete this activity"
+                          >
+                            <span>🗑️</span>
+                            <span>Delete Forever</span>
                           </button>
                         </div>
                       )}
@@ -1332,19 +1670,127 @@ export default function ProgramMonitoring({
               </div>
             </div>
 
-            {inspectingModule.content_url && (
-              <div className="p-3 rounded-xl bg-sky-50 border border-sky-200 text-xs flex items-center justify-between">
-                <span className="font-bold text-sky-900">Attached Resource Link:</span>
-                <a
-                  href={inspectingModule.content_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-accent underline font-bold"
-                >
-                  Open External File / Media Link ↗
-                </a>
+            {/* Attached File / Image / Video Inline Preview (Before & After Checking) */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h5 className="font-bold text-dash-ink text-xs uppercase m-0">
+                  Attached Activity Media (View / Play Before &amp; After Checking)
+                </h5>
+                {inspectingMediaUrl && (
+                  <a
+                    href={inspectingMediaUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] font-bold text-accent hover:underline flex items-center gap-1"
+                  >
+                    <span>🔍 Open in New Tab ↗</span>
+                  </a>
+                )}
               </div>
-            )}
+
+              {inspectingMediaLoading ? (
+                <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-600 font-semibold">
+                  ⏳ Loading activity media preview...
+                </div>
+              ) : inspectingMediaUrl ? (
+                <div className="rounded-2xl border border-[#E5DAC4] bg-slate-900/5 overflow-hidden p-3 space-y-2">
+                  {(() => {
+                    const embedUrl = getEmbeddedVideoUrl(inspectingMediaUrl);
+                    const isVid = isVideoItem({
+                      url: inspectingMediaUrl,
+                      file_name: inspectingModule.file_name,
+                      file_type: inspectingModule.file_type,
+                      category: inspectingModule.category,
+                      module_type: inspectingModule.module_type,
+                    });
+                    const isImg = isImageItem({
+                      url: inspectingMediaUrl,
+                      file_name: inspectingModule.file_name,
+                      file_type: inspectingModule.file_type,
+                    });
+                    const isPdf = isPdfItem({
+                      url: inspectingMediaUrl,
+                      file_name: inspectingModule.file_name,
+                      file_type: inspectingModule.file_type,
+                    });
+
+                    if (embedUrl) {
+                      return (
+                        <iframe
+                          src={embedUrl}
+                          title={inspectingModule.title}
+                          className="w-full aspect-video rounded-xl border border-slate-300 bg-black"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        />
+                      );
+                    }
+                    if (isVid) {
+                      return (
+                        <video
+                          src={inspectingMediaUrl}
+                          controls
+                          playsInline
+                          className="w-full max-h-[380px] rounded-xl bg-black border border-slate-300 mx-auto"
+                        >
+                          Your browser does not support HTML5 video playback.
+                        </video>
+                      );
+                    }
+                    if (isImg) {
+                      return (
+                        <div className="flex justify-center bg-white rounded-xl p-2 border border-slate-200">
+                          <img
+                            src={inspectingMediaUrl}
+                            alt={inspectingModule.title}
+                            className="max-h-[380px] w-auto object-contain rounded-lg"
+                          />
+                        </div>
+                      );
+                    }
+                    if (isPdf) {
+                      return (
+                        <iframe
+                          src={inspectingMediaUrl}
+                          title={inspectingModule.title}
+                          className="w-full h-[380px] rounded-xl border border-slate-200 bg-white"
+                        />
+                      );
+                    }
+                    return (
+                      <div className="p-4 rounded-xl bg-white border border-slate-200 flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-2xl">📄</span>
+                          <div>
+                            <div className="font-bold text-xs text-slate-900">
+                              {inspectingModule.file_name || inspectingModule.title}
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              {inspectingModule.file_type || 'Document'} • {inspectingModule.file_size || '1.2 MB'}
+                            </div>
+                          </div>
+                        </div>
+                        <a
+                          href={inspectingMediaUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs"
+                        >
+                          👁️ Open File
+                        </a>
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
+                  <span>📄 Official Printable Activity Worksheet Summary available via Download button below.</span>
+                  <span className="font-mono text-[11px] text-slate-500">
+                    {inspectingModule.file_type || 'PDF'} • {inspectingModule.file_size || '1.3 MB'}
+                  </span>
+                </div>
+              )}
+            </div>
 
             {inspectingModule.mswd_comments && (
               <div className="p-3.5 rounded-xl bg-amber-50/90 border border-amber-300 text-xs text-amber-950 space-y-1">
@@ -1371,14 +1817,33 @@ export default function ProgramMonitoring({
             )}
 
             <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-card-border">
-              <button
-                onClick={() => {
-                  handleDownloadFile(inspectingModule);
-                }}
-                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-              >
-                <span>📥 Download File / Worksheet</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    handleDownloadFile(inspectingModule);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>📥 Download File / Worksheet</span>
+                </button>
+
+                {!inspectingModule.is_deleted ? (
+                  <button
+                    onClick={() => handleDeleteModule(inspectingModule)}
+                    className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition-colors cursor-pointer flex items-center gap-1.5"
+                    title="Delete activity (can be retrieved from Deleted / Retrieve tab)"
+                  >
+                    <span>🗑️ Delete</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleRetrieveModule(inspectingModule)}
+                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>♻️ Retrieve Activity</span>
+                  </button>
+                )}
+              </div>
 
               <div className="flex items-center gap-2">
                 <button
@@ -1681,6 +2146,61 @@ export default function ProgramMonitoring({
                   placeholder="Outline toddler engagement steps and materials needed..."
                   className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] font-semibold text-dash-ink outline-none focus:border-accent resize-none"
                 />
+              </div>
+
+              {/* Attach File / Image / Video + Applicable Size Limits */}
+              <div className="space-y-2 p-3.5 rounded-2xl bg-[#FAF5EC] border border-[#E5DCC9]">
+                <label className="font-bold text-dash-ink block">
+                  Attach Activity File, Image, or Video (Optional)
+                </label>
+                <div className="px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200/80 text-[11px] font-semibold text-amber-900">
+                  📏 <span className="font-bold">Applicable File Size Limits:</span> 🖼️ Images: Max 10 MB • 📁 Files/Docs (PDF/Word/PPT): Max 15 MB • 🎬 Videos (MP4/WebM/MOV): Max 50 MB
+                </div>
+                <input
+                  type="file"
+                  accept="image/*,video/*,.mp4,.webm,.mov,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
+                  onChange={handleAdminFileChange}
+                  className="w-full text-xs text-slate-700 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer"
+                />
+                {adminFileError && (
+                  <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 font-bold text-[11px]">
+                    ⚠️ {adminFileError}
+                  </div>
+                )}
+                {adminFile && !adminFileError && (
+                  <div className="p-2.5 rounded-xl bg-white border border-emerald-200 space-y-2">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-bold text-emerald-800 truncate">
+                        ✓ Attached: {adminFile.name} ({formatFileSize(adminFile.size)})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdminFile(null);
+                          setAdminFilePreviewUrl('');
+                        }}
+                        className="text-rose-600 font-bold hover:underline cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    {adminFilePreviewUrl && adminFile.type?.startsWith('video/') && (
+                      <video
+                        src={adminFilePreviewUrl}
+                        controls
+                        playsInline
+                        className="w-full max-h-44 rounded-lg bg-black border border-slate-200"
+                      />
+                    )}
+                    {adminFilePreviewUrl && adminFile.type?.startsWith('image/') && (
+                      <img
+                        src={adminFilePreviewUrl}
+                        alt={adminFile.name}
+                        className="max-h-40 rounded-lg object-contain mx-auto border border-slate-200"
+                      />
+                    )}
+                  </div>
+                )}
               </div>
 
               {uploadSuccess && (

@@ -112,7 +112,7 @@ export default function TeacherUploadModal({
             <input
               ref={fileInputRef}
               type="file"
-              accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.mp4,.zip"
+              accept="image/*,video/*,video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.gif,.zip"
               onChange={(e) => {
                 if (e.target.files && e.target.files[0]) {
                   handleFileSelected(e.target.files[0]);
@@ -120,6 +120,25 @@ export default function TeacherUploadModal({
               }}
               className="hidden"
             />
+
+            {/* Applicable File Size Limits Indicator */}
+            <div className="mb-2.5 p-2.5 rounded-xl bg-amber-50/90 border border-amber-200 text-[11px] text-amber-950 flex flex-wrap items-center justify-between gap-2">
+              <span className="font-bold flex items-center gap-1 text-amber-900">
+                <span>📌</span>
+                <span>Applicable File Size Limits:</span>
+              </span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="px-2 py-0.5 rounded-md bg-white border border-amber-200 font-bold text-slate-800">
+                  🖼️ Images: Max 10 MB
+                </span>
+                <span className="px-2 py-0.5 rounded-md bg-white border border-amber-200 font-bold text-slate-800">
+                  📁 Files/Docs (PDF/Word/PPT): Max 15 MB
+                </span>
+                <span className="px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200 font-bold text-purple-900">
+                  🎬 Videos (MP4/WebM/MOV): Max 50 MB
+                </span>
+              </div>
+            </div>
 
             {!uploadFileName ? (
               <div
@@ -158,11 +177,11 @@ export default function TeacherUploadModal({
                 </div>
                 <div>
                   <p className="font-bold text-slate-800 text-xs m-0">
-                    Drag &amp; drop file here, or{' '}
+                    Drag &amp; drop file, image, or video here, or{' '}
                     <span className="text-accent underline font-extrabold">choose file</span>
                   </p>
                   <p className="text-[10.5px] text-slate-500 mt-0.5 mb-0">
-                    PDF, Word, Excel, PowerPoint, Images (PNG/JPG), MP4 Video, Worksheets
+                    Supports Video (MP4, WebM, MOV up to 50 MB), PDF/Word/PPT (up to 15 MB), &amp; Images (PNG/JPG up to 10 MB)
                   </p>
                 </div>
 
@@ -175,52 +194,74 @@ export default function TeacherUploadModal({
                   className="mt-1 px-3.5 py-1 rounded-lg bg-white border border-slate-300 hover:border-slate-400 text-slate-800 font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <span>📁</span>
-                  <span>Choose File</span>
+                  <span>Choose File / Image / Video</span>
                 </button>
               </div>
             ) : (
-              <div className="p-3 rounded-xl border border-emerald-300 bg-emerald-50/60 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  {uploadFilePreview && ['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF'].includes(uploadFileType) ? (
-                    <img
-                      src={uploadFilePreview}
-                      alt="Preview"
-                      className="w-11 h-11 object-cover rounded-lg border border-emerald-200 shadow-xs shrink-0"
-                    />
-                  ) : (
-                    <div className="w-11 h-11 rounded-lg bg-emerald-700 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
-                      {uploadFileType || 'FILE'}
+              <div className="p-3 rounded-xl border border-emerald-300 bg-emerald-50/60 space-y-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {uploadFilePreview && ['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF'].includes(uploadFileType) ? (
+                      <img
+                        src={uploadFilePreview}
+                        alt="Preview"
+                        className="w-11 h-11 object-cover rounded-lg border border-emerald-200 shadow-xs shrink-0"
+                      />
+                    ) : ['MP4', 'WEBM', 'MOV', 'OGG', 'M4V', 'VIDEO'].includes(uploadFileType) ? (
+                      <div className="w-11 h-11 rounded-lg bg-purple-700 text-white font-bold text-xs flex flex-col items-center justify-center shrink-0 shadow-xs">
+                        <span className="text-sm">🎬</span>
+                        <span className="text-[9px]">{uploadFileType}</span>
+                      </div>
+                    ) : (
+                      <div className="w-11 h-11 rounded-lg bg-emerald-700 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                        {uploadFileType || 'FILE'}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-900 text-xs truncate max-w-xs">
+                        {uploadFileName}
+                      </div>
+                      <div className="text-[11px] text-emerald-800 font-medium flex items-center gap-2 mt-0.5">
+                        <span>{uploadFileSize}</span>
+                        <span>•</span>
+                        <span className="font-bold text-emerald-700">✓ Within size limit &amp; ready to upload</span>
+                      </div>
                     </div>
-                  )}
-                  <div className="min-w-0">
-                    <div className="font-bold text-slate-900 text-xs truncate max-w-xs">
-                      {uploadFileName}
-                    </div>
-                    <div className="text-[11px] text-emerald-800 font-medium flex items-center gap-2 mt-0.5">
-                      <span>{uploadFileSize}</span>
-                      <span>•</span>
-                      <span className="font-bold text-emerald-700">✓ Ready to upload</span>
-                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-2.5 py-1 rounded-md bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs cursor-pointer"
+                    >
+                      Change
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRemoveSelectedFile}
+                      className="p-1 rounded-md hover:bg-rose-100 text-rose-600 cursor-pointer"
+                      title="Remove file"
+                    >
+                      <IconClose className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-2.5 py-1 rounded-md bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs cursor-pointer"
-                  >
-                    Change
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleRemoveSelectedFile}
-                    className="p-1 rounded-md hover:bg-rose-100 text-rose-600 cursor-pointer"
-                    title="Remove file"
-                  >
-                    <IconClose className="w-4 h-4" />
-                  </button>
-                </div>
+                {/* Inline Video Player Preview when a video file is selected */}
+                {uploadFilePreview &&
+                  (['MP4', 'WEBM', 'MOV', 'OGG', 'M4V', 'VIDEO'].includes(uploadFileType) ||
+                    uploadFilePreview.startsWith('data:video/') ||
+                    uploadFilePreview.startsWith('blob:')) && (
+                    <div className="rounded-xl overflow-hidden border border-purple-200 bg-black">
+                      <video
+                        controls
+                        playsInline
+                        src={uploadFilePreview}
+                        className="w-full max-h-52 mx-auto block"
+                      />
+                    </div>
+                  )}
               </div>
             )}
           </div>

@@ -29,6 +29,15 @@ import {
 import TeacherChildDevelopment from '../components/teacher/TeacherChildDevelopment.jsx';
 import TeacherUploadModal from '../components/teacher/TeacherUploadModal.jsx';
 import {
+  validateActivityFile,
+  isVideoItem,
+  isImageItem,
+  isPdfItem,
+  getEmbeddedVideoUrl,
+  saveMediaBlobToIndexedDB,
+  resolveViewableMediaUrl,
+} from '../lib/mediaStorage.js';
+import {
   IconSearch,
   IconMaterials,
   IconClose,
@@ -89,6 +98,15 @@ export default function TeacherDashboard({ profile }) {
   // In-App Preview Modal state (for viewing teacher uploaded materials & student submitted activities without forcing download)
   const [previewModalItem, setPreviewModalItem] = useState(null);
   const [previewBlobUrl, setPreviewBlobUrl] = useState(null);
+  const [submissionFilter, setSubmissionFilter] = useState('all'); // 'all' | 'pending' | 'checked' | 'deleted'
+  const [teacherToast, setTeacherToast] = useState(null);
+
+  const showTeacherToast = useCallback((message, undoAction = null) => {
+    setTeacherToast({ message, undoAction });
+    setTimeout(() => {
+      setTeacherToast((prev) => (prev?.message === message ? null : prev));
+    }, 6500);
+  }, []);
 
   // Helper to convert data: URLs to Blob URLs so PDFs and images can be viewed inline or in a new tab without forced download
   const createViewableUrl = useCallback((rawUrl) => {
@@ -114,15 +132,19 @@ export default function TeacherDashboard({ profile }) {
   }, []);
 
   const handleOpenPreviewModal = useCallback(
-    (item) => {
+    async (item) => {
       if (previewBlobUrl && previewBlobUrl.startsWith('blob:')) {
         try {
           URL.revokeObjectURL(previewBlobUrl);
         } catch { }
       }
-      const nextBlob = item?.fileUrl ? createViewableUrl(item.fileUrl) : null;
-      setPreviewBlobUrl(nextBlob);
       setPreviewModalItem(item);
+      if (item?.fileUrl) {
+        const resolved = await resolveViewableMediaUrl(item.fileUrl);
+        setPreviewBlobUrl(resolved ? createViewableUrl(resolved) : null);
+      } else {
+        setPreviewBlobUrl(null);
+      }
     },
     [createViewableUrl, previewBlobUrl]
   );
@@ -138,9 +160,10 @@ export default function TeacherDashboard({ profile }) {
   }, [previewBlobUrl]);
 
   const handleOpenInNewTabOrDownload = useCallback(
-    (fileUrl, fileName, mode = 'view') => {
+    async (fileUrl, fileName, mode = 'view') => {
       if (!fileUrl) return;
-      const urlToUse = createViewableUrl(fileUrl);
+      const resolved = await resolveViewableMediaUrl(fileUrl);
+      const urlToUse = createViewableUrl(resolved || fileUrl);
       if (mode === 'download') {
         const a = document.createElement('a');
         a.href = urlToUse;
@@ -430,6 +453,8 @@ export default function TeacherDashboard({ profile }) {
           file_size: m.file_size || null,
           file_type: m.file_type || null,
           content_url: m.content_url || null,
+          is_deleted: Boolean(m.is_deleted),
+          deleted_at: m.deleted_at || null,
           isLocal: true,
         };
       });
@@ -506,9 +531,11 @@ export default function TeacherDashboard({ profile }) {
             ? 'Worksheet File (PDF)'
             : m.content_url?.startsWith('data:image/')
               ? 'Activity Image'
-              : m.content_url?.startsWith('data:')
-                ? 'Attached Learning Document'
-                : null),
+              : m.content_url?.startsWith('data:video/') || m.content_url?.startsWith('idb://')
+                ? 'Video Lesson File'
+                : m.content_url?.startsWith('data:')
+                  ? 'Attached Learning Document'
+                  : null),
         file_size: meta.file_size || localMatch?.file_size || m.file_size || null,
         file_type:
           meta.file_type ||
@@ -518,8 +545,12 @@ export default function TeacherDashboard({ profile }) {
             ? 'PDF'
             : m.content_url?.startsWith('data:image/')
               ? 'IMAGE'
-              : m.type?.toUpperCase() || 'FILE'),
+              : m.content_url?.startsWith('data:video/')
+                ? 'MP4'
+                : m.type?.toUpperCase() || 'FILE'),
         content_url: m.content_url || localMatch?.content_url || null,
+        is_deleted: Boolean(meta.is_deleted || localMatch?.is_deleted),
+        deleted_at: meta.deleted_at || localMatch?.deleted_at || null,
         raw_meta: meta,
         isLocal: false,
       };
@@ -553,6 +584,8 @@ export default function TeacherDashboard({ profile }) {
             posted_to_students: Boolean(item.posted_to_students || existing.posted_to_students),
             content_url: item.content_url || existing.content_url || null,
             file_name: item.file_name || existing.file_name || null,
+            is_deleted: Boolean(item.is_deleted || existing.is_deleted),
+            deleted_at: item.deleted_at || existing.deleted_at || null,
           });
         } else {
           if (item.id && item.id !== existing.id && !String(item.id).startsWith('mod-')) {
@@ -561,6 +594,10 @@ export default function TeacherDashboard({ profile }) {
           existing.posted_to_students = Boolean(existing.posted_to_students || item.posted_to_students);
           if (!existing.content_url && item.content_url) existing.content_url = item.content_url;
           if (!existing.file_name && item.file_name) existing.file_name = item.file_name;
+          if (item.is_deleted) {
+            existing.is_deleted = true;
+            existing.deleted_at = item.deleted_at || existing.deleted_at || null;
+          }
         }
       }
     });
@@ -580,10 +617,15 @@ export default function TeacherDashboard({ profile }) {
   // Filtered uploaded materials
   const filteredUploadedMaterials = useMemo(() => {
     return combinedUploadedMaterials.filter((m) => {
-      if (uploadedFilterStatus === 'pending' && m.status !== 'Pending Review') return false;
-      if (uploadedFilterStatus === 'approved' && m.status !== 'Approved') return false;
-      if (uploadedFilterStatus === 'posted' && !m.posted_to_students) return false;
-      if (uploadedFilterStatus === 'rejected' && m.status !== 'Rejected') return false;
+      if (uploadedFilterStatus === 'deleted') {
+        if (!m.is_deleted) return false;
+      } else {
+        if (m.is_deleted) return false;
+        if (uploadedFilterStatus === 'pending' && m.status !== 'Pending Review') return false;
+        if (uploadedFilterStatus === 'approved' && m.status !== 'Approved') return false;
+        if (uploadedFilterStatus === 'posted' && !m.posted_to_students) return false;
+        if (uploadedFilterStatus === 'rejected' && m.status !== 'Rejected') return false;
+      }
 
       const matchLevel =
         uploadedFilterLevel === 'all' ||
@@ -610,9 +652,15 @@ export default function TeacherDashboard({ profile }) {
     uploadedSearch,
   ]);
 
-  // Handle File Chosen / Dropped for Upload
-  const handleFileSelected = (file) => {
+  // Handle File Chosen / Dropped for Upload (Validates file size limits & supports video up to 50 MB)
+  const handleFileSelected = async (file) => {
     if (!file) return;
+    const validation = validateActivityFile(file);
+    if (!validation.valid) {
+      setUploadMsg({ text: `⚠️ ${validation.error}`, type: 'error' });
+      return;
+    }
+    setUploadMsg({ text: '', type: '' });
     setUploadFile(file);
     setUploadFileName(file.name);
 
@@ -627,9 +675,9 @@ export default function TeacherDashboard({ profile }) {
 
     // Auto-detect format type
     const lowerExt = ext.toLowerCase();
-    if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(lowerExt)) {
+    if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(lowerExt) || file.type?.startsWith('image/')) {
       setUploadType('image');
-    } else if (['mp4', 'mov', 'webm', 'avi', 'mkv'].includes(lowerExt)) {
+    } else if (['mp4', 'mov', 'webm', 'avi', 'mkv', 'm4v'].includes(lowerExt) || file.type?.startsWith('video/')) {
       setUploadType('video');
     } else if (['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'].includes(lowerExt)) {
       setUploadType('file');
@@ -640,6 +688,19 @@ export default function TeacherDashboard({ profile }) {
     if (!uploadTitle.trim() || uploadTitle.match(/^\[.*\]\s*$/)) {
       const prefix = uploadWeek ? `[${uploadCurriculumLevel} Q${uploadQuarter} ${uploadWeek}] ` : `[${uploadCurriculumLevel} Q${uploadQuarter}] `;
       setUploadTitle(`${prefix}${cleanName}`);
+    }
+
+    // For large files / videos (> 3 MB up to 50 MB), store in IndexedDB and use Blob URL for preview
+    if (file.size > 3 * 1024 * 1024) {
+      try {
+        const idbKey = await saveMediaBlobToIndexedDB(file);
+        const blobPreview = URL.createObjectURL(file);
+        setUploadFilePreview(blobPreview);
+        setUploadUrl(idbKey);
+        return;
+      } catch {
+        // Fallback to FileReader below
+      }
     }
 
     // Read file for preview / download URL
@@ -799,7 +860,7 @@ export default function TeacherDashboard({ profile }) {
       return;
     }
 
-    const effectiveUrl = uploadFilePreview || uploadUrl.trim() || null;
+    const effectiveUrl = uploadUrl.trim() || uploadFilePreview || null;
     const effectiveFileName = uploadFileName || null;
     const effectiveFileSize = uploadFileSize || '2.4 MB';
     const effectiveFileType = uploadFileType || (uploadType === 'video' ? 'MP4' : uploadType === 'file' ? 'PDF' : uploadType.toUpperCase());
@@ -1142,21 +1203,137 @@ export default function TeacherDashboard({ profile }) {
     }, 1100);
   }
 
-  // Delete material
+  // Soft-Delete material (moves to Deleted / Retrieve tab so it can be retrieved or permanently deleted)
   async function handleDeleteMaterial(mat) {
-    if (!confirm(`Delete "${mat.title}"?`)) return;
-    if (!mat.isLocal) {
-      await supabase.from('materials').delete().eq('id', mat.id);
-      loadMyMaterials();
+    const deletedAt = new Date().toLocaleDateString('en-US', {
+      month: 'short',
+      day: '2-digit',
+      year: 'numeric',
+    });
+
+    if (!mat.isLocal && mat.id && !String(mat.id).startsWith('mod-')) {
+      try {
+        const updatedMeta = {
+          ...(mat.raw_meta || {}),
+          __metadata: true,
+          assignment_id: mat.assignment_id || null,
+          description: mat.content_text || '',
+          teacher_name: myFullName || profile?.full_name || 'Teacher',
+          cdc_name: myCdcName || profile?.cdc_name || 'Manolo Fortich CDC',
+          barangay: myBarangay || profile?.barangay || 'Manolo Fortich',
+          level: mat.level || 'Pre-K1',
+          quarter: mat.quarter || 1,
+          week: mat.week || 'Week 1',
+          sub_theme: mat.sub_theme || '',
+          theme: mat.theme || '',
+          module_type: mat.formatLabel || 'Activity Worksheet',
+          file_name: mat.file_name || null,
+          file_size: mat.file_size || null,
+          file_type: mat.file_type || null,
+          posted_to_students: Boolean(mat.posted_to_students),
+          target_student_id: mat.target_student_id || null,
+          target_student_name: mat.target_student_name || null,
+          is_deleted: true,
+          deleted_at: deletedAt,
+        };
+        await supabase
+          .from('materials')
+          .update({ content_text: JSON.stringify(updatedMeta) })
+          .eq('id', mat.id);
+        loadMyMaterials();
+      } catch { }
     }
-    const updated = localTeacherModules.filter((m) => m.id !== mat.id);
+
+    let foundInLocal = false;
+    const updated = localTeacherModules.map((m) => {
+      if (m.id === mat.id || m.title === mat.title) {
+        foundInLocal = true;
+        return { ...m, is_deleted: true, deleted_at: deletedAt };
+      }
+      return m;
+    });
+    if (!foundInLocal) {
+      updated.unshift({
+        ...mat,
+        is_deleted: true,
+        deleted_at: deletedAt,
+        is_custom_teacher_upload: true,
+      });
+    }
     setLocalTeacherModules(updated);
     try {
       localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(updated));
       window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updated }));
-    } catch {
-      // Ignored
+    } catch { }
+
+    showTeacherToast(`🗑️ Deleted "${mat.title}". Moved to Deleted / Retrieve tab.`, () =>
+      handleRetrieveMaterial(mat)
+    );
+  }
+
+  // Retrieve a soft-deleted material back to active status
+  async function handleRetrieveMaterial(mat) {
+    if (!mat.isLocal && mat.id && !String(mat.id).startsWith('mod-')) {
+      try {
+        const updatedMeta = {
+          ...(mat.raw_meta || {}),
+          __metadata: true,
+          assignment_id: mat.assignment_id || null,
+          description: mat.content_text || '',
+          teacher_name: myFullName || profile?.full_name || 'Teacher',
+          cdc_name: myCdcName || profile?.cdc_name || 'Manolo Fortich CDC',
+          barangay: myBarangay || profile?.barangay || 'Manolo Fortich',
+          level: mat.level || 'Pre-K1',
+          quarter: mat.quarter || 1,
+          week: mat.week || 'Week 1',
+          sub_theme: mat.sub_theme || '',
+          theme: mat.theme || '',
+          module_type: mat.formatLabel || 'Activity Worksheet',
+          file_name: mat.file_name || null,
+          file_size: mat.file_size || null,
+          file_type: mat.file_type || null,
+          posted_to_students: Boolean(mat.posted_to_students),
+          target_student_id: mat.target_student_id || null,
+          target_student_name: mat.target_student_name || null,
+          is_deleted: false,
+          deleted_at: null,
+        };
+        await supabase
+          .from('materials')
+          .update({ content_text: JSON.stringify(updatedMeta) })
+          .eq('id', mat.id);
+        loadMyMaterials();
+      } catch { }
     }
+
+    const updated = localTeacherModules.map((m) =>
+      m.id === mat.id || m.title === mat.title
+        ? { ...m, is_deleted: false, deleted_at: null }
+        : m
+    );
+    setLocalTeacherModules(updated);
+    try {
+      localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updated }));
+    } catch { }
+
+    showTeacherToast(`♻️ Retrieved "${mat.title}" back to your active uploaded materials!`);
+  }
+
+  // Permanently delete a material from Deleted / Retrieve tab
+  async function handlePermanentDeleteMaterial(mat) {
+    if (!confirm(`Permanently delete "${mat.title}"? This action cannot be undone.`)) return;
+    if (!mat.isLocal && mat.id && !String(mat.id).startsWith('mod-')) {
+      await supabase.from('materials').delete().eq('id', mat.id);
+      loadMyMaterials();
+    }
+    const updated = localTeacherModules.filter((m) => m.id !== mat.id && m.title !== mat.title);
+    setLocalTeacherModules(updated);
+    try {
+      localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updated }));
+    } catch { }
+    showTeacherToast(`🗑️ Permanently deleted "${mat.title}".`);
   }
 
   // --- Announcements ---
@@ -1237,6 +1414,8 @@ export default function TeacherDashboard({ profile }) {
             fileName: parsedMeta?.file_name || null,
             fileType: parsedMeta?.file_type || null,
             fileSize: parsedMeta?.file_size || null,
+            is_deleted: Boolean(parsedMeta?.is_deleted),
+            deleted_at: parsedMeta?.deleted_at || null,
           };
         });
       }
@@ -1264,6 +1443,8 @@ export default function TeacherDashboard({ profile }) {
           fileName: u.fileName || null,
           fileType: u.fileType || null,
           fileSize: u.fileSize || null,
+          is_deleted: Boolean(u.is_deleted),
+          deleted_at: u.deleted_at || null,
           isStudentUpload: true,
         };
       });
@@ -1303,6 +1484,10 @@ export default function TeacherDashboard({ profile }) {
         }
         if (item.status === 'checked') {
           existing.status = 'checked';
+        }
+        if (item.is_deleted) {
+          existing.is_deleted = true;
+          existing.deleted_at = item.deleted_at || existing.deleted_at || null;
         }
       }
     });
@@ -1378,6 +1563,143 @@ export default function TeacherDashboard({ profile }) {
 
     loadSubmissions();
     loadProgress();
+  }
+
+  // Soft-Delete student submission (moves to Deleted / Retrieve tab)
+  async function handleDeleteSubmission(targetSub) {
+    if (!targetSub) return;
+    const idsToDelete = targetSub.allIds || [targetSub.id];
+    const rawRows = targetSub.rawRows || [targetSub];
+    const deletedAt = new Date().toLocaleDateString('en-US', {
+      month: 'short',
+      day: '2-digit',
+      year: 'numeric',
+    });
+
+    for (const row of rawRows) {
+      if (!row?.id || String(row.id).startsWith('stu-')) continue;
+      const baseMeta = row.parsed_meta || {
+        __submission_meta: true,
+        student_name: cleanStudentName(targetSub.profiles?.full_name || 'Learner'),
+        material_title: targetSub.materials?.title || 'Activity Submission',
+        answer_text: row.answer_text || '',
+        file_url: row.mediaUrl || null,
+        file_name: row.fileName || null,
+        file_type: row.fileType || null,
+        file_size: row.fileSize || null,
+        teacher_checked: targetSub.status === 'checked',
+      };
+      const updatedAnswerText = JSON.stringify({
+        ...baseMeta,
+        is_deleted: true,
+        deleted_at: deletedAt,
+      });
+      try {
+        await supabase
+          .from('submissions')
+          .update({ answer_text: updatedAnswerText })
+          .eq('id', row.id);
+      } catch { }
+    }
+
+    try {
+      const targetStudentName = cleanStudentName(targetSub.profiles?.full_name || '').toLowerCase();
+      const localStudentUploads = JSON.parse(localStorage.getItem('earlylearn_student_uploads') || '[]');
+      const updated = localStudentUploads.map((u) => {
+        const uStudent = cleanStudentName(u.studentName || '').toLowerCase();
+        if (idsToDelete.includes(u.id) || (targetStudentName && uStudent === targetStudentName)) {
+          return { ...u, is_deleted: true, deleted_at: deletedAt };
+        }
+        return u;
+      });
+      localStorage.setItem('earlylearn_student_uploads', JSON.stringify(updated));
+      if (targetSub.student_id) {
+        localStorage.setItem(`earlylearn_student_uploads_${targetSub.student_id}`, JSON.stringify(updated));
+      }
+    } catch { }
+
+    loadSubmissions();
+    showTeacherToast(
+      `🗑️ Deleted submission for ${cleanStudentName(targetSub.profiles?.full_name || 'Student')}. Moved to Deleted / Retrieve tab.`,
+      () => handleRetrieveSubmission(targetSub)
+    );
+  }
+
+  // Retrieve soft-deleted student submission
+  async function handleRetrieveSubmission(targetSub) {
+    if (!targetSub) return;
+    const idsToRestore = targetSub.allIds || [targetSub.id];
+    const rawRows = targetSub.rawRows || [targetSub];
+
+    for (const row of rawRows) {
+      if (!row?.id || String(row.id).startsWith('stu-')) continue;
+      if (row.parsed_meta) {
+        const updatedAnswerText = JSON.stringify({
+          ...row.parsed_meta,
+          is_deleted: false,
+          deleted_at: null,
+        });
+        try {
+          await supabase
+            .from('submissions')
+            .update({ answer_text: updatedAnswerText })
+            .eq('id', row.id);
+        } catch { }
+      }
+    }
+
+    try {
+      const targetStudentName = cleanStudentName(targetSub.profiles?.full_name || '').toLowerCase();
+      const localStudentUploads = JSON.parse(localStorage.getItem('earlylearn_student_uploads') || '[]');
+      const updated = localStudentUploads.map((u) => {
+        const uStudent = cleanStudentName(u.studentName || '').toLowerCase();
+        if (idsToRestore.includes(u.id) || (targetStudentName && uStudent === targetStudentName)) {
+          return { ...u, is_deleted: false, deleted_at: null };
+        }
+        return u;
+      });
+      localStorage.setItem('earlylearn_student_uploads', JSON.stringify(updated));
+      if (targetSub.student_id) {
+        localStorage.setItem(`earlylearn_student_uploads_${targetSub.student_id}`, JSON.stringify(updated));
+      }
+    } catch { }
+
+    loadSubmissions();
+    showTeacherToast(
+      `♻️ Retrieved submission for ${cleanStudentName(targetSub.profiles?.full_name || 'Student')}!`
+    );
+  }
+
+  // Permanently delete student submission
+  async function handlePermanentDeleteSubmission(targetSub) {
+    if (!targetSub) return;
+    const stName = cleanStudentName(targetSub.profiles?.full_name || 'Student');
+    if (!confirm(`Permanently delete submission for ${stName}? This cannot be undone.`)) return;
+
+    const idsToRemove = targetSub.allIds || [targetSub.id];
+    for (const id of idsToRemove) {
+      if (!id || String(id).startsWith('stu-')) continue;
+      try {
+        await supabase.from('submissions').delete().eq('id', id);
+      } catch { }
+    }
+
+    try {
+      const targetStudentName = stName.toLowerCase();
+      const localStudentUploads = JSON.parse(localStorage.getItem('earlylearn_student_uploads') || '[]');
+      const updated = localStudentUploads.filter((u) => {
+        const uStudent = cleanStudentName(u.studentName || '').toLowerCase();
+        return !idsToRemove.includes(u.id) && (!targetStudentName || uStudent !== targetStudentName);
+      });
+      localStorage.setItem('earlylearn_student_uploads', JSON.stringify(updated));
+      if (targetSub.student_id) {
+        localStorage.setItem(`earlylearn_student_uploads_${targetSub.student_id}`, JSON.stringify(updated));
+      }
+    } catch { }
+
+    loadSubmissions();
+    loadProgress();
+    showTeacherToast(`🗑️ Permanently deleted submission for ${stName}.`);
   }
 
   // --- Progress (1 record per student only, student name only without parent name) ---
@@ -3059,30 +3381,67 @@ export default function TeacherDashboard({ profile }) {
             )}
           </div>
 
+          {/* Toast Notification for Delete / Retrieve */}
+          {teacherToast && (
+            <div className="p-3 rounded-2xl bg-slate-900 text-white text-xs font-bold flex items-center justify-between gap-3 shadow-md">
+              <span>{teacherToast.message}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                {teacherToast.undoAction && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      teacherToast.undoAction();
+                      setTeacherToast(null);
+                    }}
+                    className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs cursor-pointer"
+                  >
+                    ♻️ Retrieve / Undo
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setTeacherToast(null)}
+                  className="text-slate-300 hover:text-white cursor-pointer px-1"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Concise Status Navigation Pills + Search */}
           <div className="p-3.5 bg-white border border-slate-200 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
             <div className="flex flex-wrap items-center gap-1.5">
               {[
-                { key: 'all', label: 'All', count: combinedUploadedMaterials.length },
+                {
+                  key: 'all',
+                  label: 'All',
+                  count: combinedUploadedMaterials.filter((m) => !m.is_deleted).length,
+                },
                 {
                   key: 'pending',
                   label: '⏳ Pending MSWD',
-                  count: combinedUploadedMaterials.filter((m) => m.status === 'Pending Review').length,
+                  count: combinedUploadedMaterials.filter((m) => !m.is_deleted && m.status === 'Pending Review').length,
                 },
                 {
                   key: 'approved',
                   label: '✅ MSWD Approved',
-                  count: combinedUploadedMaterials.filter((m) => m.status === 'Approved').length,
+                  count: combinedUploadedMaterials.filter((m) => !m.is_deleted && m.status === 'Approved').length,
                 },
                 {
                   key: 'posted',
                   label: '🚀 Posted to Students',
-                  count: combinedUploadedMaterials.filter((m) => m.posted_to_students).length,
+                  count: combinedUploadedMaterials.filter((m) => !m.is_deleted && m.posted_to_students).length,
                 },
                 {
                   key: 'rejected',
                   label: '❌ Rejected',
-                  count: combinedUploadedMaterials.filter((m) => m.status === 'Rejected').length,
+                  count: combinedUploadedMaterials.filter((m) => !m.is_deleted && m.status === 'Rejected').length,
+                },
+                {
+                  key: 'deleted',
+                  label: '♻️ Deleted / Retrieve',
+                  count: combinedUploadedMaterials.filter((m) => m.is_deleted).length,
                 },
               ].map((tab) => (
                 <button
@@ -3090,13 +3449,21 @@ export default function TeacherDashboard({ profile }) {
                   type="button"
                   onClick={() => setUploadedFilterStatus(tab.key)}
                   className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${uploadedFilterStatus === tab.key
-                      ? 'bg-slate-900 text-white shadow-2xs'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      ? tab.key === 'deleted'
+                        ? 'bg-rose-600 text-white shadow-2xs'
+                        : 'bg-slate-900 text-white shadow-2xs'
+                      : tab.key === 'deleted'
+                        ? 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                     }`}
                 >
                   <span>{tab.label}</span>
                   <span
-                    className={`px-1.5 py-0.2 rounded-full text-[10px] ${uploadedFilterStatus === tab.key ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] ${uploadedFilterStatus === tab.key
+                        ? 'bg-white/20 text-white'
+                        : tab.key === 'deleted'
+                          ? 'bg-rose-200/70 text-rose-900'
+                          : 'bg-slate-200 text-slate-700'
                       }`}
                   >
                     {tab.count}
@@ -3135,6 +3502,19 @@ export default function TeacherDashboard({ profile }) {
             </div>
           </div>
 
+          {/* Applicable File Size Limits Indicator Banner */}
+          <div className="px-4 py-2.5 rounded-xl bg-amber-50/90 border border-amber-200/90 text-xs text-amber-900 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              📏 <span className="font-bold">Applicable File Size Limits for Posting &amp; Submitting Activities:</span>{' '}
+              <span className="font-semibold">🖼️ Images (PNG/JPG/WebP/GIF): Max 10 MB</span> •{' '}
+              <span className="font-semibold">📁 Files/Docs (PDF/Word/PPT): Max 15 MB</span> •{' '}
+              <span className="font-semibold">🎬 Videos (MP4/WebM/MOV): Max 50 MB</span>
+            </div>
+            <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/80 px-2.5 py-0.5 rounded-full">
+              👁️ All Files, Images &amp; Videos Viewable Before &amp; After Checking
+            </span>
+          </div>
+
           {/* Uploaded Materials Table */}
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
@@ -3152,11 +3532,20 @@ export default function TeacherDashboard({ profile }) {
                   {filteredUploadedMaterials.map((m) => {
                     const isApproved = m.status === 'Approved' || m.verified_by_mswd;
                     const isRejected = m.status === 'Rejected';
+                    const isVidMat = isVideoItem({
+                      url: m.content_url,
+                      file_name: m.file_name,
+                      file_type: m.file_type,
+                      type: m.type,
+                    });
 
                     return (
                       <tr key={m.id} className="hover:bg-slate-50/70 transition-colors">
                         <td className="px-4 py-3.5">
-                          <div className="font-bold text-slate-900 text-xs">{m.title}</div>
+                          <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                            {isVidMat && <span title="Video Lesson">🎬</span>}
+                            <span>{m.title}</span>
+                          </div>
                           {m.sub_theme && (
                             <div className="text-[11px] text-amber-900 font-semibold mt-0.5">
                               MSWD Topic: {m.sub_theme}
@@ -3164,7 +3553,7 @@ export default function TeacherDashboard({ profile }) {
                           )}
                           {m.file_name && (
                             <div className="text-[11px] text-blue-700 font-medium mt-1 flex items-center gap-1">
-                              <span>📎</span>
+                              <span>{isVidMat ? '🎬' : '📎'}</span>
                               <span className="font-semibold">{m.file_name}</span>
                               {m.file_size && <span className="text-slate-400">({m.file_size})</span>}
                             </div>
@@ -3253,7 +3642,7 @@ export default function TeacherDashboard({ profile }) {
 
                         <td className="px-4 py-3.5 text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-1.5">
-                            {isApproved && m.posted_to_students && (
+                            {!m.is_deleted && isApproved && m.posted_to_students && (
                               <button
                                 type="button"
                                 onClick={() => handleOpenPostToStudentModal(m)}
@@ -3268,6 +3657,7 @@ export default function TeacherDashboard({ profile }) {
                               onClick={() =>
                                 handleOpenPreviewModal({
                                   kind: 'material',
+                                  materialObj: m,
                                   title: m.title,
                                   subtitle: m.sub_theme
                                     ? `MSWD Topic: ${m.sub_theme} (${m.level || 'Pre-K1'} • Q${m.quarter} ${m.week})`
@@ -3283,18 +3673,44 @@ export default function TeacherDashboard({ profile }) {
                                 })
                               }
                               className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-colors inline-flex items-center gap-1 cursor-pointer"
-                              title="View Uploaded Activity & File"
+                              title="View or Play Uploaded Activity File, Image, or Video"
                             >
-                              <span>👁️</span>
-                              <span>View</span>
+                              <span>{isVidMat ? '▶️' : '👁️'}</span>
+                              <span>{isVidMat ? 'Play / View' : 'View'}</span>
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteMaterial(m)}
-                              className="px-2.5 py-1 rounded-lg text-red-600 hover:bg-red-50 text-xs font-medium transition-colors cursor-pointer"
-                            >
-                              Delete
-                            </button>
+
+                            {!m.is_deleted ? (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteMaterial(m)}
+                                className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-colors cursor-pointer inline-flex items-center gap-1"
+                                title="Delete activity (can be retrieved from Deleted / Retrieve tab)"
+                              >
+                                <span>🗑️</span>
+                                <span>Delete</span>
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRetrieveMaterial(m)}
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors cursor-pointer inline-flex items-center gap-1"
+                                  title="Retrieve and restore this deleted activity"
+                                >
+                                  <span>♻️</span>
+                                  <span>Retrieve</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handlePermanentDeleteMaterial(m)}
+                                  className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors cursor-pointer inline-flex items-center gap-1"
+                                  title="Permanently delete this activity"
+                                >
+                                  <span>🗑️</span>
+                                  <span>Delete Forever</span>
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -3376,145 +3792,295 @@ export default function TeacherDashboard({ profile }) {
 
       {/* SUBMISSIONS */}
       {activeTab === 'submissions' && (
-        <div className={cardBox}>
-          <h3 className={cardBoxTitle}>Student Submissions</h3>
-          <div className="overflow-x-auto">
-            <table className={table}>
-              <thead>
-                <tr>
-                  <th className={th}>Student</th>
-                  <th className={th}>Activity</th>
-                  <th className={th}>Answer &amp; Uploaded File</th>
-                  <th className={th}>Status</th>
-                  <th className={th}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {submissions.map((s) => (
-                  <tr key={s.id}>
-                    <td className={td}>
-                      <div className="font-bold text-slate-900">
-                        {cleanStudentName(s.profiles?.full_name) || '-'}
-                      </div>
-                    </td>
-                    <td className={td}>{s.materials?.title || '-'}</td>
-                    <td className={td}>
-                      <div className="space-y-1.5">
-                        {s.answer_text && <div className="text-xs text-slate-800">{s.answer_text}</div>}
-                        {s.mediaUrl && (
-                          <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-50 border border-slate-200 w-fit">
-                            {s.mediaUrl.startsWith('data:image/') ? (
-                              <img
-                                src={s.mediaUrl}
-                                alt={s.fileName || 'Student upload'}
-                                onClick={() =>
-                                  handleOpenPreviewModal({
-                                    kind: 'submission',
-                                    submissionId: s.id,
-                                    submissionObj: s,
-                                    studentName: cleanStudentName(s.profiles?.full_name) || 'Student',
-                                    title: s.materials?.title || 'Student Activity',
-                                    subtitle: `Submitted by ${cleanStudentName(s.profiles?.full_name) || 'Student'}`,
-                                    description: s.answer_text || '',
-                                    fileUrl: s.mediaUrl,
-                                    fileName: s.fileName || 'Student_Activity_File',
-                                    fileType: s.fileType || 'IMAGE',
-                                    fileSize: s.fileSize || '',
-                                    status: s.status,
-                                  })
-                                }
-                                className="w-11 h-11 object-cover rounded-lg border border-slate-200 shrink-0 cursor-pointer hover:opacity-90"
-                              />
-                            ) : (
-                              <div className="w-11 h-11 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 flex flex-col items-center justify-center shrink-0 text-[9px] font-extrabold">
-                                <span className="text-base">📄</span>
-                                <span>{s.fileType || 'FILE'}</span>
-                              </div>
-                            )}
-                            <div className="text-[11px]">
-                              <div className="font-bold text-slate-800">
-                                📎 {s.fileName || 'Student Uploaded File'}
-                              </div>
-                              <div className="flex items-center gap-2 mt-1">
+        <div className="space-y-4">
+          {teacherToast && (
+            <div className="p-3 rounded-2xl bg-slate-900 text-white text-xs font-bold flex items-center justify-between gap-3 shadow-md">
+              <span>{teacherToast.message}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                {teacherToast.undoAction && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      teacherToast.undoAction();
+                      setTeacherToast(null);
+                    }}
+                    className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs cursor-pointer"
+                  >
+                    ♻️ Retrieve / Undo
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setTeacherToast(null)}
+                  className="text-slate-300 hover:text-white cursor-pointer px-1"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className={cardBox}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div>
+                <h3 className={`${cardBoxTitle} mb-0`}>Student Submissions &amp; Activity Monitoring</h3>
+                <p className="text-xs text-slate-500 mt-0.5 m-0">
+                  View or play submitted files, images, and videos both before and after checking. Deleted records can be retrieved anytime.
+                </p>
+              </div>
+
+              {/* Filter Pills for Submissions */}
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                {[
+                  {
+                    key: 'all',
+                    label: 'All Active',
+                    count: submissions.filter((s) => !s.is_deleted).length,
+                  },
+                  {
+                    key: 'pending',
+                    label: '⏳ Pending Check',
+                    count: submissions.filter((s) => !s.is_deleted && s.status !== 'checked').length,
+                  },
+                  {
+                    key: 'checked',
+                    label: '✅ Checked',
+                    count: submissions.filter((s) => !s.is_deleted && s.status === 'checked').length,
+                  },
+                  {
+                    key: 'deleted',
+                    label: '♻️ Deleted / Retrieve',
+                    count: submissions.filter((s) => s.is_deleted).length,
+                  },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setSubmissionFilter(tab.key)}
+                    className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${submissionFilter === tab.key
+                        ? tab.key === 'deleted'
+                          ? 'bg-rose-600 text-white shadow-2xs'
+                          : 'bg-slate-900 text-white shadow-2xs'
+                        : tab.key === 'deleted'
+                          ? 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                  >
+                    <span>{tab.label}</span>
+                    <span
+                      className={`px-1.5 py-0.2 rounded-full text-[10px] ${submissionFilter === tab.key
+                          ? 'bg-white/20 text-white'
+                          : tab.key === 'deleted'
+                            ? 'bg-rose-200/70 text-rose-900'
+                            : 'bg-slate-200 text-slate-700'
+                        }`}
+                    >
+                      {tab.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Applicable File Size Limits Banner */}
+            <div className="mb-4 px-3.5 py-2 rounded-xl bg-amber-50/80 border border-amber-200 text-[11.5px] text-amber-900 flex flex-wrap items-center justify-between gap-2">
+              <span>
+                📏 <b>Applicable Submission File Limits:</b> 🖼️ Images: Max 10 MB • 📁 Files/Docs (PDF/Word): Max 15 MB • 🎬 Videos (MP4/WebM/MOV): Max 50 MB
+              </span>
+              <span className="font-bold text-emerald-800">
+                👁️ Viewable Before &amp; After Checking
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className={table}>
+                <thead>
+                  <tr>
+                    <th className={th}>Student</th>
+                    <th className={th}>Activity</th>
+                    <th className={th}>Answer &amp; Uploaded File / Image / Video</th>
+                    <th className={th}>Status</th>
+                    <th className={th}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {submissions
+                    .filter((s) => {
+                      if (submissionFilter === 'deleted') return Boolean(s.is_deleted);
+                      if (s.is_deleted) return false;
+                      if (submissionFilter === 'pending') return s.status !== 'checked';
+                      if (submissionFilter === 'checked') return s.status === 'checked';
+                      return true;
+                    })
+                    .map((s) => {
+                      const isVidSub = isVideoItem({
+                        url: s.mediaUrl,
+                        file_name: s.fileName,
+                        file_type: s.fileType,
+                      });
+                      const isImgSub = isImageItem({
+                        url: s.mediaUrl,
+                        file_name: s.fileName,
+                        file_type: s.fileType,
+                      });
+
+                      const openSubModal = () =>
+                        handleOpenPreviewModal({
+                          kind: 'submission',
+                          submissionId: s.id,
+                          submissionObj: s,
+                          studentName: cleanStudentName(s.profiles?.full_name) || 'Student',
+                          title: s.materials?.title || 'Student Activity',
+                          subtitle: `Submitted by ${cleanStudentName(s.profiles?.full_name) || 'Student'}`,
+                          description: s.answer_text || '',
+                          fileUrl: s.mediaUrl || null,
+                          fileName: s.fileName || 'Student_Activity_File',
+                          fileType: s.fileType || (isVidSub ? 'MP4' : isImgSub ? 'IMAGE' : 'FILE'),
+                          fileSize: s.fileSize || '',
+                          status: s.status,
+                        });
+
+                      return (
+                        <tr key={s.id}>
+                          <td className={td}>
+                            <div className="font-bold text-slate-900">
+                              {cleanStudentName(s.profiles?.full_name) || '-'}
+                            </div>
+                          </td>
+                          <td className={td}>{s.materials?.title || '-'}</td>
+                          <td className={td}>
+                            <div className="space-y-1.5">
+                              {s.answer_text && <div className="text-xs text-slate-800">{s.answer_text}</div>}
+                              {s.mediaUrl && (
+                                <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-50 border border-slate-200 w-fit">
+                                  {isImgSub && s.mediaUrl.startsWith('data:image/') ? (
+                                    <img
+                                      src={s.mediaUrl}
+                                      alt={s.fileName || 'Student upload'}
+                                      onClick={openSubModal}
+                                      className="w-11 h-11 object-cover rounded-lg border border-slate-200 shrink-0 cursor-pointer hover:opacity-90"
+                                    />
+                                  ) : isVidSub ? (
+                                    <div
+                                      onClick={openSubModal}
+                                      className="w-11 h-11 rounded-lg bg-purple-100 text-purple-800 border border-purple-300 flex flex-col items-center justify-center shrink-0 text-[9px] font-extrabold cursor-pointer hover:bg-purple-200"
+                                    >
+                                      <span className="text-base">🎬</span>
+                                      <span>{s.fileType || 'VIDEO'}</span>
+                                    </div>
+                                  ) : (
+                                    <div
+                                      onClick={openSubModal}
+                                      className="w-11 h-11 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 flex flex-col items-center justify-center shrink-0 text-[9px] font-extrabold cursor-pointer hover:bg-blue-100"
+                                    >
+                                      <span className="text-base">📄</span>
+                                      <span>{s.fileType || 'FILE'}</span>
+                                    </div>
+                                  )}
+                                  <div className="text-[11px]">
+                                    <div className="font-bold text-slate-800 flex items-center gap-1">
+                                      <span>{isVidSub ? '🎬' : '📎'}</span>
+                                      <span>{s.fileName || 'Student Uploaded File'}</span>
+                                      {s.fileSize && <span className="text-slate-400">({s.fileSize})</span>}
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <button
+                                        type="button"
+                                        onClick={openSubModal}
+                                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10.5px] cursor-pointer transition-colors inline-flex items-center gap-1"
+                                      >
+                                        <span>{isVidSub ? '▶️' : '👁️'}</span>
+                                        <span>{isVidSub ? 'Play / View Video' : 'View Activity'}</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                              {!s.mediaUrl && s.answer_text && (
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    handleOpenPreviewModal({
-                                      kind: 'submission',
-                                      submissionId: s.id,
-                                      submissionObj: s,
-                                      studentName: cleanStudentName(s.profiles?.full_name) || 'Student',
-                                      title: s.materials?.title || 'Student Activity',
-                                      subtitle: `Submitted by ${cleanStudentName(s.profiles?.full_name) || 'Student'}`,
-                                      description: s.answer_text || '',
-                                      fileUrl: s.mediaUrl,
-                                      fileName: s.fileName || 'Student_Activity_File',
-                                      fileType: s.fileType || 'FILE',
-                                      fileSize: s.fileSize || '',
-                                      status: s.status,
-                                    })
-                                  }
-                                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10.5px] cursor-pointer transition-colors inline-flex items-center gap-1"
+                                  onClick={openSubModal}
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-[10.5px] cursor-pointer inline-flex items-center gap-1"
                                 >
                                   <span>👁️</span>
-                                  <span>View Activity</span>
+                                  <span>View Answer</span>
                                 </button>
-                              </div>
+                              )}
+                              {!s.answer_text && !s.mediaUrl && <span>-</span>}
                             </div>
-                          </div>
-                        )}
-                        {!s.mediaUrl && s.answer_text && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleOpenPreviewModal({
-                                kind: 'submission',
-                                submissionId: s.id,
-                                submissionObj: s,
-                                studentName: cleanStudentName(s.profiles?.full_name) || 'Student',
-                                title: s.materials?.title || 'Student Activity',
-                                subtitle: `Submitted by ${cleanStudentName(s.profiles?.full_name) || 'Student'}`,
-                                description: s.answer_text || '',
-                                fileUrl: null,
-                                fileName: '',
-                                fileType: '',
-                                fileSize: '',
-                                status: s.status,
-                              })
-                            }
-                            className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-[10.5px] cursor-pointer inline-flex items-center gap-1"
-                          >
-                            <span>👁️</span>
-                            <span>View Answer</span>
-                          </button>
-                        )}
-                        {!s.answer_text && !s.mediaUrl && <span>-</span>}
-                      </div>
-                    </td>
-                    <td className={td}>
-                      <span className={pillClass(s.status)}>
-                        {s.status === 'checked' ? '✅ Checked' : '⏳ Submitted'}
-                      </span>
-                    </td>
-                    <td className={td}>
-                      {s.status === 'submitted' ? (
-                        <button onClick={() => markChecked(s)} className={btnSmall}>
-                          Mark Checked
-                        </button>
-                      ) : (
-                        <span className="text-xs font-bold text-emerald-700">✓ Checked</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                          </td>
+                          <td className={td}>
+                            <span className={pillClass(s.status)}>
+                              {s.status === 'checked' ? '✅ Checked' : '⏳ Submitted'}
+                            </span>
+                          </td>
+                          <td className={td}>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <button
+                                type="button"
+                                onClick={openSubModal}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs cursor-pointer inline-flex items-center gap-1"
+                                title="View or play submitted activity before or after checking"
+                              >
+                                <span>👁️</span>
+                                <span>View</span>
+                              </button>
+
+                              {!s.is_deleted ? (
+                                <>
+                                  {s.status === 'submitted' ? (
+                                    <button onClick={() => markChecked(s)} className={btnSmall}>
+                                      Mark Checked
+                                    </button>
+                                  ) : (
+                                    <span className="text-xs font-bold text-emerald-700 px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200">
+                                      ✓ Checked
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteSubmission(s)}
+                                    className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold cursor-pointer inline-flex items-center gap-1"
+                                    title="Delete submission (can be retrieved from Deleted / Retrieve tab)"
+                                  >
+                                    <span>🗑️</span>
+                                    <span>Delete</span>
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRetrieveSubmission(s)}
+                                    className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer inline-flex items-center gap-1"
+                                  >
+                                    <span>♻️</span>
+                                    <span>Retrieve</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePermanentDeleteSubmission(s)}
+                                    className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer inline-flex items-center gap-1"
+                                  >
+                                    <span>🗑️</span>
+                                    <span>Delete Forever</span>
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+            {submissions.length === 0 && (
+              <p className="text-[13px] mt-3 text-dash-ink-soft">
+                No submissions from students yet.
+              </p>
+            )}
           </div>
-          {submissions.length === 0 && (
-            <p className="text-[13px] mt-3 text-dash-ink-soft">
-              No submissions from students yet.
-            </p>
-          )}
         </div>
       )}
 
@@ -3904,30 +4470,17 @@ export default function TeacherDashboard({ profile }) {
         </div>
       )}
 
-      {/* IN-APP ACTIVITY & FILE VIEWER MODAL (View without forced download) */}
+      {/* IN-APP ACTIVITY & FILE VIEWER MODAL (View / Play File, Image, or Video Before & After Checking) */}
       {previewModalItem && (() => {
         const fUrl = previewModalItem.fileUrl || '';
         const fName = previewModalItem.fileName || '';
         const fType = (previewModalItem.fileType || '').toUpperCase();
+        const displayUrl = previewBlobUrl || fUrl;
+        const embedUrl = getEmbeddedVideoUrl(displayUrl);
 
-        const isImg =
-          fUrl &&
-          (fUrl.startsWith('data:image/') ||
-            /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(fName || fUrl) ||
-            ['PNG', 'JPG', 'JPEG', 'GIF', 'WEBP', 'SVG', 'IMAGE'].includes(fType));
-
-        const isVid =
-          fUrl &&
-          (fUrl.startsWith('data:video/') ||
-            /\.(mp4|webm|ogg|mov)$/i.test(fName || fUrl) ||
-            ['MP4', 'WEBM', 'MOV', 'VIDEO'].includes(fType));
-
-        const isPdf =
-          fUrl &&
-          (fUrl.startsWith('data:application/pdf') ||
-            /\.pdf$/i.test(fName || fUrl) ||
-            fType === 'PDF' ||
-            fType.includes('PDF'));
+        const isImg = isImageItem({ url: displayUrl, file_name: fName, file_type: fType });
+        const isVid = Boolean(embedUrl) || isVideoItem({ url: displayUrl, file_name: fName, file_type: fType });
+        const isPdf = isPdfItem({ url: displayUrl, file_name: fName, file_type: fType });
 
         return (
           <div
@@ -3942,7 +4495,7 @@ export default function TeacherDashboard({ profile }) {
                 <div>
                   <span className="text-[10.5px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
                     {previewModalItem.kind === 'submission'
-                      ? '📝 Student Activity Submission'
+                      ? '📝 Student Activity Submission (Viewable Before & After Checking)'
                       : '📁 Teacher Uploaded Material'}
                   </span>
                   <h3 className="text-base sm:text-lg font-bold text-slate-900 m-0 mt-1.5">
@@ -3978,7 +4531,7 @@ export default function TeacherDashboard({ profile }) {
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5 min-w-0">
-                      <span>📎</span>
+                      <span>{isVid ? '🎬' : '📎'}</span>
                       <span className="truncate">{fName || 'Attached File'}</span>
                       {previewModalItem.fileSize && (
                         <span className="text-slate-400">({previewModalItem.fileSize})</span>
@@ -4004,33 +4557,38 @@ export default function TeacherDashboard({ profile }) {
                     </div>
                   </div>
 
-                  {isImg && (
+                  {embedUrl ? (
+                    <iframe
+                      src={embedUrl}
+                      title={fName || previewModalItem.title}
+                      className="w-full rounded-xl aspect-video border border-slate-200 bg-black"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  ) : isVid ? (
+                    <video
+                      controls
+                      playsInline
+                      src={displayUrl}
+                      className="w-full rounded-xl aspect-video border border-slate-200 bg-black"
+                    >
+                      Your browser does not support HTML5 video playback.
+                    </video>
+                  ) : isImg ? (
                     <div className="rounded-xl overflow-hidden border border-slate-200 bg-white p-2">
                       <img
-                        src={previewBlobUrl || fUrl}
+                        src={displayUrl}
                         alt={fName || previewModalItem.title}
                         className="w-full max-h-[460px] object-contain mx-auto block"
                       />
                     </div>
-                  )}
-
-                  {isVid && (
-                    <video
-                      controls
-                      src={previewBlobUrl || fUrl}
-                      className="w-full rounded-xl aspect-video border border-slate-200 bg-black"
-                    />
-                  )}
-
-                  {isPdf && (
+                  ) : isPdf ? (
                     <iframe
-                      src={previewBlobUrl || fUrl}
+                      src={displayUrl}
                       title={fName || previewModalItem.title}
                       className="w-full h-[460px] rounded-xl border border-slate-200 bg-white"
                     />
-                  )}
-
-                  {!isImg && !isVid && !isPdf && (
+                  ) : (
                     <div className="p-6 text-center bg-white rounded-xl border border-slate-200 space-y-2">
                       <div className="text-3xl">📄</div>
                       <div className="text-xs font-bold text-slate-800">
@@ -4048,7 +4606,7 @@ export default function TeacherDashboard({ profile }) {
                 </div>
               )}
 
-              <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100 flex-wrap">
                 <div className="text-xs font-bold">
                   {previewModalItem.kind === 'submission' ? (
                     previewModalItem.status === 'checked' ? (
@@ -4062,6 +4620,58 @@ export default function TeacherDashboard({ profile }) {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {previewModalItem.kind === 'submission' && previewModalItem.submissionObj && (
+                    !previewModalItem.submissionObj.is_deleted ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleDeleteSubmission(previewModalItem.submissionObj);
+                          handleClosePreviewModal();
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs cursor-pointer"
+                      >
+                        🗑️ Delete
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleRetrieveSubmission(previewModalItem.submissionObj);
+                          handleClosePreviewModal();
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer"
+                      >
+                        ♻️ Retrieve
+                      </button>
+                    )
+                  )}
+
+                  {previewModalItem.kind === 'material' && previewModalItem.materialObj && (
+                    !previewModalItem.materialObj.is_deleted ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleDeleteMaterial(previewModalItem.materialObj);
+                          handleClosePreviewModal();
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs cursor-pointer"
+                      >
+                        🗑️ Delete
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleRetrieveMaterial(previewModalItem.materialObj);
+                          handleClosePreviewModal();
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer"
+                      >
+                        ♻️ Retrieve
+                      </button>
+                    )
+                  )}
+
                   {previewModalItem.kind === 'submission' && previewModalItem.status !== 'checked' && (
                     <button
                       type="button"

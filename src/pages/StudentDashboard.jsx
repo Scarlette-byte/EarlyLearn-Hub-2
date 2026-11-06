@@ -5,6 +5,15 @@ import { BILINGUAL_CATEGORIES, playAudioWord } from '../lib/studentLearningData.
 import { CategoryBadge } from '../components/Category3DBadges.jsx';
 import { getDefaultTeacherForBarangay, syncStudentLogin, cleanStudentName } from '../lib/learnersService.js';
 import { isAuthenticSupabaseMaterial, getCleanTeacherModulesList } from '../lib/curriculumData.js';
+import {
+  validateActivityFile,
+  isVideoItem,
+  isImageItem,
+  isPdfItem,
+  getEmbeddedVideoUrl,
+  saveMediaBlobToIndexedDB,
+  resolveViewableMediaUrl,
+} from '../lib/mediaStorage.js';
 
 const PALETTES = [
   'bg-coral', // coral red
@@ -124,15 +133,61 @@ export default function StudentDashboard({ profile }) {
   const [uploadFileName, setUploadFileName] = useState('');
   const [uploadFileType, setUploadFileType] = useState('');
   const [uploadFileSize, setUploadFileSize] = useState('');
+  const [uploadFileDisplayUrl, setUploadFileDisplayUrl] = useState(null);
+  const [activityFileDisplayUrl, setActivityFileDisplayUrl] = useState(null);
+  const [resolvedTeacherMediaUrl, setResolvedTeacherMediaUrl] = useState(null);
+  const [studentPreviewModal, setStudentPreviewModal] = useState(null);
+  const [studentPreviewBlobUrl, setStudentPreviewBlobUrl] = useState(null);
   const [uploadMsg, setUploadMsg] = useState({ text: '', type: '' });
   const [uploading, setUploading] = useState(false);
 
-  // Helper to open or download data: URLs and external URLs reliably across devices
-  const handleOpenOrDownloadFile = useCallback((fileUrl, fileName, mode = 'view') => {
+  // Resolve teacher's posted file/video URL when currentMaterial changes
+  useEffect(() => {
+    let active = true;
+    if (!currentMaterial?.content_url) {
+      setResolvedTeacherMediaUrl(null);
+      return;
+    }
+    resolveViewableMediaUrl(currentMaterial.content_url).then((resolved) => {
+      if (active) setResolvedTeacherMediaUrl(resolved || currentMaterial.content_url);
+    });
+    return () => {
+      active = false;
+    };
+  }, [currentMaterial]);
+
+  // Resolve student's attached file/video URL when activityFilePreview changes
+  useEffect(() => {
+    let active = true;
+    if (!activityFilePreview) {
+      setActivityFileDisplayUrl(null);
+      return;
+    }
+    resolveViewableMediaUrl(activityFilePreview).then((resolved) => {
+      if (active) setActivityFileDisplayUrl(resolved || activityFilePreview);
+    });
+    return () => {
+      active = false;
+    };
+  }, [activityFilePreview]);
+
+  const handleOpenStudentPreviewModal = useCallback(async (item) => {
+    setStudentPreviewModal(item);
+    if (item?.fileUrl) {
+      const resolved = await resolveViewableMediaUrl(item.fileUrl);
+      setStudentPreviewBlobUrl(resolved || item.fileUrl);
+    } else {
+      setStudentPreviewBlobUrl(null);
+    }
+  }, []);
+
+  // Helper to open or download data:/idb: URLs and external URLs reliably across devices
+  const handleOpenOrDownloadFile = useCallback(async (fileUrl, fileName, mode = 'view') => {
     if (!fileUrl) return;
-    if (fileUrl.startsWith('data:')) {
+    const resolvedUrl = (await resolveViewableMediaUrl(fileUrl)) || fileUrl;
+    if (resolvedUrl.startsWith('data:')) {
       try {
-        const parts = fileUrl.split(',');
+        const parts = resolvedUrl.split(',');
         const mimeMatch = parts[0].match(/:(.*?);/);
         const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
         const bstr = atob(parts[1]);
@@ -161,7 +216,7 @@ export default function StudentDashboard({ profile }) {
     }
     if (mode === 'download') {
       const link = document.createElement('a');
-      link.href = fileUrl;
+      link.href = resolvedUrl;
       link.download = fileName || 'activity-file';
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
@@ -169,7 +224,7 @@ export default function StudentDashboard({ profile }) {
       link.click();
       document.body.removeChild(link);
     } else {
-      window.open(fileUrl, '_blank', 'noopener,noreferrer');
+      window.open(resolvedUrl, '_blank', 'noopener,noreferrer');
     }
   }, []);
 
@@ -525,6 +580,8 @@ export default function StudentDashboard({ profile }) {
           } catch {}
         }
 
+        if (meta.is_deleted) return;
+
         const isPostedToStudent =
           meta.posted_to_students === true ||
           (m.status === 'approved' && meta.posted_to_students !== false);
@@ -566,6 +623,7 @@ export default function StudentDashboard({ profile }) {
 
     // 2. Merge localStorage teacherUploadedModules (filling in any local file data or local-only items)
     (teacherUploadedModules || []).forEach((m) => {
+      if (m.is_deleted) return;
       const isActualTeacherUpload =
         m.is_custom_teacher_upload === true ||
         (m.id && m.id.startsWith('mod-') && !m.id.match(/^mod-0[1-9]/)) ||
@@ -710,9 +768,16 @@ export default function StudentDashboard({ profile }) {
     setView('content');
   }
 
-  function handleActivityFileChange(e) {
+  async function handleActivityFileChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+    const validation = validateActivityFile(file);
+    if (!validation.valid) {
+      setDoneMsg({ text: `⚠️ ${validation.error}`, error: true });
+      e.target.value = '';
+      return;
+    }
+    setDoneMsg({ text: '', error: false });
     setActivityFileName(file.name);
     const ext = file.name.split('.').pop()?.toUpperCase() || 'FILE';
     setActivityFileType(ext);
@@ -721,9 +786,24 @@ export default function StudentDashboard({ profile }) {
       sizeKB >= 1024 ? `${(sizeKB / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(sizeKB))} KB`;
     setActivityFileSize(sizeFormatted);
 
+    if (file.size > 3 * 1024 * 1024) {
+      try {
+        const idbKey = await saveMediaBlobToIndexedDB(file);
+        const blobPreview = URL.createObjectURL(file);
+        setActivityFileDisplayUrl(blobPreview);
+        setActivityFilePreview(idbKey);
+        setSubmitted(false);
+        return;
+      } catch {
+        // Fallback to FileReader below
+      }
+    }
+
     const reader = new FileReader();
     reader.onload = (ev) => {
-      setActivityFilePreview(ev.target?.result || null);
+      const dataUrl = ev.target?.result || null;
+      setActivityFileDisplayUrl(dataUrl);
+      setActivityFilePreview(dataUrl);
       setSubmitted(false);
     };
     reader.readAsDataURL(file);
@@ -871,9 +951,16 @@ export default function StudentDashboard({ profile }) {
   }
 
   // --- Student Upload Submission ---
-  function handleFileChange(e) {
+  async function handleFileChange(e) {
     const file = e.target.files?.[0];
     if (file) {
+      const validation = validateActivityFile(file);
+      if (!validation.valid) {
+        setUploadMsg({ text: `⚠️ ${validation.error}`, type: 'error' });
+        e.target.value = '';
+        return;
+      }
+      setUploadMsg({ text: '', type: '' });
       setUploadFileName(file.name);
       const ext = file.name.split('.').pop()?.toUpperCase() || 'FILE';
       setUploadFileType(ext);
@@ -882,9 +969,23 @@ export default function StudentDashboard({ profile }) {
         sizeKB >= 1024 ? `${(sizeKB / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(sizeKB))} KB`;
       setUploadFileSize(sizeFormatted);
 
+      if (file.size > 3 * 1024 * 1024) {
+        try {
+          const idbKey = await saveMediaBlobToIndexedDB(file);
+          const blobPreview = URL.createObjectURL(file);
+          setUploadFileDisplayUrl(blobPreview);
+          setUploadFilePreview(idbKey);
+          return;
+        } catch {
+          // Fallback to FileReader below
+        }
+      }
+
       const reader = new FileReader();
       reader.onload = (uploadEvent) => {
-        setUploadFilePreview(uploadEvent.target?.result);
+        const dataUrl = uploadEvent.target?.result;
+        setUploadFileDisplayUrl(dataUrl);
+        setUploadFilePreview(dataUrl);
       };
       reader.readAsDataURL(file);
     }
@@ -1117,39 +1218,63 @@ export default function StudentDashboard({ profile }) {
                     </div>
                   ) : (
                     <div className="space-y-2.5">
-                      {pendingTeacherActivities.map((a) => (
-                        <div
-                          key={a.id}
-                          onClick={() => openMaterial(a, 'home')}
-                          className="bg-white rounded-2xl px-4 py-3.5 text-left shadow-soft flex items-center gap-3.5 cursor-pointer border-l-[5px] border-leaf hover:translate-x-0.5 transition-transform"
-                        >
-                          <div className="text-3xl flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-xl bg-[#E8F5E9] text-leaf">
-                            {a.icon || '✏️'}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-baloo font-bold text-[15.5px] text-[#3a3226] truncate">
-                              {a.title}
+                      {pendingTeacherActivities.map((a) => {
+                        const isVid = isVideoItem({
+                          url: a.content_url,
+                          file_name: a.file_name,
+                          file_type: a.file_type,
+                          module_type: a.module_type,
+                        });
+                        return (
+                          <div
+                            key={a.id}
+                            onClick={() => openMaterial(a, 'home')}
+                            className="bg-white rounded-2xl px-4 py-3.5 text-left shadow-soft flex items-center gap-3.5 cursor-pointer border-l-[5px] border-leaf hover:translate-x-0.5 transition-transform"
+                          >
+                            <div
+                              className={`text-3xl flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-xl ${
+                                isVid ? 'bg-purple-100 text-purple-700' : 'bg-[#E8F5E9] text-leaf'
+                              }`}
+                            >
+                              {isVid ? '🎬' : a.icon || '✏️'}
                             </div>
-                            <div className="text-[11.5px] text-[#7a7a7a] font-bold flex items-center gap-1.5 mt-0.5 flex-wrap">
-                              <span>{a.category_name}</span>
-                              {a.teacher_name && (
-                                <>
-                                  <span>•</span>
-                                  <span className="text-accent font-semibold">{a.teacher_name}</span>
-                                </>
-                              )}
-                              {(a.content_url || a.file_name) && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-extrabold">
-                                  📎 {a.file_name || a.file_type || 'Teacher File Attached'}
-                                </span>
-                              )}
+                            <div className="flex-1 min-w-0">
+                              <div className="font-baloo font-bold text-[15.5px] text-[#3a3226] truncate">
+                                {a.title}
+                              </div>
+                              <div className="text-[11.5px] text-[#7a7a7a] font-bold flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                <span>{a.category_name}</span>
+                                {a.teacher_name && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-accent font-semibold">{a.teacher_name}</span>
+                                  </>
+                                )}
+                                {isVid ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 border border-purple-300 text-[10px] font-extrabold">
+                                    🎬 Video Lesson — Watch &amp; Play
+                                  </span>
+                                ) : (
+                                  (a.content_url || a.file_name) && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-extrabold">
+                                      📎 {a.file_name || a.file_type || 'Teacher File Attached'}
+                                    </span>
+                                  )
+                                )}
+                              </div>
                             </div>
+                            <span
+                              className={`text-xs font-bold px-2.5 py-1.5 rounded-lg shrink-0 ${
+                                isVid
+                                  ? 'text-purple-800 bg-purple-100 border border-purple-200'
+                                  : 'text-leaf bg-emerald-50'
+                              }`}
+                            >
+                              {isVid ? '▶️ Watch Video →' : 'Start →'}
+                            </span>
                           </div>
-                          <span className="text-xs font-bold text-leaf bg-emerald-50 px-2.5 py-1.5 rounded-lg shrink-0">
-                            Start →
-                          </span>
-                        </div>
-                      ))}
+                        );
+                      })}
 
                       {completedTeacherActivities.length > 0 && (
                         <div className="pt-2 space-y-2">
@@ -1158,6 +1283,12 @@ export default function StudentDashboard({ profile }) {
                           </div>
                           {completedTeacherActivities.map((a) => {
                             const checkedByTeacher = isActivityCheckedByTeacher(a);
+                            const isVid = isVideoItem({
+                              url: a.content_url,
+                              file_name: a.file_name,
+                              file_type: a.file_type,
+                              module_type: a.module_type,
+                            });
                             return (
                               <div
                                 key={a.id}
@@ -1165,7 +1296,7 @@ export default function StudentDashboard({ profile }) {
                                 className="bg-white/90 rounded-2xl px-4 py-3 text-left shadow-xs flex items-center gap-3.5 cursor-pointer border-l-[5px] border-emerald-400 hover:translate-x-0.5 transition-transform"
                               >
                                 <div className="text-2xl flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600">
-                                  {checkedByTeacher ? '🌟' : '✅'}
+                                  {checkedByTeacher ? '🌟' : isVid ? '🎬' : '✅'}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="font-baloo font-bold text-[14.5px] text-[#3a3226] truncate">
@@ -1173,10 +1304,16 @@ export default function StudentDashboard({ profile }) {
                                   </div>
                                   <div className="text-[11px] text-[#7a7a7a] font-bold flex items-center gap-1.5 mt-0.5 flex-wrap">
                                     <span>{a.category_name}</span>
-                                    {(a.content_url || a.file_name) && (
-                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-extrabold">
-                                        📎 {a.file_name || 'File'}
+                                    {isVid ? (
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 text-[10px] font-extrabold">
+                                        🎬 Video Lesson
                                       </span>
+                                    ) : (
+                                      (a.content_url || a.file_name) && (
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-extrabold">
+                                          📎 {a.file_name || 'File'}
+                                        </span>
+                                      )
                                     )}
                                     {checkedByTeacher ? (
                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-black">
@@ -1190,7 +1327,7 @@ export default function StudentDashboard({ profile }) {
                                   </div>
                                 </div>
                                 <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg shrink-0">
-                                  View / Edit →
+                                  {isVid ? '▶️ Watch / View →' : 'View / Edit →'}
                                 </span>
                               </div>
                             );
@@ -1212,7 +1349,7 @@ export default function StudentDashboard({ profile }) {
                         No Uploaded Activities Yet
                       </div>
                       <div className="text-xs text-[#7a7a7a] mt-1 mb-3">
-                        Upload an image or file of your drawing, coloring sheet, or homework directly to your teacher!
+                        Upload an image, file, or video of your drawing, coloring sheet, or homework directly to your teacher!
                       </div>
                       <button
                         onClick={() => setIsUploadModalOpen(true)}
@@ -1223,82 +1360,110 @@ export default function StudentDashboard({ profile }) {
                     </div>
                   ) : (
                     <div className="space-y-2.5">
-                      {studentUploads.map((u) => {
-                        const isImg =
-                          u.mediaUrl?.startsWith('data:image') ||
-                          /\.(png|jpe?g|gif|webp|svg)$/i.test(u.fileName || '') ||
-                          ['PNG', 'JPG', 'JPEG', 'GIF', 'WEBP'].includes((u.fileType || '').toUpperCase());
+                      {studentUploads
+                        .filter((u) => !u.is_deleted)
+                        .map((u) => {
+                          const isImg = isImageItem({
+                            url: u.mediaUrl,
+                            file_name: u.fileName,
+                            file_type: u.fileType,
+                          });
+                          const isVid = isVideoItem({
+                            url: u.mediaUrl,
+                            file_name: u.fileName,
+                            file_type: u.fileType,
+                          });
 
-                        return (
-                          <div
-                            key={u.id}
-                            className="bg-white rounded-2xl p-3.5 text-left shadow-soft flex items-start gap-3 border-l-[5px] border-[#FFB84D]"
-                          >
-                            {u.mediaUrl && isImg ? (
-                              <img
-                                src={u.mediaUrl}
-                                alt={u.title}
-                                onClick={() => handleOpenOrDownloadFile(u.mediaUrl, u.fileName || 'activity-image.png', 'view')}
-                                className="w-14 h-14 rounded-xl object-cover shrink-0 border border-gray-200 cursor-pointer hover:opacity-90"
-                              />
-                            ) : u.mediaUrl ? (
-                              <div
-                                onClick={() => handleOpenOrDownloadFile(u.mediaUrl, u.fileName || 'activity-file', 'view')}
-                                className="w-14 h-14 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex flex-col items-center justify-center shrink-0 font-extrabold text-[10px] cursor-pointer hover:bg-blue-100"
-                              >
-                                <span className="text-xl">📄</span>
-                                <span>{u.fileType || 'FILE'}</span>
-                              </div>
-                            ) : (
-                              <div className="w-14 h-14 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center text-2xl shrink-0 font-bold">
-                                🖼️
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-2">
-                                <h4 className="font-baloo font-bold text-[15px] text-[#3a3226] m-0 truncate">
-                                  {u.title}
-                                </h4>
-                                {u.teacherChecked || (u.status || '').toLowerCase().includes('checked') ? (
-                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
-                                    👩‍🏫 Checked by Teacher ✅
-                                  </span>
-                                ) : (
-                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
-                                    ⏳ Waiting for Teacher Check
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-[11px] text-dash-ink-soft mt-0.5">
-                                Subject: <b className="text-[#3a3226]">{u.category}</b> • {u.uploadedAt}
-                              </div>
-                              {u.note && (
-                                <p className="text-xs text-[#5a4d38] mt-1 leading-snug line-clamp-2 m-0 bg-[#FFFDF8] p-1.5 rounded-lg border border-[#F0E4CE]">
-                                  "{u.note}"
-                                </p>
-                              )}
-                              {u.mediaUrl && (
-                                <div className="mt-2 flex items-center gap-2 flex-wrap">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenOrDownloadFile(u.mediaUrl, u.fileName || 'student-upload', 'view')}
-                                    className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10.5px] font-extrabold cursor-pointer"
-                                  >
-                                    👁️ View {u.fileName ? `(${u.fileName})` : 'File'}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenOrDownloadFile(u.mediaUrl, u.fileName || 'student-upload', 'download')}
-                                    className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-extrabold cursor-pointer"
-                                  >
-                                    ⬇️ Download
-                                  </button>
+                          const openPreview = () =>
+                            handleOpenStudentPreviewModal({
+                              title: u.title,
+                              category: u.category,
+                              note: u.note,
+                              fileUrl: u.mediaUrl,
+                              fileName: u.fileName || u.title,
+                              fileType: u.fileType || (isVid ? 'MP4' : isImg ? 'IMAGE' : 'FILE'),
+                              fileSize: u.fileSize || '',
+                              checked: Boolean(u.teacherChecked || (u.status || '').toLowerCase().includes('checked')),
+                            });
+
+                          return (
+                            <div
+                              key={u.id}
+                              className="bg-white rounded-2xl p-3.5 text-left shadow-soft flex items-start gap-3 border-l-[5px] border-[#FFB84D]"
+                            >
+                              {u.mediaUrl && isImg && u.mediaUrl.startsWith('data:image/') ? (
+                                <img
+                                  src={u.mediaUrl}
+                                  alt={u.title}
+                                  onClick={openPreview}
+                                  className="w-14 h-14 rounded-xl object-cover shrink-0 border border-gray-200 cursor-pointer hover:opacity-90"
+                                />
+                              ) : u.mediaUrl && isVid ? (
+                                <div
+                                  onClick={openPreview}
+                                  className="w-14 h-14 rounded-xl bg-purple-100 text-purple-800 border border-purple-300 flex flex-col items-center justify-center shrink-0 font-extrabold text-[10px] cursor-pointer hover:bg-purple-200"
+                                >
+                                  <span className="text-xl">🎬</span>
+                                  <span>{u.fileType || 'VIDEO'}</span>
+                                </div>
+                              ) : u.mediaUrl ? (
+                                <div
+                                  onClick={openPreview}
+                                  className="w-14 h-14 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex flex-col items-center justify-center shrink-0 font-extrabold text-[10px] cursor-pointer hover:bg-blue-100"
+                                >
+                                  <span className="text-xl">📄</span>
+                                  <span>{u.fileType || 'FILE'}</span>
+                                </div>
+                              ) : (
+                                <div className="w-14 h-14 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center text-2xl shrink-0 font-bold">
+                                  🖼️
                                 </div>
                               )}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <h4 className="font-baloo font-bold text-[15px] text-[#3a3226] m-0 truncate">
+                                    {u.title}
+                                  </h4>
+                                  {u.teacherChecked || (u.status || '').toLowerCase().includes('checked') ? (
+                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
+                                      👩‍🏫 Checked by Teacher ✅
+                                    </span>
+                                  ) : (
+                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
+                                      ⏳ Waiting for Teacher Check
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-dash-ink-soft mt-0.5">
+                                  Subject: <b className="text-[#3a3226]">{u.category}</b> • {u.uploadedAt}
+                                </div>
+                                {u.note && (
+                                  <p className="text-xs text-[#5a4d38] mt-1 leading-snug line-clamp-2 m-0 bg-[#FFFDF8] p-1.5 rounded-lg border border-[#F0E4CE]">
+                                    "{u.note}"
+                                  </p>
+                                )}
+                                {u.mediaUrl && (
+                                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                    <button
+                                      type="button"
+                                      onClick={openPreview}
+                                      className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10.5px] font-extrabold cursor-pointer"
+                                    >
+                                      {isVid ? '▶️ Play Video' : '👁️ View'} {u.fileName ? `(${u.fileName})` : ''}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenOrDownloadFile(u.mediaUrl, u.fileName || 'student-upload', 'download')}
+                                      className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-extrabold cursor-pointer"
+                                    >
+                                      ⬇️ Download
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
                     </div>
                   )}
                 </div>
@@ -1878,42 +2043,50 @@ export default function StudentDashboard({ profile }) {
         {/* VIEW 3: CONTENT VIEW (Doing teacher assigned activity)   */}
         {/* ======================================================== */}
         {view === 'content' && currentMaterial && (() => {
-          const teacherFileUrl = currentMaterial.content_url || null;
+          const rawTeacherFileUrl = currentMaterial.content_url || null;
+          const teacherFileUrl = resolvedTeacherMediaUrl || rawTeacherFileUrl;
           const teacherFileName = currentMaterial.file_name || '';
           const teacherFileType = (currentMaterial.file_type || '').toUpperCase();
           const teacherFileSize = currentMaterial.file_size || '';
 
-          const isTeacherImage =
-            teacherFileUrl &&
-            (teacherFileUrl.startsWith('data:image/') ||
-              /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(teacherFileName || teacherFileUrl) ||
-              ['PNG', 'JPG', 'JPEG', 'GIF', 'WEBP', 'SVG'].includes(teacherFileType) ||
-              currentMaterial.module_type === 'image');
+          const teacherEmbedUrl = getEmbeddedVideoUrl(teacherFileUrl);
 
-          const isTeacherVideo =
-            teacherFileUrl &&
-            (teacherFileUrl.startsWith('data:video/') ||
-              /\.(mp4|webm|ogg|mov)$/i.test(teacherFileName || teacherFileUrl) ||
-              ['MP4', 'WEBM', 'MOV', 'VIDEO'].includes(teacherFileType) ||
-              currentMaterial.module_type === 'video');
+          const isTeacherImage = isImageItem({
+            url: teacherFileUrl,
+            file_name: teacherFileName,
+            file_type: teacherFileType,
+          }) || currentMaterial.module_type === 'image';
 
-          const isTeacherPdf =
-            teacherFileUrl &&
-            (teacherFileUrl.startsWith('data:application/pdf') ||
-              /\.pdf$/i.test(teacherFileName || teacherFileUrl) ||
-              teacherFileType === 'PDF');
+          const isTeacherVideo = Boolean(teacherEmbedUrl) || isVideoItem({
+            url: teacherFileUrl,
+            file_name: teacherFileName,
+            file_type: teacherFileType,
+            module_type: currentMaterial.module_type,
+          });
+
+          const isTeacherPdf = isPdfItem({
+            url: teacherFileUrl,
+            file_name: teacherFileName,
+            file_type: teacherFileType,
+          });
+
+          const studentPreviewSrc = activityFileDisplayUrl || activityFilePreview;
 
           const isStudentFileImage =
-            activityFilePreview &&
-            (activityFilePreview.startsWith('data:image/') ||
-              /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(activityFileName) ||
-              ['PNG', 'JPG', 'JPEG', 'GIF', 'WEBP', 'SVG'].includes(activityFileType));
+            studentPreviewSrc &&
+            isImageItem({
+              url: studentPreviewSrc,
+              file_name: activityFileName,
+              file_type: activityFileType,
+            });
 
           const isStudentFileVideo =
-            activityFilePreview &&
-            (activityFilePreview.startsWith('data:video/') ||
-              /\.(mp4|webm|ogg|mov)$/i.test(activityFileName) ||
-              ['MP4', 'WEBM', 'MOV'].includes(activityFileType));
+            studentPreviewSrc &&
+            isVideoItem({
+              url: studentPreviewSrc,
+              file_name: activityFileName,
+              file_type: activityFileType,
+            });
 
           return (
             <div>
@@ -1944,14 +2117,18 @@ export default function StudentDashboard({ profile }) {
                 )}
 
                 {/* ==================================================== */}
-                {/* 📎 TEACHER'S UPLOADED FILE / LEARNING MATERIAL       */}
+                {/* 📎 TEACHER'S UPLOADED FILE / VIDEO / LEARNING MATERIAL */}
                 {/* ==================================================== */}
                 {(teacherFileUrl || teacherFileName) && (
                   <div className="mb-5 rounded-2xl border-2 border-[#E2ECF8] bg-[#F5F9FF] p-4 space-y-3">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="text-xs font-extrabold text-blue-900 uppercase tracking-wide flex items-center gap-1.5">
-                        <span>📎</span>
-                        <span>Teacher's Uploaded File / Material</span>
+                        <span>{isTeacherVideo ? '🎬' : '📎'}</span>
+                        <span>
+                          {isTeacherVideo
+                            ? "Teacher's Video Lesson — Click Play to Watch!"
+                            : "Teacher's Uploaded File / Material"}
+                        </span>
                       </div>
                       {teacherFileType && (
                         <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-black text-[10.5px]">
@@ -1960,8 +2137,30 @@ export default function StudentDashboard({ profile }) {
                       )}
                     </div>
 
+                    {/* Inline Preview for Video (Embedded YouTube/Drive or Direct Video File) */}
+                    {isTeacherVideo && teacherFileUrl && (
+                      teacherEmbedUrl ? (
+                        <iframe
+                          src={teacherEmbedUrl}
+                          title={teacherFileName || currentMaterial.title}
+                          className="w-full rounded-xl aspect-video border-2 border-purple-200 bg-black shadow-sm"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        />
+                      ) : (
+                        <video
+                          controls
+                          playsInline
+                          src={teacherFileUrl}
+                          className="w-full rounded-xl aspect-video border-2 border-purple-200 bg-black shadow-sm"
+                        >
+                          Your browser does not support HTML5 video playback.
+                        </video>
+                      )
+                    )}
+
                     {/* Inline Preview for Image */}
-                    {isTeacherImage && teacherFileUrl && (
+                    {!isTeacherVideo && isTeacherImage && teacherFileUrl && (
                       <div className="rounded-xl overflow-hidden border border-blue-200 bg-white">
                         <img
                           src={teacherFileUrl}
@@ -1971,17 +2170,8 @@ export default function StudentDashboard({ profile }) {
                       </div>
                     )}
 
-                    {/* Inline Preview for Video */}
-                    {isTeacherVideo && teacherFileUrl && (
-                      <video
-                        controls
-                        src={teacherFileUrl}
-                        className="w-full rounded-xl aspect-video border border-blue-200 bg-black"
-                      />
-                    )}
-
                     {/* Inline Preview for PDF */}
-                    {isTeacherPdf && teacherFileUrl && (
+                    {!isTeacherVideo && !isTeacherImage && isTeacherPdf && teacherFileUrl && (
                       <iframe
                         src={teacherFileUrl}
                         title={teacherFileName || currentMaterial.title}
@@ -1997,36 +2187,36 @@ export default function StudentDashboard({ profile }) {
                         </div>
                         <div className="min-w-0">
                           <div className="font-bold text-sm text-[#3a3226] truncate">
-                            {teacherFileName || `${currentMaterial.title} (Teacher File)`}
+                            {teacherFileName || `${currentMaterial.title} (${isTeacherVideo ? 'Video Lesson' : 'Teacher File'})`}
                           </div>
                           <div className="text-[11px] text-slate-500 font-semibold">
-                            {teacherFileType || 'Learning Resource'}
+                            {teacherFileType || (isTeacherVideo ? 'VIDEO' : 'Learning Resource')}
                             {teacherFileSize ? ` • ${teacherFileSize}` : ''}
                           </div>
                         </div>
                       </div>
 
-                      {teacherFileUrl && (
+                      {rawTeacherFileUrl && (
                         <div className="flex items-center gap-2 shrink-0">
                           <button
                             type="button"
                             onClick={() =>
                               handleOpenOrDownloadFile(
-                                teacherFileUrl,
+                                rawTeacherFileUrl,
                                 teacherFileName || `${currentMaterial.title}`,
                                 'view'
                               )
                             }
                             className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold cursor-pointer transition-colors flex items-center gap-1"
                           >
-                            <span>👁️</span>
-                            <span>View File</span>
+                            <span>{isTeacherVideo ? '▶️' : '👁️'}</span>
+                            <span>{isTeacherVideo ? 'Open Video' : 'View File'}</span>
                           </button>
                           <button
                             type="button"
                             onClick={() =>
                               handleOpenOrDownloadFile(
-                                teacherFileUrl,
+                                rawTeacherFileUrl,
                                 teacherFileName || `${currentMaterial.title}`,
                                 'download'
                               )
@@ -2074,20 +2264,23 @@ export default function StudentDashboard({ profile }) {
                     )}
 
                     {/* ==================================================== */}
-                    {/* 📤 STUDENT FILE / IMAGE UPLOAD FOR THIS ACTIVITY     */}
+                    {/* 📤 STUDENT FILE / IMAGE / VIDEO UPLOAD FOR ACTIVITY  */}
                     {/* ==================================================== */}
                     <div className="rounded-2xl border-2 border-dashed border-[#E5D5B5] bg-[#FFFDF7] p-4">
                       <label className="block text-xs font-extrabold text-[#6b5c42] mb-1.5 flex items-center gap-1.5">
                         <span>📤</span>
-                        <span>Upload Your Work (Image or File — Photo, PDF, Word, Worksheet):</span>
+                        <span>Upload Your Work (Image, File, or Video — Photo, PDF, Word, MP4 Video):</span>
                       </label>
+                      <div className="mb-2.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-900">
+                        📏 Applicable File Size Limits: 🖼️ Images: Max 10 MB • 📁 Files/Docs (PDF/Word): Max 15 MB • 🎬 Videos (MP4/WebM/MOV): Max 50 MB
+                      </div>
                       <p className="text-[11.5px] text-[#7a7a7a] m-0 mb-2.5">
-                        Take a photo of your completed activity or choose any image/document file to send to your teacher.
+                        Take a photo, record a short video, or choose any image/document file to send to your teacher. You can view/play it anytime before and after Teacher checks it!
                       </p>
 
                       <input
                         type="file"
-                        accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,video/*"
+                        accept="image/*,video/*,.mp4,.webm,.mov,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt"
                         onChange={handleActivityFileChange}
                         className="w-full text-xs text-gray-600 file:mr-3 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-extrabold file:bg-coral file:text-white hover:file:bg-coral-deep cursor-pointer"
                       />
@@ -2096,7 +2289,7 @@ export default function StudentDashboard({ profile }) {
                         <div className="mt-3 bg-white rounded-xl p-3 border border-[#E5D5B5] space-y-2.5">
                           {isStudentFileImage && (
                             <img
-                              src={activityFilePreview}
+                              src={studentPreviewSrc}
                               alt={activityFileName || 'Uploaded answer'}
                               className="w-full max-h-56 object-contain rounded-xl border border-gray-200 bg-slate-50"
                             />
@@ -2105,7 +2298,8 @@ export default function StudentDashboard({ profile }) {
                           {isStudentFileVideo && (
                             <video
                               controls
-                              src={activityFilePreview}
+                              playsInline
+                              src={studentPreviewSrc}
                               className="w-full max-h-56 rounded-xl border border-gray-200 bg-black"
                             />
                           )}
@@ -2144,6 +2338,7 @@ export default function StudentDashboard({ profile }) {
                                 type="button"
                                 onClick={() => {
                                   setActivityFilePreview(null);
+                                  setActivityFileDisplayUrl(null);
                                   setActivityFileName('');
                                   setActivityFileType('');
                                   setActivityFileSize('');
@@ -2225,7 +2420,7 @@ export default function StudentDashboard({ profile }) {
                       Upload My Activity or Artwork
                     </h3>
                     <p className="text-xs text-[#7a7a7a] m-0">
-                      Share your drawing, photo, or activity file with Teacher!
+                      Share your drawing, photo, video, or activity file with Teacher!
                     </p>
                   </div>
                 </div>
@@ -2245,7 +2440,7 @@ export default function StudentDashboard({ profile }) {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. My Family Drawing, Pineapple Coloring..."
+                    placeholder="e.g. My Family Drawing, Action Song Video..."
                     value={uploadTitle}
                     onChange={(e) => setUploadTitle(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 font-bold text-[#3a3226] outline-none focus:border-coral text-sm"
@@ -2273,54 +2468,78 @@ export default function StudentDashboard({ profile }) {
 
                 <div>
                   <label className="block font-bold text-[#3a3226] mb-1">
-                    Attach Image or File (Photo, PDF, Word, Worksheet, Video)
+                    Attach Image, File, or Video (Photo, PDF, Word, Worksheet, MP4 Video)
                   </label>
+                  <div className="mb-2 px-2.5 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-[10.5px] font-bold text-amber-900">
+                    📏 Applicable File Size Limits: 🖼️ Images: Max 10 MB • 📁 Files/Docs: Max 15 MB • 🎬 Videos (MP4/WebM/MOV): Max 50 MB
+                  </div>
                   <input
                     type="file"
-                    accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,video/*"
+                    accept="image/*,video/*,.mp4,.webm,.mov,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt"
                     onChange={handleFileChange}
                     className="w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-coral/10 file:text-coral-deep hover:file:bg-coral/20 cursor-pointer"
                   />
-                  {uploadFilePreview && (
-                    <div className="mt-2.5 bg-slate-50 p-2.5 rounded-2xl border border-gray-200 space-y-2">
-                      {uploadFilePreview.startsWith('data:image/') ? (
-                        <img
-                          src={uploadFilePreview}
-                          alt="Preview"
-                          className="w-full max-h-48 object-contain rounded-xl border border-gray-200 bg-white"
-                        />
-                      ) : (
-                        <div className="flex items-center gap-2 p-2 bg-white rounded-xl border border-gray-200">
-                          <span className="text-2xl">📄</span>
-                          <div className="min-w-0 flex-1">
-                            <div className="text-xs font-bold text-[#3a3226] truncate">
-                              {uploadFileName || 'Attached File'}
-                            </div>
-                            <div className="text-[10px] text-slate-500 font-bold">
-                              {uploadFileType || 'FILE'} {uploadFileSize ? `• ${uploadFileSize}` : ''}
+                  {uploadFilePreview && (() => {
+                    const modalPreviewSrc = uploadFileDisplayUrl || uploadFilePreview;
+                    const isModalImg = isImageItem({
+                      url: modalPreviewSrc,
+                      file_name: uploadFileName,
+                      file_type: uploadFileType,
+                    });
+                    const isModalVid = isVideoItem({
+                      url: modalPreviewSrc,
+                      file_name: uploadFileName,
+                      file_type: uploadFileType,
+                    });
+                    return (
+                      <div className="mt-2.5 bg-slate-50 p-2.5 rounded-2xl border border-gray-200 space-y-2">
+                        {isModalImg ? (
+                          <img
+                            src={modalPreviewSrc}
+                            alt="Preview"
+                            className="w-full max-h-48 object-contain rounded-xl border border-gray-200 bg-white"
+                          />
+                        ) : isModalVid ? (
+                          <video
+                            controls
+                            playsInline
+                            src={modalPreviewSrc}
+                            className="w-full max-h-48 rounded-xl border border-gray-200 bg-black"
+                          />
+                        ) : (
+                          <div className="flex items-center gap-2 p-2 bg-white rounded-xl border border-gray-200">
+                            <span className="text-2xl">📄</span>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-xs font-bold text-[#3a3226] truncate">
+                                {uploadFileName || 'Attached File'}
+                              </div>
+                              <div className="text-[10px] text-slate-500 font-bold">
+                                {uploadFileType || 'FILE'} {uploadFileSize ? `• ${uploadFileSize}` : ''}
+                              </div>
                             </div>
                           </div>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10.5px] font-bold text-slate-600 truncate">
+                            {isModalVid ? '🎬' : '📎'} {uploadFileName}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setUploadFilePreview(null);
+                              setUploadFileDisplayUrl(null);
+                              setUploadFileName('');
+                              setUploadFileType('');
+                              setUploadFileSize('');
+                            }}
+                            className="px-2 py-1 bg-rose-100 text-rose-700 rounded-lg text-[10px] font-bold cursor-pointer"
+                          >
+                            ✕ Remove
+                          </button>
                         </div>
-                      )}
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10.5px] font-bold text-slate-600 truncate">
-                          📎 {uploadFileName}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setUploadFilePreview(null);
-                            setUploadFileName('');
-                            setUploadFileType('');
-                            setUploadFileSize('');
-                          }}
-                          className="px-2 py-1 bg-rose-100 text-rose-700 rounded-lg text-[10px] font-bold cursor-pointer"
-                        >
-                          ✕ Remove
-                        </button>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
 
                 <div>
@@ -2368,6 +2587,122 @@ export default function StudentDashboard({ profile }) {
             </div>
           </div>
         )}
+
+        {/* ======================================================== */}
+        {/* MODAL: IN-APP VIEWER FOR STUDENT UPLOADED MEDIA          */}
+        {/* ======================================================== */}
+        {studentPreviewModal && (() => {
+          const fUrl = studentPreviewBlobUrl || studentPreviewModal.fileUrl || '';
+          const fName = studentPreviewModal.fileName || '';
+          const fType = (studentPreviewModal.fileType || '').toUpperCase();
+          const embedUrl = getEmbeddedVideoUrl(fUrl);
+          const isImg = isImageItem({ url: fUrl, file_name: fName, file_type: fType });
+          const isVid = Boolean(embedUrl) || isVideoItem({ url: fUrl, file_name: fName, file_type: fType });
+          const isPdf = isPdfItem({ url: fUrl, file_name: fName, file_type: fType });
+
+          return (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+              onClick={() => setStudentPreviewModal(null)}
+            >
+              <div
+                className="bg-white w-full max-w-xl rounded-3xl p-5 text-left shadow-2xl border border-[#F0E4CE] space-y-3.5 max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-start justify-between gap-2 pb-2 border-b border-gray-100">
+                  <div>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
+                        studentPreviewModal.checked
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : 'bg-amber-50 text-amber-800 border border-amber-200'
+                      }`}
+                    >
+                      {studentPreviewModal.checked
+                        ? '👩‍🏫 Checked by Teacher ✅'
+                        : '⏳ Waiting for Teacher Check'}
+                    </span>
+                    <h3 className="font-baloo text-lg font-bold text-[#3a3226] m-0 mt-1">
+                      {studentPreviewModal.title}
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setStudentPreviewModal(null)}
+                    className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-dash-ink font-bold text-xs cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {studentPreviewModal.note && (
+                  <div className="p-3 rounded-xl bg-[#FFFDF8] border border-[#F0E4CE] text-xs text-[#3a3226]">
+                    "{studentPreviewModal.note}"
+                  </div>
+                )}
+
+                {fUrl && (
+                  <div className="rounded-2xl border border-gray-200 bg-slate-50 p-3 space-y-2.5">
+                    {embedUrl ? (
+                      <iframe
+                        src={embedUrl}
+                        title={fName}
+                        className="w-full aspect-video rounded-xl bg-black"
+                        allowFullScreen
+                      />
+                    ) : isVid ? (
+                      <video
+                        controls
+                        playsInline
+                        src={fUrl}
+                        className="w-full aspect-video rounded-xl bg-black"
+                      />
+                    ) : isImg ? (
+                      <img
+                        src={fUrl}
+                        alt={fName}
+                        className="w-full max-h-[420px] object-contain rounded-xl bg-white mx-auto block"
+                      />
+                    ) : isPdf ? (
+                      <iframe
+                        src={fUrl}
+                        title={fName}
+                        className="w-full h-[380px] rounded-xl bg-white"
+                      />
+                    ) : (
+                      <div className="p-4 text-center bg-white rounded-xl border border-gray-200">
+                        <div className="text-2xl">📄</div>
+                        <div className="text-xs font-bold text-[#3a3226] mt-1">{fName}</div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <span className="text-[11px] font-bold text-slate-600 truncate">
+                        📎 {fName} {studentPreviewModal.fileSize ? `(${studentPreviewModal.fileSize})` : ''}
+                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenOrDownloadFile(studentPreviewModal.fileUrl, fName, 'view')}
+                          className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold cursor-pointer"
+                        >
+                          🔍 Open in New Tab
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenOrDownloadFile(studentPreviewModal.fileUrl, fName, 'download')}
+                          className="px-3 py-1.5 rounded-xl bg-white border border-gray-300 text-slate-700 text-xs font-extrabold cursor-pointer"
+                        >
+                          ⬇️ Download
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ======================================================== */}
         {/* 🎴 INTERACTIVE BIG FLASHCARD MODAL (Toddler Learning)   */}

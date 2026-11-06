@@ -597,6 +597,8 @@ export function deduplicateTeacherModules(list = []) {
         map.set(dedupeKey, {
           ...existing,
           ...m,
+          is_deleted: Boolean(m.is_deleted ?? existing.is_deleted),
+          deleted_at: m.deleted_at || existing.deleted_at || null,
           posted_to_students: Boolean(m.posted_to_students || existing.posted_to_students),
           target_student_id: m.target_student_id || existing.target_student_id || 'all',
           target_student_name: m.target_student_name || existing.target_student_name || 'All Class Learners',
@@ -605,6 +607,8 @@ export function deduplicateTeacherModules(list = []) {
           duplicate_ids: allIds,
         });
       } else {
+        existing.is_deleted = Boolean(existing.is_deleted ?? m.is_deleted);
+        if (!existing.deleted_at && m.deleted_at) existing.deleted_at = m.deleted_at;
         existing.posted_to_students = Boolean(existing.posted_to_students || m.posted_to_students);
         if (!existing.content_url && m.content_url) existing.content_url = m.content_url;
         if (!existing.file_name && m.file_name) existing.file_name = m.file_name;
