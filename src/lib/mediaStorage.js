@@ -137,19 +137,27 @@ export function getEmbeddedVideoUrl(rawUrl) {
 }
 
 /**
- * Checks whether an activity/material or submission item is a video
+ * Checks whether an activity/material or submission item is a video.
+ * Supports both camelCase ({ fileUrl, fileName, fileType, moduleType })
+ * and snake_case ({ url, content_url, file_name, file_type, module_type, type, category }).
  */
-export function isVideoItem({ fileUrl = '', fileName = '', fileType = '', moduleType = '' } = {}) {
-  const fType = String(fileType || '').toUpperCase();
-  const mType = String(moduleType || '').toLowerCase();
-  const url = String(fileUrl || '');
-  const name = String(fileName || '');
+export function isVideoItem(item = {}) {
+  if (!item || typeof item !== 'object') return false;
+  const rawUrl = item.fileUrl || item.url || item.content_url || item.mediaUrl || '';
+  const rawName = item.fileName || item.file_name || '';
+  const rawFileType = item.fileType || item.file_type || '';
+  const rawModuleType = item.moduleType || item.module_type || item.type || item.category || '';
+
+  const fType = String(rawFileType || '').toUpperCase();
+  const mType = String(rawModuleType || '').toLowerCase();
+  const url = String(rawUrl || '');
+  const name = String(rawName || '');
 
   if (
     url.startsWith('data:video/') ||
     url.startsWith('idb://video-') ||
-    /\.(mp4|webm|ogg|mov|m4v)(\?|#|$)/i.test(name || url) ||
-    ['MP4', 'WEBM', 'MOV', 'OGG', 'M4V', 'VIDEO'].includes(fType) ||
+    /\.(mp4|webm|ogg|mov|m4v|avi|mkv)(\?|#|$)/i.test(name || url) ||
+    ['MP4', 'WEBM', 'MOV', 'OGG', 'M4V', 'AVI', 'MKV', 'VIDEO'].includes(fType) ||
     mType.includes('video') ||
     Boolean(getEmbeddedVideoUrl(url))
   ) {
@@ -159,13 +167,20 @@ export function isVideoItem({ fileUrl = '', fileName = '', fileType = '', module
 }
 
 /**
- * Checks whether an activity/material or submission item is an image
+ * Checks whether an activity/material or submission item is an image.
+ * Supports both camelCase and snake_case property names.
  */
-export function isImageItem({ fileUrl = '', fileName = '', fileType = '', moduleType = '' } = {}) {
-  const fType = String(fileType || '').toUpperCase();
-  const mType = String(moduleType || '').toLowerCase();
-  const url = String(fileUrl || '');
-  const name = String(fileName || '');
+export function isImageItem(item = {}) {
+  if (!item || typeof item !== 'object') return false;
+  const rawUrl = item.fileUrl || item.url || item.content_url || item.mediaUrl || '';
+  const rawName = item.fileName || item.file_name || '';
+  const rawFileType = item.fileType || item.file_type || '';
+  const rawModuleType = item.moduleType || item.module_type || item.type || item.category || '';
+
+  const fType = String(rawFileType || '').toUpperCase();
+  const mType = String(rawModuleType || '').toLowerCase();
+  const url = String(rawUrl || '');
+  const name = String(rawName || '');
 
   if (
     url.startsWith('data:image/') ||
@@ -181,12 +196,18 @@ export function isImageItem({ fileUrl = '', fileName = '', fileType = '', module
 }
 
 /**
- * Checks whether an activity/material or submission item is a PDF document
+ * Checks whether an activity/material or submission item is a PDF document.
+ * Supports both camelCase and snake_case property names.
  */
-export function isPdfItem({ fileUrl = '', fileName = '', fileType = '' } = {}) {
-  const fType = String(fileType || '').toUpperCase();
-  const url = String(fileUrl || '');
-  const name = String(fileName || '');
+export function isPdfItem(item = {}) {
+  if (!item || typeof item !== 'object') return false;
+  const rawUrl = item.fileUrl || item.url || item.content_url || item.mediaUrl || '';
+  const rawName = item.fileName || item.file_name || '';
+  const rawFileType = item.fileType || item.file_type || '';
+
+  const fType = String(rawFileType || '').toUpperCase();
+  const url = String(rawUrl || '');
+  const name = String(rawName || '');
 
   return Boolean(
     url.startsWith('data:application/pdf') ||
@@ -223,30 +244,64 @@ function openMediaDB() {
   });
 }
 
-export async function saveMediaBlobToIndexedDB(key, fileOrDataUrl) {
+/**
+ * Saves a File/Blob or data URL to IndexedDB.
+ * Can be called as:
+ *   saveMediaBlobToIndexedDB(file) -> auto-generates key and returns the `idb://...` key string
+ *   saveMediaBlobToIndexedDB(key, file) -> saves under `key` and returns `key`
+ */
+export async function saveMediaBlobToIndexedDB(keyOrFile, maybeFile) {
+  let key = keyOrFile;
+  let fileOrDataUrl = maybeFile;
+
+  if (keyOrFile && typeof keyOrFile !== 'string') {
+    fileOrDataUrl = keyOrFile;
+    const cat = detectMediaCategory({ file: fileOrDataUrl });
+    const safeName = String(fileOrDataUrl.name || 'media').replace(/[^a-zA-Z0-9._-]/g, '_');
+    key = `idb://${cat}-${Date.now()}-${safeName}`;
+  }
+
+  if (!key || !fileOrDataUrl) return null;
+
   try {
     const db = await openMediaDB();
+    const safeFileNameKey =
+      fileOrDataUrl?.name
+        ? `idb://filename/${String(fileOrDataUrl.name).trim().toLowerCase()}`
+        : null;
+
     await new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).put(fileOrDataUrl, key);
+      const store = tx.objectStore(STORE_NAME);
+      store.put(fileOrDataUrl, key);
+      if (safeFileNameKey) {
+        store.put(fileOrDataUrl, safeFileNameKey);
+      }
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
+
     if (fileOrDataUrl instanceof Blob) {
       const blobUrl = URL.createObjectURL(fileOrDataUrl);
       memoryBlobUrlCache.set(key, blobUrl);
+      if (safeFileNameKey) {
+        memoryBlobUrlCache.set(safeFileNameKey, blobUrl);
+      }
     } else if (typeof fileOrDataUrl === 'string') {
       memoryBlobUrlCache.set(key, fileOrDataUrl);
+      if (safeFileNameKey) {
+        memoryBlobUrlCache.set(safeFileNameKey, fileOrDataUrl);
+      }
     }
-    return true;
+    return key;
   } catch (err) {
     console.warn('IndexedDB media save note:', err);
-    return false;
+    return null;
   }
 }
 
 export async function getMediaBlobFromIndexedDB(key) {
-  if (!key) return null;
+  if (!key || typeof key !== 'string') return null;
   if (memoryBlobUrlCache.has(key)) {
     return memoryBlobUrlCache.get(key);
   }
@@ -275,23 +330,24 @@ export async function getMediaBlobFromIndexedDB(key) {
 }
 
 /**
- * Converts a data: URL or idb:// reference into a browser-viewable/playable Blob URL
+ * Converts a data: URL, idb:// reference, or filename lookup into a browser-viewable/playable URL.
  */
-export async function resolveViewableMediaUrl(rawUrl) {
-  if (!rawUrl) return null;
-  if (typeof rawUrl === 'string' && rawUrl.startsWith('idb://')) {
-    const fromIdb = await getMediaBlobFromIndexedDB(rawUrl);
+export async function resolveViewableMediaUrl(rawUrl, fallbackFileName = '') {
+  const urlStr = typeof rawUrl === 'string' && rawUrl !== 'true' && rawUrl !== 'false' ? rawUrl.trim() : '';
+
+  if (urlStr.startsWith('idb://')) {
+    const fromIdb = await getMediaBlobFromIndexedDB(urlStr);
     if (fromIdb) {
       return resolveViewableMediaUrl(fromIdb);
     }
-    return null;
   }
-  if (typeof rawUrl === 'string' && rawUrl.startsWith('data:')) {
-    if (memoryBlobUrlCache.has(rawUrl)) {
-      return memoryBlobUrlCache.get(rawUrl);
+
+  if (urlStr.startsWith('data:')) {
+    if (memoryBlobUrlCache.has(urlStr)) {
+      return memoryBlobUrlCache.get(urlStr);
     }
     try {
-      const parts = rawUrl.split(',');
+      const parts = urlStr.split(',');
       const mimeMatch = parts[0].match(/:(.*?);/);
       const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
       const bstr = atob(parts[1]);
@@ -302,12 +358,35 @@ export async function resolveViewableMediaUrl(rawUrl) {
       }
       const blob = new Blob([u8arr], { type: mime });
       const blobUrl = URL.createObjectURL(blob);
-      memoryBlobUrlCache.set(rawUrl, blobUrl);
+      memoryBlobUrlCache.set(urlStr, blobUrl);
       return blobUrl;
     } catch {
-      return rawUrl;
+      return urlStr;
     }
   }
-  return rawUrl;
+
+  if (urlStr.startsWith('blob:')) {
+    try {
+      const res = await fetch(urlStr);
+      if (res.ok) return urlStr;
+    } catch {
+      // Expired blob URL from an earlier session — fall through to IndexedDB lookup
+    }
+  }
+
+  if (urlStr.startsWith('http://') || urlStr.startsWith('https://')) {
+    return urlStr;
+  }
+
+  // Fallback: try looking up by filename in IndexedDB if rawUrl was missing or invalid
+  if (fallbackFileName) {
+    const safeFileNameKey = `idb://filename/${String(fallbackFileName).trim().toLowerCase()}`;
+    const byName = await getMediaBlobFromIndexedDB(safeFileNameKey);
+    if (byName) {
+      return resolveViewableMediaUrl(byName);
+    }
+  }
+
+  return null;
 }
 

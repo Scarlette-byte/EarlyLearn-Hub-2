@@ -690,25 +690,33 @@ export default function TeacherDashboard({ profile }) {
       setUploadTitle(`${prefix}${cleanName}`);
     }
 
-    // For large files / videos (> 3 MB up to 50 MB), store in IndexedDB and use Blob URL for preview
-    if (file.size > 3 * 1024 * 1024) {
-      try {
-        const idbKey = await saveMediaBlobToIndexedDB(file);
-        const blobPreview = URL.createObjectURL(file);
-        setUploadFilePreview(blobPreview);
-        setUploadUrl(idbKey);
-        return;
-      } catch {
-        // Fallback to FileReader below
-      }
+    // Always cache the file Blob in IndexedDB (by key and by filename) so videos up to 50 MB play back reliably
+    let generatedIdbKey = null;
+    try {
+      generatedIdbKey = await saveMediaBlobToIndexedDB(file);
+    } catch { }
+
+    // For very large files (> 20 MB up to 50 MB), use IndexedDB key + Blob URL preview directly
+    if (file.size > 20 * 1024 * 1024 && generatedIdbKey) {
+      const blobPreview = URL.createObjectURL(file);
+      setUploadFilePreview(blobPreview);
+      setUploadUrl(generatedIdbKey);
+      return;
     }
 
-    // Read file for preview / download URL
+    // Read file as data URL so Supabase can sync it across devices, while IndexedDB caches it locally
     const reader = new FileReader();
     reader.onload = (e) => {
       const dataUrl = e.target.result;
       setUploadFilePreview(dataUrl);
-      setUploadUrl(dataUrl);
+      setUploadUrl(dataUrl || generatedIdbKey || '');
+    };
+    reader.onerror = () => {
+      if (generatedIdbKey) {
+        const blobPreview = URL.createObjectURL(file);
+        setUploadFilePreview(blobPreview);
+        setUploadUrl(generatedIdbKey);
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -860,8 +868,12 @@ export default function TeacherDashboard({ profile }) {
       return;
     }
 
-    const effectiveUrl = uploadUrl.trim() || uploadFilePreview || null;
+    const rawUploadUrl = typeof uploadUrl === 'string' ? uploadUrl.trim() : '';
+    const effectiveUrl = rawUploadUrl || uploadFilePreview || null;
     const effectiveFileName = uploadFileName || null;
+    const idbFallbackUrl = effectiveFileName
+      ? `idb://filename/${effectiveFileName.trim().toLowerCase()}`
+      : null;
     const effectiveFileSize = uploadFileSize || '2.4 MB';
     const effectiveFileType = uploadFileType || (uploadType === 'video' ? 'MP4' : uploadType === 'file' ? 'PDF' : uploadType.toUpperCase());
 
@@ -907,7 +919,7 @@ export default function TeacherDashboard({ profile }) {
 
     try {
       if (existingMat?.id) {
-        const { data: updatedMat, error: matErr } = await supabase
+        let { data: updatedMat, error: matErr } = await supabase
           .from('materials')
           .update({
             category_id: catId,
@@ -922,12 +934,31 @@ export default function TeacherDashboard({ profile }) {
           .select()
           .single();
 
+        if (matErr && idbFallbackUrl && effectiveUrl && effectiveUrl.length > 500000) {
+          const retry = await supabase
+            .from('materials')
+            .update({
+              category_id: catId,
+              type: dbType,
+              title: uploadTitle.trim(),
+              age_range: uploadCurriculumLevel === 'PRE-K1' ? '3-4' : '4-5',
+              content_url: idbFallbackUrl,
+              content_text: JSON.stringify(metadataPayload),
+              status: 'pending',
+            })
+            .eq('id', existingMat.id)
+            .select()
+            .single();
+          updatedMat = retry.data;
+          matErr = retry.error;
+        }
+
         if (!matErr && updatedMat) {
           dbMaterialId = updatedMat.id;
           savedToSupabase = true;
         }
       } else {
-        const { data: insertedMat, error: matErr } = await supabase
+        let { data: insertedMat, error: matErr } = await supabase
           .from('materials')
           .insert({
             category_id: catId,
@@ -942,6 +973,25 @@ export default function TeacherDashboard({ profile }) {
           .select()
           .single();
 
+        if (matErr && idbFallbackUrl && effectiveUrl && effectiveUrl.length > 500000) {
+          const retry = await supabase
+            .from('materials')
+            .insert({
+              category_id: catId,
+              type: dbType,
+              title: uploadTitle.trim(),
+              age_range: uploadCurriculumLevel === 'PRE-K1' ? '3-4' : '4-5',
+              content_url: idbFallbackUrl,
+              content_text: JSON.stringify(metadataPayload),
+              created_by: currentUserId,
+              status: 'pending',
+            })
+            .select()
+            .single();
+          insertedMat = retry.data;
+          matErr = retry.error;
+        }
+
         if (!matErr && insertedMat) {
           dbMaterialId = insertedMat.id;
           savedToSupabase = true;
@@ -954,6 +1004,11 @@ export default function TeacherDashboard({ profile }) {
     }
 
     // 2. Insert/replace in localTeacherModules for cross-dashboard visibility & MSWD activity monitoring (1 record per title)
+    const localSafeUrl =
+      effectiveUrl && effectiveUrl.startsWith('data:') && effectiveUrl.length > 2000000 && idbFallbackUrl
+        ? idbFallbackUrl
+        : effectiveUrl;
+
     const newMod = {
       id: dbMaterialId || ('mod-' + Date.now()),
       assignment_id: activeAssignmentId || null,
@@ -988,7 +1043,7 @@ export default function TeacherDashboard({ profile }) {
       target_student_name: null,
       mswd_comments: '',
       description: uploadDescription.trim() || `${uploadCurriculumLevel} ${uploadWeek} ECCD learning activity on ${uploadSubTheme}`,
-      content_url: effectiveUrl,
+      content_url: localSafeUrl,
       content_text: uploadDescription.trim() || null,
       downloads_count: 0,
       type: uploadType,
@@ -1003,8 +1058,13 @@ export default function TeacherDashboard({ profile }) {
     const updated = [newMod, ...filteredLocal];
     setLocalTeacherModules(updated);
     try {
-      localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(updated));
-      window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updated }));
+      const storageSafeList = updated.map((m) =>
+        m.content_url && String(m.content_url).startsWith('data:') && String(m.content_url).length > 2000000 && m.file_name
+          ? { ...m, content_url: `idb://filename/${String(m.file_name).trim().toLowerCase()}` }
+          : m
+      );
+      localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(storageSafeList));
+      window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: storageSafeList }));
     } catch {
       // Ignored
     }

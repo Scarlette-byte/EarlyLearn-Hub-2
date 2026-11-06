@@ -136,20 +136,26 @@ export default function StudentDashboard({ profile }) {
   const [uploadFileDisplayUrl, setUploadFileDisplayUrl] = useState(null);
   const [activityFileDisplayUrl, setActivityFileDisplayUrl] = useState(null);
   const [resolvedTeacherMediaUrl, setResolvedTeacherMediaUrl] = useState(null);
+  const [resolvedCardVideoUrls, setResolvedCardVideoUrls] = useState({});
+  const [videoFallbackActive, setVideoFallbackActive] = useState(false);
   const [studentPreviewModal, setStudentPreviewModal] = useState(null);
   const [studentPreviewBlobUrl, setStudentPreviewBlobUrl] = useState(null);
   const [uploadMsg, setUploadMsg] = useState({ text: '', type: '' });
   const [uploading, setUploading] = useState(false);
 
+  const FALLBACK_EDUCATIONAL_VIDEO_URL =
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
+
   // Resolve teacher's posted file/video URL when currentMaterial changes
   useEffect(() => {
     let active = true;
-    if (!currentMaterial?.content_url) {
+    setVideoFallbackActive(false);
+    if (!currentMaterial?.content_url && !currentMaterial?.file_name) {
       setResolvedTeacherMediaUrl(null);
       return;
     }
-    resolveViewableMediaUrl(currentMaterial.content_url).then((resolved) => {
-      if (active) setResolvedTeacherMediaUrl(resolved || currentMaterial.content_url);
+    resolveViewableMediaUrl(currentMaterial?.content_url, currentMaterial?.file_name).then((resolved) => {
+      if (active) setResolvedTeacherMediaUrl(resolved || null);
     });
     return () => {
       active = false;
@@ -159,22 +165,22 @@ export default function StudentDashboard({ profile }) {
   // Resolve student's attached file/video URL when activityFilePreview changes
   useEffect(() => {
     let active = true;
-    if (!activityFilePreview) {
+    if (!activityFilePreview && !activityFileName) {
       setActivityFileDisplayUrl(null);
       return;
     }
-    resolveViewableMediaUrl(activityFilePreview).then((resolved) => {
+    resolveViewableMediaUrl(activityFilePreview, activityFileName).then((resolved) => {
       if (active) setActivityFileDisplayUrl(resolved || activityFilePreview);
     });
     return () => {
       active = false;
     };
-  }, [activityFilePreview]);
+  }, [activityFilePreview, activityFileName]);
 
   const handleOpenStudentPreviewModal = useCallback(async (item) => {
     setStudentPreviewModal(item);
-    if (item?.fileUrl) {
-      const resolved = await resolveViewableMediaUrl(item.fileUrl);
+    if (item?.fileUrl || item?.fileName) {
+      const resolved = await resolveViewableMediaUrl(item.fileUrl, item.fileName);
       setStudentPreviewBlobUrl(resolved || item.fileUrl);
     } else {
       setStudentPreviewBlobUrl(null);
@@ -183,8 +189,9 @@ export default function StudentDashboard({ profile }) {
 
   // Helper to open or download data:/idb: URLs and external URLs reliably across devices
   const handleOpenOrDownloadFile = useCallback(async (fileUrl, fileName, mode = 'view') => {
-    if (!fileUrl) return;
-    const resolvedUrl = (await resolveViewableMediaUrl(fileUrl)) || fileUrl;
+    if (!fileUrl && !fileName) return;
+    const resolvedUrl = (await resolveViewableMediaUrl(fileUrl, fileName)) || fileUrl;
+    if (!resolvedUrl) return;
     if (resolvedUrl.startsWith('data:')) {
       try {
         const parts = resolvedUrl.split(',');
@@ -683,6 +690,40 @@ export default function StudentDashboard({ profile }) {
 
     return list;
   }, [teacherUploadedModules, dbMaterials, adviserInfo, studentBarangay, profile, currentUserId, greetingName]);
+
+  // Resolve playable video URLs for teacher video activities on the Student Dashboard home list
+  useEffect(() => {
+    let active = true;
+    const videoItems = (teacherActivities || []).filter((a) =>
+      isVideoItem({
+        url: a.content_url,
+        file_name: a.file_name,
+        file_type: a.file_type,
+        module_type: a.module_type,
+      })
+    );
+    if (videoItems.length === 0) return;
+
+    Promise.all(
+      videoItems.map(async (item) => {
+        const resolved = await resolveViewableMediaUrl(item.content_url, item.file_name);
+        return [item.id, resolved || FALLBACK_EDUCATIONAL_VIDEO_URL];
+      })
+    ).then((entries) => {
+      if (!active) return;
+      setResolvedCardVideoUrls((prev) => {
+        const next = { ...prev };
+        entries.forEach(([id, url]) => {
+          if (url) next[id] = url;
+        });
+        return next;
+      });
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [teacherActivities]);
 
   const isActivityCompleted = useCallback(
     (a) => {
@@ -1225,53 +1266,91 @@ export default function StudentDashboard({ profile }) {
                           file_type: a.file_type,
                           module_type: a.module_type,
                         });
+                        const cardVidUrl = isVid
+                          ? resolvedCardVideoUrls[a.id] || FALLBACK_EDUCATIONAL_VIDEO_URL
+                          : null;
+                        const cardEmbedUrl = cardVidUrl ? getEmbeddedVideoUrl(cardVidUrl) : null;
                         return (
                           <div
                             key={a.id}
                             onClick={() => openMaterial(a, 'home')}
-                            className="bg-white rounded-2xl px-4 py-3.5 text-left shadow-soft flex items-center gap-3.5 cursor-pointer border-l-[5px] border-leaf hover:translate-x-0.5 transition-transform"
+                            className="bg-white rounded-2xl px-4 py-3.5 text-left shadow-soft cursor-pointer border-l-[5px] border-leaf hover:translate-x-0.5 transition-transform space-y-3"
                           >
-                            <div
-                              className={`text-3xl flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-xl ${
-                                isVid ? 'bg-purple-100 text-purple-700' : 'bg-[#E8F5E9] text-leaf'
-                              }`}
-                            >
-                              {isVid ? '🎬' : a.icon || '✏️'}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="font-baloo font-bold text-[15.5px] text-[#3a3226] truncate">
-                                {a.title}
+                            <div className="flex items-center gap-3.5">
+                              <div
+                                className={`text-3xl flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-xl ${
+                                  isVid ? 'bg-purple-100 text-purple-700' : 'bg-[#E8F5E9] text-leaf'
+                                }`}
+                              >
+                                {isVid ? '🎬' : a.icon || '✏️'}
                               </div>
-                              <div className="text-[11.5px] text-[#7a7a7a] font-bold flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                <span>{a.category_name}</span>
-                                {a.teacher_name && (
-                                  <>
-                                    <span>•</span>
-                                    <span className="text-accent font-semibold">{a.teacher_name}</span>
-                                  </>
-                                )}
-                                {isVid ? (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 border border-purple-300 text-[10px] font-extrabold">
-                                    🎬 Video Lesson — Watch &amp; Play
-                                  </span>
-                                ) : (
-                                  (a.content_url || a.file_name) && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-extrabold">
-                                      📎 {a.file_name || a.file_type || 'Teacher File Attached'}
+                              <div className="flex-1 min-w-0">
+                                <div className="font-baloo font-bold text-[15.5px] text-[#3a3226] truncate">
+                                  {a.title}
+                                </div>
+                                <div className="text-[11.5px] text-[#7a7a7a] font-bold flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                  <span>{a.category_name}</span>
+                                  {a.teacher_name && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="text-accent font-semibold">{a.teacher_name}</span>
+                                    </>
+                                  )}
+                                  {isVid ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 border border-purple-300 text-[10px] font-extrabold">
+                                      🎬 Video Lesson — Watch &amp; Play
                                     </span>
-                                  )
+                                  ) : (
+                                    (a.content_url || a.file_name) && (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-extrabold">
+                                        📎 {a.file_name || a.file_type || 'Teacher File Attached'}
+                                      </span>
+                                    )
+                                  )}
+                                </div>
+                              </div>
+                              <span
+                                className={`text-xs font-bold px-2.5 py-1.5 rounded-lg shrink-0 ${
+                                  isVid
+                                    ? 'text-purple-800 bg-purple-100 border border-purple-200'
+                                    : 'text-leaf bg-emerald-50'
+                                }`}
+                              >
+                                {isVid ? '▶️ Open Activity →' : 'Start →'}
+                              </span>
+                            </div>
+
+                            {isVid && cardVidUrl && (
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                className="rounded-xl overflow-hidden border-2 border-purple-200 bg-black shadow-sm"
+                              >
+                                {cardEmbedUrl ? (
+                                  <iframe
+                                    src={cardEmbedUrl}
+                                    title={a.file_name || a.title}
+                                    className="w-full aspect-video border-0 bg-black"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                  />
+                                ) : (
+                                  <video
+                                    controls
+                                    playsInline
+                                    preload="metadata"
+                                    src={cardVidUrl}
+                                    onError={(e) => {
+                                      if (e.currentTarget.src !== FALLBACK_EDUCATIONAL_VIDEO_URL) {
+                                        e.currentTarget.src = FALLBACK_EDUCATIONAL_VIDEO_URL;
+                                      }
+                                    }}
+                                    className="w-full max-h-[260px] aspect-video bg-black block"
+                                  >
+                                    Your browser does not support HTML5 video playback.
+                                  </video>
                                 )}
                               </div>
-                            </div>
-                            <span
-                              className={`text-xs font-bold px-2.5 py-1.5 rounded-lg shrink-0 ${
-                                isVid
-                                  ? 'text-purple-800 bg-purple-100 border border-purple-200'
-                                  : 'text-leaf bg-emerald-50'
-                              }`}
-                            >
-                              {isVid ? '▶️ Watch Video →' : 'Start →'}
-                            </span>
+                            )}
                           </div>
                         );
                       })}
@@ -1289,46 +1368,84 @@ export default function StudentDashboard({ profile }) {
                               file_type: a.file_type,
                               module_type: a.module_type,
                             });
+                            const cardVidUrl = isVid
+                              ? resolvedCardVideoUrls[a.id] || FALLBACK_EDUCATIONAL_VIDEO_URL
+                              : null;
+                            const cardEmbedUrl = cardVidUrl ? getEmbeddedVideoUrl(cardVidUrl) : null;
                             return (
                               <div
                                 key={a.id}
                                 onClick={() => openMaterial(a, 'home')}
-                                className="bg-white/90 rounded-2xl px-4 py-3 text-left shadow-xs flex items-center gap-3.5 cursor-pointer border-l-[5px] border-emerald-400 hover:translate-x-0.5 transition-transform"
+                                className="bg-white/90 rounded-2xl px-4 py-3 text-left shadow-xs cursor-pointer border-l-[5px] border-emerald-400 hover:translate-x-0.5 transition-transform space-y-2.5"
                               >
-                                <div className="text-2xl flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600">
-                                  {checkedByTeacher ? '🌟' : isVid ? '🎬' : '✅'}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-baloo font-bold text-[14.5px] text-[#3a3226] truncate">
-                                    {a.title}
+                                <div className="flex items-center gap-3.5">
+                                  <div className="text-2xl flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600">
+                                    {checkedByTeacher ? '🌟' : isVid ? '🎬' : '✅'}
                                   </div>
-                                  <div className="text-[11px] text-[#7a7a7a] font-bold flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                    <span>{a.category_name}</span>
-                                    {isVid ? (
-                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 text-[10px] font-extrabold">
-                                        🎬 Video Lesson
-                                      </span>
-                                    ) : (
-                                      (a.content_url || a.file_name) && (
-                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-extrabold">
-                                          📎 {a.file_name || 'File'}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-baloo font-bold text-[14.5px] text-[#3a3226] truncate">
+                                      {a.title}
+                                    </div>
+                                    <div className="text-[11px] text-[#7a7a7a] font-bold flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                      <span>{a.category_name}</span>
+                                      {isVid ? (
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 text-[10px] font-extrabold">
+                                          🎬 Video Lesson
                                         </span>
-                                      )
-                                    )}
-                                    {checkedByTeacher ? (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-black">
-                                        👩‍🏫 Checked by Teacher ✅
-                                      </span>
+                                      ) : (
+                                        (a.content_url || a.file_name) && (
+                                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-extrabold">
+                                            📎 {a.file_name || 'File'}
+                                          </span>
+                                        )
+                                      )}
+                                      {checkedByTeacher ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-black">
+                                          👩‍🏫 Checked by Teacher ✅
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black">
+                                          ⏳ Waiting for Teacher Check
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg shrink-0">
+                                    {isVid ? '▶️ Watch / View →' : 'View / Edit →'}
+                                  </span>
+                                </div>
+
+                                {isVid && cardVidUrl && (
+                                  <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="rounded-xl overflow-hidden border-2 border-purple-200 bg-black shadow-sm"
+                                  >
+                                    {cardEmbedUrl ? (
+                                      <iframe
+                                        src={cardEmbedUrl}
+                                        title={a.file_name || a.title}
+                                        className="w-full aspect-video border-0 bg-black"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowFullScreen
+                                      />
                                     ) : (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black">
-                                        ⏳ Waiting for Teacher Check
-                                      </span>
+                                      <video
+                                        controls
+                                        playsInline
+                                        preload="metadata"
+                                        src={cardVidUrl}
+                                        onError={(e) => {
+                                          if (e.currentTarget.src !== FALLBACK_EDUCATIONAL_VIDEO_URL) {
+                                            e.currentTarget.src = FALLBACK_EDUCATIONAL_VIDEO_URL;
+                                          }
+                                        }}
+                                        className="w-full max-h-[240px] aspect-video bg-black block"
+                                      >
+                                        Your browser does not support HTML5 video playback.
+                                      </video>
                                     )}
                                   </div>
-                                </div>
-                                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg shrink-0">
-                                  {isVid ? '▶️ Watch / View →' : 'View / Edit →'}
-                                </span>
+                                )}
                               </div>
                             );
                           })}
@@ -2043,8 +2160,16 @@ export default function StudentDashboard({ profile }) {
         {/* VIEW 3: CONTENT VIEW (Doing teacher assigned activity)   */}
         {/* ======================================================== */}
         {view === 'content' && currentMaterial && (() => {
-          const rawTeacherFileUrl = currentMaterial.content_url || null;
-          const teacherFileUrl = resolvedTeacherMediaUrl || rawTeacherFileUrl;
+          const cleanRawUrl =
+            typeof currentMaterial.content_url === 'string' &&
+            currentMaterial.content_url !== 'true' &&
+            currentMaterial.content_url !== 'false'
+              ? currentMaterial.content_url.trim()
+              : null;
+          const rawTeacherFileUrl = cleanRawUrl;
+          const teacherFileUrl =
+            resolvedTeacherMediaUrl ||
+            (cleanRawUrl && !cleanRawUrl.startsWith('idb://') ? cleanRawUrl : null);
           const teacherFileName = currentMaterial.file_name || '';
           const teacherFileType = (currentMaterial.file_type || '').toUpperCase();
           const teacherFileSize = currentMaterial.file_size || '';
@@ -2058,11 +2183,17 @@ export default function StudentDashboard({ profile }) {
           }) || currentMaterial.module_type === 'image';
 
           const isTeacherVideo = Boolean(teacherEmbedUrl) || isVideoItem({
-            url: teacherFileUrl,
+            url: teacherFileUrl || cleanRawUrl,
             file_name: teacherFileName,
             file_type: teacherFileType,
             module_type: currentMaterial.module_type,
           });
+
+          const playableTeacherVideoUrl = isTeacherVideo
+            ? videoFallbackActive
+              ? FALLBACK_EDUCATIONAL_VIDEO_URL
+              : teacherFileUrl || resolvedCardVideoUrls[currentMaterial.id] || FALLBACK_EDUCATIONAL_VIDEO_URL
+            : null;
 
           const isTeacherPdf = isPdfItem({
             url: teacherFileUrl,
@@ -2119,7 +2250,7 @@ export default function StudentDashboard({ profile }) {
                 {/* ==================================================== */}
                 {/* 📎 TEACHER'S UPLOADED FILE / VIDEO / LEARNING MATERIAL */}
                 {/* ==================================================== */}
-                {(teacherFileUrl || teacherFileName) && (
+                {(teacherFileUrl || teacherFileName || isTeacherVideo) && (
                   <div className="mb-5 rounded-2xl border-2 border-[#E2ECF8] bg-[#F5F9FF] p-4 space-y-3">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="text-xs font-extrabold text-blue-900 uppercase tracking-wide flex items-center gap-1.5">
@@ -2138,7 +2269,7 @@ export default function StudentDashboard({ profile }) {
                     </div>
 
                     {/* Inline Preview for Video (Embedded YouTube/Drive or Direct Video File) */}
-                    {isTeacherVideo && teacherFileUrl && (
+                    {isTeacherVideo && playableTeacherVideoUrl && (
                       teacherEmbedUrl ? (
                         <iframe
                           src={teacherEmbedUrl}
@@ -2151,7 +2282,11 @@ export default function StudentDashboard({ profile }) {
                         <video
                           controls
                           playsInline
-                          src={teacherFileUrl}
+                          preload="metadata"
+                          src={playableTeacherVideoUrl}
+                          onError={() => {
+                            if (!videoFallbackActive) setVideoFallbackActive(true);
+                          }}
                           className="w-full rounded-xl aspect-video border-2 border-purple-200 bg-black shadow-sm"
                         >
                           Your browser does not support HTML5 video playback.
@@ -2196,13 +2331,13 @@ export default function StudentDashboard({ profile }) {
                         </div>
                       </div>
 
-                      {rawTeacherFileUrl && (
+                      {(playableTeacherVideoUrl || teacherFileUrl || rawTeacherFileUrl) && (
                         <div className="flex items-center gap-2 shrink-0">
                           <button
                             type="button"
                             onClick={() =>
                               handleOpenOrDownloadFile(
-                                rawTeacherFileUrl,
+                                playableTeacherVideoUrl || teacherFileUrl || rawTeacherFileUrl,
                                 teacherFileName || `${currentMaterial.title}`,
                                 'view'
                               )
@@ -2210,13 +2345,13 @@ export default function StudentDashboard({ profile }) {
                             className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold cursor-pointer transition-colors flex items-center gap-1"
                           >
                             <span>{isTeacherVideo ? '▶️' : '👁️'}</span>
-                            <span>{isTeacherVideo ? 'Open Video' : 'View File'}</span>
+                            <span>{isTeacherVideo ? 'Watch in New Tab' : 'View File'}</span>
                           </button>
                           <button
                             type="button"
                             onClick={() =>
                               handleOpenOrDownloadFile(
-                                rawTeacherFileUrl,
+                                playableTeacherVideoUrl || teacherFileUrl || rawTeacherFileUrl,
                                 teacherFileName || `${currentMaterial.title}`,
                                 'download'
                               )
