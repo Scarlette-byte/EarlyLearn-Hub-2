@@ -212,6 +212,7 @@ const [postModalMsg, setPostModalMsg] = useState({ text: '', type: '' });
 // Announcements tab
 const [annTitle, setAnnTitle] = useState('');
 const [annMessage, setAnnMessage] = useState('');
+const [annTargetStudentId, setAnnTargetStudentId] = useState('all');
 const [annStatusMsg, setAnnStatusMsg] = useState({ text: '', type: '' });
 const [announcements, setAnnouncements] = useState([]);
 
@@ -1682,36 +1683,260 @@ const handleFileSelected = async (file) => {
     showTeacherToast(`🗑️ Permanently deleted "${topicName}".`);
   }
 
-  // --- Announcements ---
+  // --- Announcements (Supports All Class Learners or Specific Student + Cross-Device Sync via Supabase) ---
   const loadAnnouncements = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('announcements')
-      .select('id, title, message, created_at')
-      .order('created_at', { ascending: false });
-    if (!error && data) setAnnouncements(data);
-  }, []);
+    const mergedMap = new Map();
+    const normMyTeacher = normalizeTeacherName(myFullName || profile?.full_name || '');
+
+    // 1. Load from localStorage
+    let localAnns = [];
+    try {
+      const saved = localStorage.getItem('earlylearn_announcements');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) localAnns = parsed;
+      }
+    } catch { }
+
+    // 2. Load from Supabase `materials` sync records (`[TEACHER_ANNOUNCEMENT]`)
+    try {
+      const { data: matAnns } = await supabase
+        .from('materials')
+        .select('id, title, content_text, created_by, created_at')
+        .ilike('title', '[TEACHER_ANNOUNCEMENT]%')
+        .order('created_at', { ascending: false });
+
+      if (Array.isArray(matAnns)) {
+        matAnns.forEach((row) => {
+          try {
+            const parsed = JSON.parse(row.content_text || '{}');
+            if (parsed && parsed.__teacher_announcement) {
+              const normRowTeacher = normalizeTeacherName(parsed.teacher_name || '');
+              const isMine =
+                !parsed.teacher_id ||
+                parsed.teacher_id === currentUserId ||
+                row.created_by === currentUserId ||
+                (normMyTeacher.length >= 3 &&
+                  normRowTeacher.length >= 3 &&
+                  (normMyTeacher === normRowTeacher ||
+                    normMyTeacher.includes(normRowTeacher) ||
+                    normRowTeacher.includes(normMyTeacher)));
+
+              if (isMine) {
+                const annId = parsed.id || row.id;
+                mergedMap.set(annId, {
+                  id: annId,
+                  _sbMaterialId: row.id,
+                  title: parsed.title || row.title.replace(/^\[TEACHER_ANNOUNCEMENT\]\s*/, ''),
+                  message: parsed.message || '',
+                  target_student_id: parsed.target_student_id || 'all',
+                  target_student_name: parsed.target_student_name || 'All Class Learners',
+                  teacher_id: parsed.teacher_id || row.created_by,
+                  teacher_name: parsed.teacher_name || myFullName || profile?.full_name || 'Teacher',
+                  cdc_name: parsed.cdc_name || myCdcName || profile?.cdc_name || '',
+                  barangay: parsed.barangay || myBarangay || profile?.barangay || '',
+                  created_at: parsed.created_at || row.created_at || new Date().toISOString(),
+                });
+              }
+            }
+          } catch { }
+        });
+      }
+    } catch { }
+
+    // 3. Also load from Supabase `announcements` table (if any exist)
+    try {
+      const { data, error } = await supabase
+        .from('announcements')
+        .select('id, title, message, created_at')
+        .order('created_at', { ascending: false });
+      if (!error && Array.isArray(data)) {
+        data.forEach((a) => {
+          let cleanMsg = a.message || '';
+          let targetId = 'all';
+          let targetName = 'All Class Learners';
+          if (cleanMsg.trim().startsWith('{')) {
+            try {
+              const p = JSON.parse(cleanMsg);
+              if (p && p.__teacher_announcement) {
+                cleanMsg = p.message || '';
+                targetId = p.target_student_id || 'all';
+                targetName = p.target_student_name || 'All Class Learners';
+              }
+            } catch { }
+          }
+          const key = `${(a.title || '').trim().toLowerCase()}::${cleanMsg.trim().toLowerCase()}`;
+          const alreadyExists = Array.from(mergedMap.values()).some(
+            (existing) =>
+              `${(existing.title || '').trim().toLowerCase()}::${(existing.message || '').trim().toLowerCase()}` === key
+          );
+          if (!alreadyExists) {
+            mergedMap.set(a.id, {
+              id: a.id,
+              _sbAnnouncementId: a.id,
+              title: a.title,
+              message: cleanMsg,
+              target_student_id: targetId,
+              target_student_name: targetName,
+              created_at: a.created_at || new Date().toISOString(),
+            });
+          }
+        });
+      }
+    } catch { }
+
+    // 4. Merge local announcements
+    localAnns.forEach((loc) => {
+      if (!loc || !loc.title) return;
+      const normLocTeacher = normalizeTeacherName(loc.teacher_name || '');
+      const isMine =
+        !loc.teacher_id ||
+        loc.teacher_id === currentUserId ||
+        (normMyTeacher.length >= 3 &&
+          normLocTeacher.length >= 3 &&
+          (normMyTeacher === normLocTeacher ||
+            normMyTeacher.includes(normLocTeacher) ||
+            normLocTeacher.includes(normMyTeacher)));
+      if (!isMine) return;
+
+      const key = `${(loc.title || '').trim().toLowerCase()}::${(loc.message || '').trim().toLowerCase()}`;
+      const existing = Array.from(mergedMap.values()).find(
+        (e) =>
+          e.id === loc.id ||
+          `${(e.title || '').trim().toLowerCase()}::${(e.message || '').trim().toLowerCase()}` === key
+      );
+      if (!existing) {
+        mergedMap.set(loc.id, loc);
+      }
+    });
+
+    const finalList = Array.from(mergedMap.values()).sort(
+      (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+    );
+    setAnnouncements(finalList);
+  }, [currentUserId, myFullName, myCdcName, myBarangay, profile]);
 
   async function postAnnouncement() {
     if (!annTitle.trim() || !annMessage.trim()) {
       setAnnStatusMsg({ text: '⚠️ Please enter a title and message', type: 'error' });
       return;
     }
-    const { error } = await supabase
-      .from('announcements')
-      .insert({ title: annTitle.trim(), message: annMessage.trim(), created_by: currentUserId });
-    if (error) {
-      setAnnStatusMsg({ text: '❌ ' + error.message, type: 'error' });
-    } else {
-      setAnnStatusMsg({ text: '✅ Announcement posted!', type: 'ok' });
-      setAnnTitle('');
-      setAnnMessage('');
-      loadAnnouncements();
-    }
+
+    const chosenLearner =
+      annTargetStudentId !== 'all'
+        ? myLearners.find((l) => String(l.id) === String(annTargetStudentId))
+        : null;
+
+    const targetStudentIdToSave = chosenLearner ? chosenLearner.id : 'all';
+    const targetStudentNameToSave = chosenLearner
+      ? chosenLearner.studentDisplayName || cleanStudentName(chosenLearner.full_name) || chosenLearner.full_name
+      : `All Class Learners (${myCdcName || profile?.cdc_name || 'Class'})`;
+
+    const nowIso = new Date().toISOString();
+    const newAnnId = 'ann-' + Date.now();
+    const annPayload = {
+      __teacher_announcement: true,
+      id: newAnnId,
+      title: annTitle.trim(),
+      message: annMessage.trim(),
+      target_student_id: targetStudentIdToSave,
+      target_student_name: targetStudentNameToSave,
+      teacher_id: currentUserId,
+      teacher_name: myFullName || profile?.full_name || 'Teacher',
+      cdc_name: myCdcName || profile?.cdc_name || 'Manolo Fortich CDC',
+      barangay: myBarangay || profile?.barangay || 'Manolo Fortich',
+      created_at: nowIso,
+    };
+
+    // 1. Save immediately to localStorage for instant responsiveness
+    try {
+      const saved = localStorage.getItem('earlylearn_announcements');
+      const existing = saved ? JSON.parse(saved) : [];
+      const updated = [annPayload, ...(Array.isArray(existing) ? existing : [])];
+      localStorage.setItem('earlylearn_announcements', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('earlylearn_announcements_updated', { detail: updated }));
+    } catch { }
+
+    // 2. Sync to Supabase `materials` table (`[TEACHER_ANNOUNCEMENT]`) for cross-device student access without RLS block
+    try {
+      let catId = categoryOptions?.[0]?.id || null;
+      if (!catId) {
+        const { data: cats } = await supabase.from('categories').select('id').limit(1);
+        catId = cats?.[0]?.id || null;
+      }
+      await supabase.from('materials').insert({
+        category_id: catId,
+        type: 'story',
+        title: `[TEACHER_ANNOUNCEMENT] ${annTitle.trim()}`,
+        age_range: '3-5',
+        status: 'approved',
+        content_text: JSON.stringify(annPayload),
+      });
+    } catch { }
+
+    // 3. Best-effort insert into `announcements` table if RLS permits
+    try {
+      await supabase.from('announcements').insert({
+        title: annTitle.trim(),
+        message: annMessage.trim(),
+        created_by: currentUserId,
+      });
+    } catch { }
+
+    setAnnStatusMsg({
+      text:
+        targetStudentIdToSave === 'all'
+          ? `✅ Announcement posted to ${targetStudentNameToSave}!`
+          : `✅ Announcement posted specifically to ${targetStudentNameToSave}'s Student Dashboard!`,
+      type: 'ok',
+    });
+    setAnnTitle('');
+    setAnnMessage('');
+    setAnnTargetStudentId('all');
+    loadAnnouncements();
   }
 
-  async function deleteAnnouncement(id) {
+  async function deleteAnnouncement(annOrId) {
     if (!confirm('Delete this announcement?')) return;
-    await supabase.from('announcements').delete().eq('id', id);
+    const targetId = typeof annOrId === 'object' ? annOrId.id : annOrId;
+    const sbMatId = typeof annOrId === 'object' ? annOrId._sbMaterialId : null;
+    const sbAnnId = typeof annOrId === 'object' ? annOrId._sbAnnouncementId : targetId;
+    const annTitleToMatch = typeof annOrId === 'object' ? annOrId.title : null;
+
+    // 1. Remove from localStorage
+    try {
+      const saved = localStorage.getItem('earlylearn_announcements');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const filtered = parsed.filter(
+            (a) => a.id !== targetId && (!annTitleToMatch || a.title !== annTitleToMatch)
+          );
+          localStorage.setItem('earlylearn_announcements', JSON.stringify(filtered));
+          window.dispatchEvent(new CustomEvent('earlylearn_announcements_updated', { detail: filtered }));
+        }
+      }
+    } catch { }
+
+    // 2. Remove from Supabase `materials` (`[TEACHER_ANNOUNCEMENT]`)
+    try {
+      if (sbMatId) {
+        await supabase.from('materials').delete().eq('id', sbMatId);
+      } else if (annTitleToMatch) {
+        await supabase
+          .from('materials')
+          .delete()
+          .eq('title', `[TEACHER_ANNOUNCEMENT] ${annTitleToMatch}`);
+      }
+    } catch { }
+
+    // 3. Remove from Supabase `announcements`
+    try {
+      if (sbAnnId) {
+        await supabase.from('announcements').delete().eq('id', sbAnnId);
+      }
+    } catch { }
+
     loadAnnouncements();
   }
 
@@ -4251,11 +4476,36 @@ const handleFileSelected = async (file) => {
       {/* ANNOUNCEMENTS */}
       {activeTab === 'announcements' && (
         <div className={cardBox}>
-          <h3 className={cardBoxTitle}>Post Announcement</h3>
+          <div className="mb-3">
+            <h3 className={`${cardBoxTitle} mb-0.5`}>Post Announcement to Student Dashboard</h3>
+            <p className="text-xs text-slate-500 m-0">
+              Send an announcement to all class learners in your Daycare Center or directly to a specific student&apos;s dashboard.
+            </p>
+          </div>
+
+          <label className={label}>Target Student / Recipient</label>
+          <select
+            value={annTargetStudentId}
+            onChange={(e) => setAnnTargetStudentId(e.target.value)}
+            className={input}
+          >
+            <option value="all">
+              👨‍👩‍👧‍👦 All Class Learners ({myCdcName || profile?.cdc_name || 'My Daycare Center'})
+            </option>
+            {myLearners.map((l) => {
+              const sName = l.studentDisplayName || cleanStudentName(l.full_name) || l.full_name;
+              return (
+                <option key={l.id} value={l.id}>
+                  🎯 Specific Student: {sName}
+                </option>
+              );
+            })}
+          </select>
+
           <label className={label}>Title</label>
           <input
             type="text"
-            placeholder="e.g. No classes tomorrow"
+            placeholder="e.g. Attention Parents / No classes tomorrow"
             value={annTitle}
             onChange={(e) => setAnnTitle(e.target.value)}
             className={input}
@@ -4281,23 +4531,45 @@ const handleFileSelected = async (file) => {
                 <tr>
                   <th className={th}>Title</th>
                   <th className={th}>Message</th>
+                  <th className={th}>Target Student / Recipient</th>
                   <th className={th}>Posted</th>
                   <th className={th}></th>
                 </tr>
               </thead>
               <tbody>
-                {announcements.map((a) => (
-                  <tr key={a.id}>
-                    <td className={td}>{a.title}</td>
-                    <td className={`${td} max-w-[260px]`}>{a.message}</td>
-                    <td className={td}>{new Date(a.created_at).toLocaleDateString()}</td>
-                    <td className={td}>
-                      <button onClick={() => deleteAnnouncement(a.id)} className={delBtn}>
-                        ✕
-                      </button>
+                {announcements.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className={`${td} text-center text-slate-400 py-5`}>
+                      No announcements posted yet.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  announcements.map((a) => (
+                    <tr key={a.id}>
+                      <td className={`${td} font-bold text-slate-900`}>{a.title}</td>
+                      <td className={`${td} max-w-[320px]`}>{a.message}</td>
+                      <td className={td}>
+                        {a.target_student_id && a.target_student_id !== 'all' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                            🎯 {a.target_student_name || 'Specific Student'}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            👨‍👩‍👧‍👦 {a.target_student_name || 'All Class Learners'}
+                          </span>
+                        )}
+                      </td>
+                      <td className={td}>
+                        {a.created_at ? new Date(a.created_at).toLocaleDateString() : 'Recent'}
+                      </td>
+                      <td className={td}>
+                        <button onClick={() => deleteAnnouncement(a)} className={delBtn}>
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

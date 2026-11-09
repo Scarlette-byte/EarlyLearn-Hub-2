@@ -289,21 +289,165 @@ export default function StudentDashboard({ profile }) {
         navigate('/login');
       }
 
-      // --- Load Announcements from Supabase ---
+      // --- Load Announcements from Supabase & LocalStorage (Filtered for this Student / Class) ---
       const loadAnnouncements = useCallback(async () => {
+        const merged = [];
+        const seenKeys = new Set();
+
+        const studentTeacherName = (adviserInfo?.adviserName || '').trim().toLowerCase();
+        const studentBarangayLower = (studentBarangay || profile?.barangay || '').trim().toLowerCase();
+        const studentCdcLower = (adviserInfo?.cdcName || profile?.cdc_name || '').trim().toLowerCase();
+        const studentTeacherId = profile?.teacher_id || profile?.assigned_teacher_id || null;
+        const studentNameLower = (greetingName || '').trim().toLowerCase();
+        const fullStudentClean = cleanStudentName(profile?.full_name || '').toLowerCase().trim();
+
+        const isAnnForMe = (ann) => {
+          const tId = ann.target_student_id;
+          const tName = cleanStudentName(ann.target_student_name || '').toLowerCase().trim();
+
+          // 1. Targeted to a specific student
+          if (tId && tId !== 'all') {
+            if (String(tId) === String(currentUserId)) return true;
+            if (
+              tName &&
+              !tName.startsWith('all class') &&
+              ((studentNameLower && tName.includes(studentNameLower)) ||
+                (fullStudentClean &&
+                  (tName === fullStudentClean ||
+                    tName.includes(fullStudentClean) ||
+                    fullStudentClean.includes(tName))))
+            ) {
+              return true;
+            }
+            return false;
+          }
+
+          // 2. Targeted to All Class Learners — check if from this student's teacher / CDC / Barangay
+          if (!ann.teacher_name && !ann.cdc_name && !ann.barangay && !ann.teacher_id) {
+            return true;
+          }
+          if (!studentTeacherName && !studentBarangayLower && !studentCdcLower && !studentTeacherId) {
+            return true;
+          }
+          if (studentTeacherId && ann.teacher_id && String(studentTeacherId).trim() === String(ann.teacher_id).trim()) {
+            return true;
+          }
+          const normTch = (ann.teacher_name || '').toLowerCase().trim();
+          if (
+            studentTeacherName &&
+            normTch &&
+            (normTch.includes(studentTeacherName) || studentTeacherName.includes(normTch))
+          ) {
+            return true;
+          }
+          const normCdc = (ann.cdc_name || '').toLowerCase().trim();
+          if (
+            studentCdcLower &&
+            normCdc &&
+            (normCdc === studentCdcLower ||
+              normCdc.includes(studentCdcLower) ||
+              studentCdcLower.includes(normCdc))
+          ) {
+            return true;
+          }
+          const normBrgy = (ann.barangay || '').toLowerCase().trim();
+          if (studentBarangayLower && normBrgy && normBrgy === studentBarangayLower) {
+            return true;
+          }
+          return false;
+        };
+
+        const addIfRelevant = (item) => {
+          if (!item || !item.title) return;
+          if (!isAnnForMe(item)) return;
+          const key = `${String(item.title).trim().toLowerCase()}::${String(item.message || '').trim().toLowerCase()}`;
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            merged.push(item);
+          }
+        };
+
+        // 1. Load from Supabase `materials` (`[TEACHER_ANNOUNCEMENT]`)
+        try {
+          const { data: matAnns } = await supabase
+            .from('materials')
+            .select('id, title, content_text, created_by, created_at')
+            .ilike('title', '[TEACHER_ANNOUNCEMENT]%')
+            .order('created_at', { ascending: false });
+
+          if (Array.isArray(matAnns)) {
+            matAnns.forEach((row) => {
+              try {
+                const parsed = JSON.parse(row.content_text || '{}');
+                if (parsed && parsed.__teacher_announcement) {
+                  addIfRelevant({
+                    id: parsed.id || row.id,
+                    title: parsed.title || row.title.replace(/^\[TEACHER_ANNOUNCEMENT\]\s*/, ''),
+                    message: parsed.message || '',
+                    target_student_id: parsed.target_student_id || 'all',
+                    target_student_name: parsed.target_student_name || 'All Class Learners',
+                    teacher_id: parsed.teacher_id || row.created_by,
+                    teacher_name: parsed.teacher_name || '',
+                    cdc_name: parsed.cdc_name || '',
+                    barangay: parsed.barangay || '',
+                    created_at: parsed.created_at || row.created_at,
+                  });
+                }
+              } catch { }
+            });
+          }
+        } catch { }
+
+        // 2. Load from Supabase `announcements`
         try {
           const { data, error } = await supabase
             .from('announcements')
-            .select('title, message, created_at')
+            .select('id, title, message, created_at')
             .order('created_at', { ascending: false })
-            .limit(3);
-          if (!error && data && data.length > 0) {
-            setAnnouncements(data);
+            .limit(10);
+          if (!error && Array.isArray(data)) {
+            data.forEach((a) => {
+              let cleanMsg = a.message || '';
+              let targetId = 'all';
+              let targetName = 'All Class Learners';
+              if (cleanMsg.trim().startsWith('{')) {
+                try {
+                  const p = JSON.parse(cleanMsg);
+                  if (p && p.__teacher_announcement) {
+                    cleanMsg = p.message || '';
+                    targetId = p.target_student_id || 'all';
+                    targetName = p.target_student_name || 'All Class Learners';
+                  }
+                } catch { }
+              }
+              addIfRelevant({
+                id: a.id,
+                title: a.title,
+                message: cleanMsg,
+                target_student_id: targetId,
+                target_student_name: targetName,
+                created_at: a.created_at,
+              });
+            });
           }
-        } catch {
-          // fallback
-        }
-      }, []);
+        } catch { }
+
+        // 3. Load from localStorage `earlylearn_announcements`
+        try {
+          const saved = localStorage.getItem('earlylearn_announcements');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) {
+              parsed.forEach((loc) => addIfRelevant(loc));
+            }
+          }
+        } catch { }
+
+        merged.sort(
+          (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+        );
+        setAnnouncements(merged.slice(0, 6));
+      }, [adviserInfo, studentBarangay, profile, currentUserId, greetingName]);
 
       // --- Load Supabase Materials ---
       const loadDbMaterials = useCallback(async () => {
@@ -509,6 +653,9 @@ export default function StudentDashboard({ profile }) {
           if (e.key === 'earlylearn_teacher_modules') {
             setTeacherUploadedModules(getCleanTeacherModulesList());
           }
+          if (e.key === 'earlylearn_announcements') {
+            loadAnnouncements();
+          }
           if (
             e.key === 'earlylearn_student_uploads' ||
             e.key === `earlylearn_student_uploads_${currentUserId}`
@@ -525,15 +672,21 @@ export default function StudentDashboard({ profile }) {
           setTeacherUploadedModules(getCleanTeacherModulesList());
           loadDbMaterials();
           loadStudentSubmissions();
+          loadAnnouncements();
+        }
+        function handleAnnouncementsEvent() {
+          loadAnnouncements();
         }
 
         window.addEventListener('storage', handleStorageChange);
         window.addEventListener('earlylearn_modules_updated', handleModulesEvent);
+        window.addEventListener('earlylearn_announcements_updated', handleAnnouncementsEvent);
 
         const channel = supabase
           .channel(`student-dashboard-sync-${currentUserId}`)
           .on('postgres_changes', { event: '*', schema: 'public', table: 'materials' }, () => {
             loadDbMaterials();
+            loadAnnouncements();
           })
           .on('postgres_changes', { event: '*', schema: 'public', table: 'submissions' }, () => {
             loadStudentSubmissions();
@@ -546,6 +699,7 @@ export default function StudentDashboard({ profile }) {
         return () => {
           window.removeEventListener('storage', handleStorageChange);
           window.removeEventListener('earlylearn_modules_updated', handleModulesEvent);
+          window.removeEventListener('earlylearn_announcements_updated', handleAnnouncementsEvent);
           supabase.removeChannel(channel);
         };
       }, [loadAnnouncements, loadDbMaterials, loadStudentSubmissions, currentUserId, profile]);
@@ -1277,19 +1431,39 @@ export default function StudentDashboard({ profile }) {
                   {/* Announcements (if any) */}
                   {announcements.length > 0 && (
                     <div>
-                      <div className="text-xs sm:text-sm font-extrabold text-[#6b5c42] text-left mb-2.5">
-                        📢 Announcements
+                      <div className="text-xs sm:text-sm font-extrabold text-[#6b5c42] text-left mb-2.5 flex items-center gap-1.5">
+                        <span>📢</span>
+                        <span>Teacher Announcements ({announcements.length})</span>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {announcements.map((a, i) => (
-                          <div
-                            key={i}
-                            className="bg-white rounded-2xl px-4 py-3 text-left shadow-soft border-l-[5px] border-[#FFB84D]"
-                          >
-                            <div className="font-baloo font-bold text-[14.5px] mb-0.5">{a.title}</div>
-                            <div className="text-[12.5px] text-[#6b6355]">{a.message}</div>
-                          </div>
-                        ))}
+                        {announcements.map((a, i) => {
+                          const isDirectToMe = a.target_student_id && a.target_student_id !== 'all';
+                          return (
+                            <div
+                              key={a.id || i}
+                              className="bg-white rounded-2xl px-4 py-3.5 text-left shadow-soft border-l-[5px] border-[#FFB84D] space-y-1"
+                            >
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <span
+                                  className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                    isDirectToMe
+                                      ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                      : 'bg-orange-50 text-accent border border-orange-200'
+                                  }`}
+                                >
+                                  {isDirectToMe ? `🎯 For ${greetingName}` : '👨‍👩‍👧‍👦 Class Announcement'}
+                                </span>
+                                {a.created_at && (
+                                  <span className="text-[10px] text-slate-400 font-bold">
+                                    {new Date(a.created_at).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="font-baloo font-bold text-[15px] text-[#3a3226]">{a.title}</div>
+                              <div className="text-[12.5px] text-[#6b6355] leading-relaxed">{a.message}</div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}

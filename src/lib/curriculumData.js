@@ -482,7 +482,13 @@ export const initialTeacherModules = [];
  */
 export function isAuthenticSupabaseMaterial(m) {
   if (!m || !m.title) return false;
-  if (m.title.startsWith('[MSWD_ASSIGNMENT]') || m.title.startsWith('[MEDIA_CHUNK]')) return false;
+  if (
+    m.title.startsWith('[MSWD_ASSIGNMENT]') ||
+    m.title.startsWith('[MEDIA_CHUNK]') ||
+    m.title.startsWith('[TEACHER_ANNOUNCEMENT]')
+  ) {
+    return false;
+  }
 
   // All real teacher uploads store a JSON object with `__metadata: true` inside `content_text`
   if (m.content_text && typeof m.content_text === 'string' && m.content_text.trim().startsWith('{')) {
@@ -506,7 +512,12 @@ export function isAuthenticSupabaseMaterial(m) {
 export function isAuthenticLocalTeacherModule(m) {
   if (!m || !m.id || !m.title) return false;
   if (/^mod-0[1-9]$|^mod-1[0-2]$/.test(String(m.id))) return false;
-  if (m.title.startsWith('[MSWD_ASSIGNMENT]')) return false;
+  if (
+    m.title.startsWith('[MSWD_ASSIGNMENT]') ||
+    m.title.startsWith('[TEACHER_ANNOUNCEMENT]')
+  ) {
+    return false;
+  }
 
   // Exclude seeded bilingual category flashcards that were accidentally cached from Supabase
   if (
