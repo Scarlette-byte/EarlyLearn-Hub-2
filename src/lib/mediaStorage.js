@@ -211,20 +211,40 @@ export function isPdfItem(item = {}) {
 
   return Boolean(
     url.startsWith('data:application/pdf') ||
-      url.startsWith('idb://pdf-') ||
-      /\.pdf(\?|#|$)/i.test(name || url) ||
-      fType === 'PDF' ||
-      fType.includes('PDF')
+    url.startsWith('idb://pdf-') ||
+    /\.pdf(\?|#|$)/i.test(name || url) ||
+    fType === 'PDF' ||
+    fType.includes('PDF')
   );
 }
 
 // ============================================================================
 // IndexedDB Large Media Storage (supports up to 50 MB videos without hitting
-// localStorage 5 MB quota, with in-memory Blob URL cache for instant playback)
+// localStorage 5 MB quota, with in-memory Blob cache for instant playback)
 // ============================================================================
 const DB_NAME = 'earlylearn_media_db';
 const STORE_NAME = 'media_files';
-const memoryBlobUrlCache = new Map();
+const memoryBlobCache = new Map();
+
+function normalizePlayableBlob(blob, fileNameHint = '') {
+  if (!(blob instanceof Blob)) return null;
+  const nameLower = String(fileNameHint || blob.name || '').toLowerCase();
+  const currentType = String(blob.type || '').toLowerCase();
+
+  if (
+    nameLower.endsWith('.mp4') ||
+    nameLower.endsWith('.mov') ||
+    nameLower.endsWith('.m4v') ||
+    currentType === 'video/quicktime'
+  ) {
+    if (currentType !== 'video/mp4') {
+      return new Blob([blob], { type: 'video/mp4' });
+    }
+  } else if (nameLower.endsWith('.webm') && currentType !== 'video/webm') {
+    return new Blob([blob], { type: 'video/webm' });
+  }
+  return blob;
+}
 
 function openMediaDB() {
   return new Promise((resolve, reject) => {
@@ -248,145 +268,203 @@ function openMediaDB() {
  * Saves a File/Blob or data URL to IndexedDB.
  * Can be called as:
  *   saveMediaBlobToIndexedDB(file) -> auto-generates key and returns the `idb://...` key string
- *   saveMediaBlobToIndexedDB(key, file) -> saves under `key` and returns `key`
+ *   saveMediaBlobToIndexedDB(key, file, optionalTitle) -> saves under `key` and returns `key`
  */
-export async function saveMediaBlobToIndexedDB(keyOrFile, maybeFile) {
-  let key = keyOrFile;
-  let fileOrDataUrl = maybeFile;
+  export async function saveMediaBlobToIndexedDB(keyOrFile, maybeFile, optionalTitle = '') {
+    let key = keyOrFile;
+    let fileOrDataUrl = maybeFile;
+    let titleHint = optionalTitle;
 
-  if (keyOrFile && typeof keyOrFile !== 'string') {
-    fileOrDataUrl = keyOrFile;
-    const cat = detectMediaCategory({ file: fileOrDataUrl });
-    const safeName = String(fileOrDataUrl.name || 'media').replace(/[^a-zA-Z0-9._-]/g, '_');
-    key = `idb://${cat}-${Date.now()}-${safeName}`;
-  }
-
-  if (!key || !fileOrDataUrl) return null;
-
-  try {
-    const db = await openMediaDB();
-    const safeFileNameKey =
-      fileOrDataUrl?.name
-        ? `idb://filename/${String(fileOrDataUrl.name).trim().toLowerCase()}`
-        : null;
-
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      const store = tx.objectStore(STORE_NAME);
-      store.put(fileOrDataUrl, key);
-      if (safeFileNameKey) {
-        store.put(fileOrDataUrl, safeFileNameKey);
-      }
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-
-    if (fileOrDataUrl instanceof Blob) {
-      const blobUrl = URL.createObjectURL(fileOrDataUrl);
-      memoryBlobUrlCache.set(key, blobUrl);
-      if (safeFileNameKey) {
-        memoryBlobUrlCache.set(safeFileNameKey, blobUrl);
-      }
-    } else if (typeof fileOrDataUrl === 'string') {
-      memoryBlobUrlCache.set(key, fileOrDataUrl);
-      if (safeFileNameKey) {
-        memoryBlobUrlCache.set(safeFileNameKey, fileOrDataUrl);
-      }
+    if (keyOrFile && typeof keyOrFile !== 'string') {
+      fileOrDataUrl = keyOrFile;
+      titleHint = typeof maybeFile === 'string' ? maybeFile : '';
+      const cat = detectMediaCategory({ file: fileOrDataUrl });
+      const safeName = String(fileOrDataUrl.name || 'media').replace(/[^a-zA-Z0-9._-]/g, '_');
+      key = `idb://${cat}-${Date.now()}-${safeName}`;
     }
-    return key;
-  } catch (err) {
-    console.warn('IndexedDB media save note:', err);
-    return null;
-  }
-}
 
-export async function getMediaBlobFromIndexedDB(key) {
-  if (!key || typeof key !== 'string') return null;
-  if (memoryBlobUrlCache.has(key)) {
-    return memoryBlobUrlCache.get(key);
-  }
-  try {
-    const db = await openMediaDB();
-    const stored = await new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readonly');
-      const req = tx.objectStore(STORE_NAME).get(key);
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => reject(req.error);
-    });
-    if (!stored) return null;
-    if (stored instanceof Blob) {
-      const blobUrl = URL.createObjectURL(stored);
-      memoryBlobUrlCache.set(key, blobUrl);
-      return blobUrl;
-    }
-    if (typeof stored === 'string') {
-      memoryBlobUrlCache.set(key, stored);
-      return stored;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
+    if (!key || !fileOrDataUrl) return null;
 
-/**
- * Converts a data: URL, idb:// reference, or filename lookup into a browser-viewable/playable URL.
- */
-export async function resolveViewableMediaUrl(rawUrl, fallbackFileName = '') {
-  const urlStr = typeof rawUrl === 'string' && rawUrl !== 'true' && rawUrl !== 'false' ? rawUrl.trim() : '';
-
-  if (urlStr.startsWith('idb://')) {
-    const fromIdb = await getMediaBlobFromIndexedDB(urlStr);
-    if (fromIdb) {
-      return resolveViewableMediaUrl(fromIdb);
-    }
-  }
-
-  if (urlStr.startsWith('data:')) {
-    if (memoryBlobUrlCache.has(urlStr)) {
-      return memoryBlobUrlCache.get(urlStr);
-    }
     try {
-      const parts = urlStr.split(',');
-      const mimeMatch = parts[0].match(/:(.*?);/);
-      const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
-      const bstr = atob(parts[1]);
-      let n = bstr.length;
-      const u8arr = new Uint8Array(n);
-      while (n--) {
-        u8arr[n] = bstr.charCodeAt(n);
+      const db = await openMediaDB();
+      const cat =
+        fileOrDataUrl instanceof Blob
+          ? detectMediaCategory({ file: fileOrDataUrl })
+          : detectMediaCategory({ fileUrl: String(fileOrDataUrl) });
+
+      const safeFileNameKey =
+        fileOrDataUrl?.name
+          ? `idb://filename/${String(fileOrDataUrl.name).trim().toLowerCase()}`
+          : null;
+      const safeTitleKey =
+        titleHint && String(titleHint).trim()
+          ? `idb://title/${String(titleHint).trim().toLowerCase().replace(/\s+/g, ' ')}`
+          : null;
+      const latestCatKey = cat === 'video' ? 'idb://latest/video' : null;
+
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        store.put(fileOrDataUrl, key);
+        if (safeFileNameKey) {
+          store.put(fileOrDataUrl, safeFileNameKey);
+        }
+        if (safeTitleKey) {
+          store.put(fileOrDataUrl, safeTitleKey);
+        }
+        if (latestCatKey) {
+          store.put(fileOrDataUrl, latestCatKey);
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+
+      if (fileOrDataUrl instanceof Blob) {
+        const norm = normalizePlayableBlob(fileOrDataUrl, fileOrDataUrl.name);
+        memoryBlobCache.set(key, norm);
+        if (safeFileNameKey) memoryBlobCache.set(safeFileNameKey, norm);
+        if (safeTitleKey) memoryBlobCache.set(safeTitleKey, norm);
+        if (latestCatKey) memoryBlobCache.set(latestCatKey, norm);
       }
-      const blob = new Blob([u8arr], { type: mime });
-      const blobUrl = URL.createObjectURL(blob);
-      memoryBlobUrlCache.set(urlStr, blobUrl);
-      return blobUrl;
-    } catch {
-      return urlStr;
+      return key;
+    } catch (err) {
+      console.warn('IndexedDB media save note:', err);
+      return null;
     }
   }
 
-  if (urlStr.startsWith('blob:')) {
-    try {
-      const res = await fetch(urlStr);
-      if (res.ok) return urlStr;
-    } catch {
-      // Expired blob URL from an earlier session — fall through to IndexedDB lookup
-    }
-  }
+    export async function getMediaBlobFromIndexedDB(key, fileNameHint = '') {
+      if (!key || typeof key !== 'string') return null;
+        if (memoryBlobCache.has(key)) {
+          const cachedBlob = memoryBlobCache.get(key);
+          if (cachedBlob instanceof Blob) {
+            return URL.createObjectURL(normalizePlayableBlob(cachedBlob, fileNameHint));
+          }
+        }
+        try {
+          const db = await openMediaDB();
+          const stored = await new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readonly');
+            const req = tx.objectStore(STORE_NAME).get(key);
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => reject(req.error);
+          });
+          if (!stored) return null;
+          if (stored instanceof Blob) {
+            const norm = normalizePlayableBlob(stored, fileNameHint || stored.name);
+            memoryBlobCache.set(key, norm);
+            return URL.createObjectURL(norm);
+          }
+          if (typeof stored === 'string') {
+            return stored;
+          }
+          return null;
+        } catch {
+          return null;
+        }
+      }
 
-  if (urlStr.startsWith('http://') || urlStr.startsWith('https://')) {
-    return urlStr;
-  }
+            async function dataUrlToBlobUrl(dataUrl, fileNameHint = '') {
+              if (memoryBlobCache.has(dataUrl)) {
+                const cached = memoryBlobCache.get(dataUrl);
+                if (cached instanceof Blob) {
+                  return URL.createObjectURL(normalizePlayableBlob(cached, fileNameHint));
+                }
+              }
+                try {
+                  const res = await fetch(dataUrl);
+                  const rawBlob = await res.blob();
+                  const norm = normalizePlayableBlob(rawBlob, fileNameHint);
+                  memoryBlobCache.set(dataUrl, norm);
+                  return URL.createObjectURL(norm);
+                } catch {
+                  try {
+                    const parts = dataUrl.split(',');
+                    const mimeMatch = parts[0].match(/:(.*?);/);
+                    const mime = mimeMatch ? mimeMatch[1] : 'video/mp4';
+                    const bstr = atob(parts[1]);
+                    let n = bstr.length;
+                    const u8arr = new Uint8Array(n);
+                    while (n--) {
+                      u8arr[n] = bstr.charCodeAt(n);
+                    }
+                    const norm = normalizePlayableBlob(new Blob([u8arr], { type: mime }), fileNameHint);
+                    memoryBlobCache.set(dataUrl, norm);
+                    return URL.createObjectURL(norm);
+                  } catch {
+                    return dataUrl;
+                  }
+                }
+              }
 
-  // Fallback: try looking up by filename in IndexedDB if rawUrl was missing or invalid
-  if (fallbackFileName) {
-    const safeFileNameKey = `idb://filename/${String(fallbackFileName).trim().toLowerCase()}`;
-    const byName = await getMediaBlobFromIndexedDB(safeFileNameKey);
-    if (byName) {
-      return resolveViewableMediaUrl(byName);
-    }
-  }
+              /**
+               * Converts a data: URL, idb:// reference, or filename/title lookup into a browser-viewable/playable URL.
+               */
+              export async function resolveViewableMediaUrl(rawUrl, fallbackFileName = '', fallbackTitle = '') {
+                const urlStr = typeof rawUrl === 'string' && rawUrl !== 'true' && rawUrl !== 'false' ? rawUrl.trim() : '';
 
-  return null;
-}
+                if (urlStr.startsWith('idb://')) {
+                  const fromIdb = await getMediaBlobFromIndexedDB(urlStr, fallbackFileName);
+                  if (fromIdb) {
+                    if (fromIdb.startsWith('blob:')) return fromIdb;
+                    return resolveViewableMediaUrl(fromIdb, fallbackFileName, fallbackTitle);
+                  }
+                }
+
+                if (urlStr.startsWith('data:')) {
+                  return dataUrlToBlobUrl(urlStr, fallbackFileName);
+                }
+
+                if (urlStr.startsWith('blob:')) {
+                  try {
+                    const res = await fetch(urlStr);
+                    if (res.ok) {
+                      const blob = await res.blob();
+                      if (blob.size > 0) {
+                        return URL.createObjectURL(normalizePlayableBlob(blob, fallbackFileName));
+                      }
+                    }
+                  } catch {
+                    // Expired or revoked blob URL — fall through to IndexedDB lookup
+                  }
+                }
+
+                if (urlStr.startsWith('http://') || urlStr.startsWith('https://')) {
+                  return urlStr;
+                }
+
+                // Fallback 1: look up by filename in IndexedDB
+                if (fallbackFileName) {
+                  const safeFileNameKey = `idb://filename/${String(fallbackFileName).trim().toLowerCase()}`;
+                  const byName = await getMediaBlobFromIndexedDB(safeFileNameKey, fallbackFileName);
+                  if (byName) {
+                    if (byName.startsWith('blob:')) return byName;
+                    return resolveViewableMediaUrl(byName, fallbackFileName, fallbackTitle);
+                  }
+                }
+
+                // Fallback 2: look up by activity title in IndexedDB
+                if (fallbackTitle) {
+                  const safeTitleKey = `idb://title/${String(fallbackTitle).trim().toLowerCase().replace(/\s+/g, ' ')}`;
+                  const byTitle = await getMediaBlobFromIndexedDB(safeTitleKey, fallbackFileName);
+                  if (byTitle) {
+                    if (byTitle.startsWith('blob:')) return byTitle;
+                    return resolveViewableMediaUrl(byTitle, fallbackFileName, fallbackTitle);
+                  }
+                }
+
+                // Fallback 3: check latest uploaded video in IndexedDB if this item is a video
+                if (
+                  isVideoItem({ url: urlStr, file_name: fallbackFileName }) ||
+                  String(fallbackFileName).toLowerCase().match(/\.(mp4|mov|webm|m4v)$/)
+                ) {
+                  const latestVid = await getMediaBlobFromIndexedDB('idb://latest/video', fallbackFileName);
+                  if (latestVid) {
+                    if (latestVid.startsWith('blob:')) return latestVid;
+                    return resolveViewableMediaUrl(latestVid, fallbackFileName, fallbackTitle);
+                  }
+                }
+
+                return null;
+              }
 

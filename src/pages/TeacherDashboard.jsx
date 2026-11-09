@@ -133,37 +133,28 @@ export default function TeacherDashboard({ profile }) {
 
   const handleOpenPreviewModal = useCallback(
     async (item) => {
-      if (previewBlobUrl && previewBlobUrl.startsWith('blob:')) {
-        try {
-          URL.revokeObjectURL(previewBlobUrl);
-        } catch { }
-      }
       setPreviewModalItem(item);
-      if (item?.fileUrl) {
-        const resolved = await resolveViewableMediaUrl(item.fileUrl);
-        setPreviewBlobUrl(resolved ? createViewableUrl(resolved) : null);
-      } else {
-        setPreviewBlobUrl(null);
-      }
-    },
-    [createViewableUrl, previewBlobUrl]
+        if (item?.fileUrl || item?.fileName || item?.title) {
+          const resolved = await resolveViewableMediaUrl(item.fileUrl, item.fileName, item.title);
+          setPreviewBlobUrl(resolved ? createViewableUrl(resolved) : null);
+        } else {
+          setPreviewBlobUrl(null);
+        }
+      },
+      [createViewableUrl]
   );
 
   const handleClosePreviewModal = useCallback(() => {
-    if (previewBlobUrl && previewBlobUrl.startsWith('blob:')) {
-      try {
-        URL.revokeObjectURL(previewBlobUrl);
-      } catch { }
-    }
     setPreviewBlobUrl(null);
     setPreviewModalItem(null);
-  }, [previewBlobUrl]);
+}, []);
 
-  const handleOpenInNewTabOrDownload = useCallback(
-    async (fileUrl, fileName, mode = 'view') => {
-      if (!fileUrl) return;
-      const resolved = await resolveViewableMediaUrl(fileUrl);
+const handleOpenInNewTabOrDownload = useCallback(
+    async (fileUrl, fileName, mode = 'view', titleHint = '') => {
+      if (!fileUrl && !fileName) return;
+      const resolved = await resolveViewableMediaUrl(fileUrl, fileName, titleHint);
       const urlToUse = createViewableUrl(resolved || fileUrl);
+      if (!urlToUse) return;
       if (mode === 'download') {
         const a = document.createElement('a');
         a.href = urlToUse;
@@ -175,532 +166,538 @@ export default function TeacherDashboard({ profile }) {
         window.open(urlToUse, '_blank', 'noopener,noreferrer');
       }
     },
-    [createViewableUrl]
+      [createViewableUrl]
   );
 
-  const [categoryOptions, setCategoryOptions] = useState([]);
-  const [matCategory, setMatCategory] = useState('');
-  const [myMaterials, setMyMaterials] = useState([]);
-  const [uploadMsg, setUploadMsg] = useState({ text: '', type: '' });
+const [categoryOptions, setCategoryOptions] = useState([]);
+const [matCategory, setMatCategory] = useState('');
+const [myMaterials, setMyMaterials] = useState([]);
+const [uploadMsg, setUploadMsg] = useState({ text: '', type: '' });
 
-  // Upload modal state
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [uploadCurriculumLevel, setUploadCurriculumLevel] = useState('PRE-K1');
-  const [uploadQuarter, setUploadQuarter] = useState(1);
-  const [uploadWeek, setUploadWeek] = useState('');
-  const [uploadTheme, setUploadTheme] = useState('');
-  const [uploadSubTheme, setUploadSubTheme] = useState('');
-  const [uploadType, setUploadType] = useState('activity');
-  const [uploadTitle, setUploadTitle] = useState('');
-  const [uploadDescription, setUploadDescription] = useState('');
-  const [uploadUrl, setUploadUrl] = useState('');
+// Upload modal state
+const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+const [uploadCurriculumLevel, setUploadCurriculumLevel] = useState('PRE-K1');
+const [uploadQuarter, setUploadQuarter] = useState(1);
+const [uploadWeek, setUploadWeek] = useState('');
+const [uploadTheme, setUploadTheme] = useState('');
+const [uploadSubTheme, setUploadSubTheme] = useState('');
+const [uploadType, setUploadType] = useState('activity');
+const [uploadTitle, setUploadTitle] = useState('');
+const [uploadDescription, setUploadDescription] = useState('');
+const [uploadUrl, setUploadUrl] = useState('');
 
-  // Choose file & Drag file upload state
-  const [uploadFile, setUploadFile] = useState(null);
-  const [uploadFileName, setUploadFileName] = useState('');
-  const [uploadFileSize, setUploadFileSize] = useState('');
-  const [uploadFileType, setUploadFileType] = useState('');
-  const [uploadFilePreview, setUploadFilePreview] = useState(null);
-  const [isDraggingFile, setIsDraggingFile] = useState(false);
-  const fileInputRef = useRef(null);
+// Choose file & Drag file upload state
+const [uploadFile, setUploadFile] = useState(null);
+const [uploadFileName, setUploadFileName] = useState('');
+const [uploadFileSize, setUploadFileSize] = useState('');
+const [uploadFileType, setUploadFileType] = useState('');
+const [uploadFilePreview, setUploadFilePreview] = useState(null);
+const [isDraggingFile, setIsDraggingFile] = useState(false);
+const fileInputRef = useRef(null);
 
-  // Uploaded Materials tab filters
-  const [uploadedFilterStatus, setUploadedFilterStatus] = useState('all'); // 'all' | 'pending' | 'approved' | 'posted' | 'rejected'
-  const [uploadedFilterLevel, setUploadedFilterLevel] = useState('all');
-  const [uploadedFilterQuarter, setUploadedFilterQuarter] = useState('all');
-  const [uploadedFilterType, setUploadedFilterType] = useState('all');
-  const [uploadedSearch, setUploadedSearch] = useState('');
+// Uploaded Materials tab filters
+const [uploadedFilterStatus, setUploadedFilterStatus] = useState('all'); // 'all' | 'pending' | 'approved' | 'posted' | 'rejected'
+const [uploadedFilterLevel, setUploadedFilterLevel] = useState('all');
+const [uploadedFilterQuarter, setUploadedFilterQuarter] = useState('all');
+const [uploadedFilterType, setUploadedFilterType] = useState('all');
+const [uploadedSearch, setUploadedSearch] = useState('');
 
-  // Post Approved Activity to Student Dashboard Modal state
-  const [postingMaterial, setPostingMaterial] = useState(null);
-  const [selectedTargetStudentId, setSelectedTargetStudentId] = useState('all');
-  const [postModalMsg, setPostModalMsg] = useState({ text: '', type: '' });
+// Post Approved Activity to Student Dashboard Modal state
+const [postingMaterial, setPostingMaterial] = useState(null);
+const [selectedTargetStudentId, setSelectedTargetStudentId] = useState('all');
+const [postModalMsg, setPostModalMsg] = useState({ text: '', type: '' });
 
-  // Announcements tab
-  const [annTitle, setAnnTitle] = useState('');
-  const [annMessage, setAnnMessage] = useState('');
-  const [annStatusMsg, setAnnStatusMsg] = useState({ text: '', type: '' });
-  const [announcements, setAnnouncements] = useState([]);
+// Announcements tab
+const [annTitle, setAnnTitle] = useState('');
+const [annMessage, setAnnMessage] = useState('');
+const [annStatusMsg, setAnnStatusMsg] = useState({ text: '', type: '' });
+const [announcements, setAnnouncements] = useState([]);
 
-  // Submissions tab
-  const [submissions, setSubmissions] = useState([]);
+// Submissions tab
+const [submissions, setSubmissions] = useState([]);
 
-  // Progress tab
-  const [progressRows, setProgressRows] = useState([]);
-  const [totalStudents, setTotalStudents] = useState(0);
+// Progress tab
+const [progressRows, setProgressRows] = useState([]);
+const [totalStudents, setTotalStudents] = useState(0);
 
-  // Profile tab states (personal info, barangay, and specific CDC)
-  const [myFullName, setMyFullName] = useState(profile?.full_name || '');
-  const [myContact, setMyContact] = useState(profile?.contact_number || '');
-  const [myEmail, setMyEmail] = useState(profile?.email || '');
-  const [myBarangay, setMyBarangay] = useState(profile?.barangay || '');
-  const [myCdcId, setMyCdcId] = useState(profile?.cdc_id || '');
-  const [myCdcName, setMyCdcName] = useState(profile?.cdc_name || null);
-  const [customCdcMode, setCustomCdcMode] = useState(false);
-  const [customCdcInput, setCustomCdcInput] = useState('');
-  const [myBio, setMyBio] = useState('');
-  const [profileSaving, setProfileSaving] = useState(false);
-  const [profileMsg, setProfileMsg] = useState({ text: '', type: '' });
+// Profile tab states (personal info, barangay, and specific CDC)
+const [myFullName, setMyFullName] = useState(profile?.full_name || '');
+const [myContact, setMyContact] = useState(profile?.contact_number || '');
+const [myEmail, setMyEmail] = useState(profile?.email || '');
+const [myBarangay, setMyBarangay] = useState(profile?.barangay || '');
+const [myCdcId, setMyCdcId] = useState(profile?.cdc_id || '');
+const [myCdcName, setMyCdcName] = useState(profile?.cdc_name || null);
+const [customCdcMode, setCustomCdcMode] = useState(false);
+const [customCdcInput, setCustomCdcInput] = useState('');
+const [myBio, setMyBio] = useState('');
+const [profileSaving, setProfileSaving] = useState(false);
+const [profileMsg, setProfileMsg] = useState({ text: '', type: '' });
 
-  // My Learners tab — auto-filtered by this teacher's assigned CDC
-  const [myLearners, setMyLearners] = useState([]);
-  const [learnersLoading, setLearnersLoading] = useState(true);
-  const [teacherRegCode, setTeacherRegCode] = useState('');
-  const [codeCopied, setCodeCopied] = useState(false);
-  const [codeSaving, setCodeSaving] = useState(false);
-  const [learnerActionMsg, setLearnerActionMsg] = useState({ text: '', type: '' });
-  const [approvingLearnerId, setApprovingLearnerId] = useState(null);
+// My Learners tab — auto-filtered by this teacher's assigned CDC
+const [myLearners, setMyLearners] = useState([]);
+const [learnersLoading, setLearnersLoading] = useState(true);
+const [teacherRegCode, setTeacherRegCode] = useState('');
+const [codeCopied, setCodeCopied] = useState(false);
+const [codeSaving, setCodeSaving] = useState(false);
+const [learnerActionMsg, setLearnerActionMsg] = useState({ text: '', type: '' });
+const [approvingLearnerId, setApprovingLearnerId] = useState(null);
 
-  // Create Parent Account Modal state (Teacher directly creates Parent & Child account)
-  const [createParentModalOpen, setCreateParentModalOpen] = useState(false);
-  const [newParentName, setNewParentName] = useState('');
-  const [newChildName, setNewChildName] = useState('');
-  const [newChildAge, setNewChildAge] = useState('3-3.11');
-  const [newParentIdentifier, setNewParentIdentifier] = useState('');
-  const [newParentPassword, setNewParentPassword] = useState('');
-  const [creatingParent, setCreatingParent] = useState(false);
-  const [createdParentCredentials, setCreatedParentCredentials] = useState(null);
+// Create Parent Account Modal state (Teacher directly creates Parent & Child account)
+const [createParentModalOpen, setCreateParentModalOpen] = useState(false);
+const [newParentName, setNewParentName] = useState('');
+const [newChildName, setNewChildName] = useState('');
+const [newChildAge, setNewChildAge] = useState('3-3.11');
+const [newParentIdentifier, setNewParentIdentifier] = useState('');
+const [newParentPassword, setNewParentPassword] = useState('');
+const [creatingParent, setCreatingParent] = useState(false);
+const [createdParentCredentials, setCreatedParentCredentials] = useState(null);
 
-  // Filter assignments targeted strictly to this logged-in teacher (only matches all teachers if explicitly assigned to All Teachers)
-  const myAssignedTopics = useMemo(() => {
-    return assignments.filter((a) => {
-      if (
-        !a ||
-        !a.topicTitle ||
-        a.topicTitle === 'Prescribed ECCD Topic' ||
-        a.assignedDate === '2026-10-17' ||
-        a.isDummy ||
-        /^asg-0[1-9]|^asg-1[0-5]|^asg-07-.*|^asg-test-.*$/.test(a.id)
-      ) {
-        return false;
-      }
+// Filter assignments targeted strictly to this logged-in teacher (only matches all teachers if explicitly assigned to All Teachers)
+const myAssignedTopics = useMemo(() => {
+  return assignments.filter((a) => {
+    if (
+      !a ||
+      !a.topicTitle ||
+      a.topicTitle === 'Prescribed ECCD Topic' ||
+      a.assignedDate === '2026-10-17' ||
+      a.isDummy ||
+      /^asg-0[1-9]|^asg-1[0-5]|^asg-07-.*|^asg-test-.*$/.test(a.id)
+    ) {
+      return false;
+    }
 
-      return doesAssignmentMatchTeacher(a, {
-        teacherId: currentUserId || profile?.id,
-        teacherName: myFullName || profile?.full_name || '',
-        barangay: myBarangay || profile?.barangay || '',
-        cdcName: myCdcName || profile?.cdc_name || '',
-      });
+    return doesAssignmentMatchTeacher(a, {
+      teacherId: currentUserId || profile?.id,
+      teacherName: myFullName || profile?.full_name || '',
+      barangay: myBarangay || profile?.barangay || '',
+      cdcName: myCdcName || profile?.cdc_name || '',
     });
-  }, [assignments, profile, currentUserId, myFullName, myBarangay, myCdcName]);
+  });
+}, [assignments, profile, currentUserId, myFullName, myBarangay, myCdcName]);
 
-  // Choices for "3. ECCD Week & Theme" based ONLY on what MSWD assigned to this teacher
-  const mswdTopicChoices = useMemo(() => {
-    return extractMswdTopicChoices(myAssignedTopics);
-  }, [myAssignedTopics]);
+// Choices for "3. ECCD Week & Theme" based ONLY on what MSWD assigned to this teacher
+const mswdTopicChoices = useMemo(() => {
+  return extractMswdTopicChoices(myAssignedTopics);
+}, [myAssignedTopics]);
 
-  // --- Load categories into the dropdown ---
-  const loadCategoryOptions = useCallback(async () => {
-    const { data } = await supabase.from('categories').select('id, name, icon').order('name');
-    setCategoryOptions(data || []);
-    if (data && data.length && !matCategory) setMatCategory(data[0].id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+// --- Load categories into the dropdown ---
+const loadCategoryOptions = useCallback(async () => {
+  const { data } = await supabase.from('categories').select('id, name, icon').order('name');
+  setCategoryOptions(data || []);
+  if (data && data.length && !matCategory) setMatCategory(data[0].id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
 
-  // --- Load my uploaded materials & MSWD assignments from Supabase (cross-device sync) ---
-  const loadMyMaterials = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('materials')
-        .select('id, title, type, age_range, status, content_url, content_text, created_by, created_at, categories(name)')
-        .order('created_at', { ascending: false });
+// --- Load my uploaded materials & MSWD assignments from Supabase (cross-device sync) ---
+const loadMyMaterials = useCallback(async () => {
+  try {
+    const { data, error } = await supabase
+      .from('materials')
+      .select('id, title, type, age_range, status, content_url, content_text, created_by, created_at, categories(name)')
+      .order('created_at', { ascending: false });
 
-      if (!error && Array.isArray(data)) {
-        // 1. Extract any MSWD curriculum topic assignments stored in Supabase
-        const sbAssigns = [];
-        const regularMats = [];
-        const normMyTeacherName = normalizeTeacherName(myFullName || profile?.full_name || '');
+    if (!error && Array.isArray(data)) {
+      // 1. Extract any MSWD curriculum topic assignments stored in Supabase
+      const sbAssigns = [];
+      const regularMats = [];
+      const normMyTeacherName = normalizeTeacherName(myFullName || profile?.full_name || '');
 
-        data.forEach((m) => {
-          if (m.title?.startsWith('[MSWD_ASSIGNMENT]')) {
-            if (m.content_text && m.content_text.trim().startsWith('{')) {
-              try {
-                const parsed = JSON.parse(m.content_text);
-                if (parsed && parsed.__mswd_assignment && parsed.assignment) {
-                  sbAssigns.push(parsed.assignment);
-                }
-              } catch { }
-            }
-            return;
-          }
-
-          // Exclude the 70+ static student bilingual category review items
-          if (!isAuthenticSupabaseMaterial(m)) {
-            return;
-          }
-
-          let meta = {};
+      data.forEach((m) => {
+        if (m.title?.startsWith('[MSWD_ASSIGNMENT]')) {
           if (m.content_text && m.content_text.trim().startsWith('{')) {
             try {
               const parsed = JSON.parse(m.content_text);
-              if (parsed && parsed.__metadata) meta = parsed;
+              if (parsed && parsed.__mswd_assignment && parsed.assignment) {
+                sbAssigns.push(parsed.assignment);
+              }
             } catch { }
           }
+          return;
+        }
 
-          const normMetaTeacher = normalizeTeacherName(meta.teacher_name || '');
-          const isMine =
-            m.created_by === currentUserId ||
-            (normMyTeacherName.length >= 3 &&
-              normMetaTeacher.length >= 3 &&
-              (normMetaTeacher === normMyTeacherName ||
-                normMetaTeacher.includes(normMyTeacherName) ||
-                normMyTeacherName.includes(normMetaTeacher)));
+        // Exclude the 70+ static student bilingual category review items
+        if (!isAuthenticSupabaseMaterial(m)) {
+          return;
+        }
 
-          if (isMine) {
-            regularMats.push(m);
-          }
-        });
-
-        setMyMaterials(regularMats);
-
-        if (sbAssigns.length > 0) {
-          const localClean = getCleanCurriculumAssignments();
-          const seen = new Set();
-          const mergedAssigns = [];
-          [...sbAssigns, ...localClean].forEach((a) => {
-            if (a && a.id && !seen.has(a.id)) {
-              seen.add(a.id);
-              mergedAssigns.push(a);
-            }
-          });
-          setAssignments(mergedAssigns);
+        let meta = {};
+        if (m.content_text && m.content_text.trim().startsWith('{')) {
           try {
-            localStorage.setItem('earlylearn_curriculum_assignments', JSON.stringify(mergedAssigns));
+            const parsed = JSON.parse(m.content_text);
+            if (parsed && parsed.__metadata) meta = parsed;
           } catch { }
         }
-      }
-    } catch {
-      // ignore
-    }
-  }, [currentUserId, myFullName, profile]);
 
-  // Real-time Supabase sync for materials status and student submissions
-  useEffect(() => {
-    loadMyMaterials();
+        const normMetaTeacher = normalizeTeacherName(meta.teacher_name || '');
+        const isMine =
+          m.created_by === currentUserId ||
+          (normMyTeacherName.length >= 3 &&
+            normMetaTeacher.length >= 3 &&
+            (normMetaTeacher === normMyTeacherName ||
+              normMetaTeacher.includes(normMyTeacherName) ||
+              normMyTeacherName.includes(normMetaTeacher)));
 
-    let channel;
-    try {
-      channel = supabase
-        .channel('teacher-dashboard-materials-realtime')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'materials' }, () => {
-          loadMyMaterials();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'submissions' }, () => {
-          loadSubmissions();
-          loadProgress();
-        })
-        .subscribe();
-    } catch { }
-
-    return () => {
-      if (channel) supabase.removeChannel(channel);
-    };
-  }, [loadMyMaterials]);
-
-  // Combined uploaded materials list (merges Supabase materials + localTeacherModules for MSWD status & student post status)
-  const combinedUploadedMaterials = useMemo(() => {
-    const localMap = new Map();
-    (localTeacherModules || []).forEach((m) => {
-      if (m && m.id) localMap.set(m.id, m);
-    });
-
-    const normMyName = normalizeTeacherName(myFullName || profile?.full_name || '');
-    const teacherMods = (localTeacherModules || [])
-      .filter((m) => {
-        if (m.teacher_id && m.teacher_id === currentUserId) return true;
-        const normModTeacher = normalizeTeacherName(m.teacher_name || '');
-        if (
-          normMyName.length >= 3 &&
-          normModTeacher.length >= 3 &&
-          (normModTeacher === normMyName ||
-            normModTeacher.includes(normMyName) ||
-            normMyName.includes(normModTeacher))
-        ) {
-          return true;
+        if (isMine) {
+          regularMats.push(m);
         }
-        return false;
-      })
-      .map((m) => {
-        const isRejected = m.status === 'Rejected' || m.status === 'Needs Revision' || m.status === 'rejected' || m.status === 'needs_revision';
-        const isApproved = !isRejected && (m.status === 'Approved' || m.status === 'approved' || m.verified_by_mswd === true);
-        return {
-          id: m.id,
-          assignment_id: m.assignment_id || null,
-          title: m.title,
-          level: m.level || 'Pre-K1',
-          quarter: m.quarter || 1,
-          week: m.week || 'Week 1',
-          theme: m.theme || '',
-          sub_theme: m.sub_theme || '',
-          type: m.module_type?.toLowerCase().includes('video')
-            ? 'video'
-            : m.module_type?.toLowerCase().includes('worksheet')
-              ? 'activity'
-              : m.type || 'activity',
-          formatLabel: m.module_type || 'Activity Worksheet',
-          age_range: m.level === 'Pre-K1' ? '3.11' : '4.11',
-          status: isRejected ? 'Rejected' : isApproved ? 'Approved' : 'Pending Review',
-          verified_by_mswd: isApproved,
-          posted_to_students: Boolean(m.posted_to_students),
-          target_student_id: m.target_student_id || null,
-          target_student_name: m.target_student_name || null,
-          posted_at: m.posted_at || null,
-          mswd_comments: m.mswd_comments || '',
-          revision_notes: m.revision_notes || '',
-          created_at: m.upload_date,
-          content_text: m.description,
-          file_name: m.file_name || null,
-          file_size: m.file_size || null,
-          file_type: m.file_type || null,
-          content_url: m.content_url || null,
-          is_deleted: Boolean(m.is_deleted),
-          deleted_at: m.deleted_at || null,
-          isLocal: true,
-        };
       });
 
-    const sbMats = (myMaterials || []).map((m) => {
-      let meta = {};
-      let cleanDescription = m.content_text || '';
-      if (m.content_text && m.content_text.trim().startsWith('{')) {
-        try {
-          const parsed = JSON.parse(m.content_text);
-          if (parsed && parsed.__metadata) {
-            meta = parsed;
-            cleanDescription = parsed.description || '';
+      setMyMaterials(regularMats);
+
+      if (sbAssigns.length > 0) {
+        const localClean = getCleanCurriculumAssignments();
+        const seen = new Set();
+        const mergedAssigns = [];
+        [...sbAssigns, ...localClean].forEach((a) => {
+          if (a && a.id && !seen.has(a.id)) {
+            seen.add(a.id);
+            mergedAssigns.push(a);
           }
+        });
+        setAssignments(mergedAssigns);
+        try {
+          localStorage.setItem('earlylearn_curriculum_assignments', JSON.stringify(mergedAssigns));
         } catch { }
       }
-      const localMatch = localMap.get(m.id);
-      const tagMatch = m.title?.match(/\[(Pre-K1|Pre-K2)?\s*Q?(\d+)?\s*(W[^\s\]]+|Week\s*[\d&]+)?\]/i);
-      const parsedLevel = tagMatch?.[1] || (m.age_range?.includes('3') ? 'Pre-K1' : 'Pre-K2');
-      const parsedQuarter = tagMatch?.[2] ? parseInt(tagMatch[2], 10) : 1;
-      const parsedWeek = tagMatch?.[3]
-        ? tagMatch[3].startsWith('W') && !tagMatch[3].startsWith('Week')
-          ? `Week ${tagMatch[3].slice(1)}`
-          : tagMatch[3]
-        : 'Week 1';
+    }
+  } catch {
+    // ignore
+  }
+}, [currentUserId, myFullName, profile]);
 
-      const isRejected =
-        m.status === 'needs_revision' ||
-        m.status === 'rejected' ||
-        localMatch?.status === 'Rejected' ||
-        localMatch?.status === 'Needs Revision';
-      const isApproved =
-        !isRejected &&
-        (m.status === 'approved' ||
-          localMatch?.status === 'Approved' ||
-          localMatch?.verified_by_mswd === true);
+// Real-time Supabase sync for materials status and student submissions
+useEffect(() => {
+  loadMyMaterials();
 
+  let channel;
+  try {
+    channel = supabase
+      .channel('teacher-dashboard-materials-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'materials' }, () => {
+        loadMyMaterials();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'submissions' }, () => {
+        loadSubmissions();
+        loadProgress();
+      })
+      .subscribe();
+  } catch { }
+
+  return () => {
+    if (channel) supabase.removeChannel(channel);
+  };
+}, [loadMyMaterials]);
+
+// Combined uploaded materials list (merges Supabase materials + localTeacherModules for MSWD status & student post status)
+const combinedUploadedMaterials = useMemo(() => {
+  const localMap = new Map();
+  (localTeacherModules || []).forEach((m) => {
+    if (m && m.id) localMap.set(m.id, m);
+  });
+
+  const normMyName = normalizeTeacherName(myFullName || profile?.full_name || '');
+  const teacherMods = (localTeacherModules || [])
+    .filter((m) => {
+      if (m.teacher_id && m.teacher_id === currentUserId) return true;
+      const normModTeacher = normalizeTeacherName(m.teacher_name || '');
+      if (
+        normMyName.length >= 3 &&
+        normModTeacher.length >= 3 &&
+        (normModTeacher === normMyName ||
+          normModTeacher.includes(normMyName) ||
+          normMyName.includes(normModTeacher))
+      ) {
+        return true;
+      }
+      return false;
+    })
+    .map((m) => {
+      const isRejected = m.status === 'Rejected' || m.status === 'Needs Revision' || m.status === 'rejected' || m.status === 'needs_revision';
+      const isApproved = !isRejected && (m.status === 'Approved' || m.status === 'approved' || m.verified_by_mswd === true);
       return {
         id: m.id,
-        assignment_id: meta.assignment_id || localMatch?.assignment_id || null,
+        assignment_id: m.assignment_id || null,
         title: m.title,
-        level: meta.level || localMatch?.level || parsedLevel,
-        quarter: meta.quarter || localMatch?.quarter || parsedQuarter,
-        week: meta.week || localMatch?.week || parsedWeek,
-        theme: meta.theme || localMatch?.theme || m.categories?.name || 'Curriculum Lesson',
-        sub_theme: meta.sub_theme || localMatch?.sub_theme || '',
-        type: m.type,
-        formatLabel:
-          m.type === 'activity'
-            ? 'Activity Worksheet / PDF'
-            : m.type === 'video'
-              ? 'Video Lesson'
-              : m.type === 'image'
-                ? 'Visual Worksheet'
-                : 'Reading Story',
-        age_range: m.age_range,
+        level: m.level || 'Pre-K1',
+        quarter: m.quarter || 1,
+        week: m.week || 'Week 1',
+        theme: m.theme || '',
+        sub_theme: m.sub_theme || '',
+        type: m.module_type?.toLowerCase().includes('video')
+          ? 'video'
+          : m.module_type?.toLowerCase().includes('worksheet')
+            ? 'activity'
+            : m.type || 'activity',
+        formatLabel: m.module_type || 'Activity Worksheet',
+        age_range: m.level === 'Pre-K1' ? '3.11' : '4.11',
         status: isRejected ? 'Rejected' : isApproved ? 'Approved' : 'Pending Review',
         verified_by_mswd: isApproved,
-        posted_to_students: Boolean(localMatch?.posted_to_students || meta.posted_to_students),
-        target_student_id: localMatch?.target_student_id || meta.target_student_id || null,
-        target_student_name: localMatch?.target_student_name || meta.target_student_name || null,
-        posted_at: localMatch?.posted_at || meta.posted_at || null,
-        mswd_comments: localMatch?.mswd_comments || meta.mswd_comments || '',
-        revision_notes: localMatch?.revision_notes || meta.revision_notes || '',
-        created_at: m.created_at
-          ? new Date(m.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
-          : 'Recently',
-        content_text: cleanDescription,
-        file_name:
-          meta.file_name ||
-          localMatch?.file_name ||
-          m.file_name ||
-          (m.content_url?.startsWith('data:application/pdf')
-            ? 'Worksheet File (PDF)'
-            : m.content_url?.startsWith('data:image/')
-              ? 'Activity Image'
-              : m.content_url?.startsWith('data:video/') || m.content_url?.startsWith('idb://')
-                ? 'Video Lesson File'
-                : m.content_url?.startsWith('data:')
-                  ? 'Attached Learning Document'
-                  : null),
-        file_size: meta.file_size || localMatch?.file_size || m.file_size || null,
-        file_type:
-          meta.file_type ||
-          localMatch?.file_type ||
-          m.file_type ||
-          (m.content_url?.startsWith('data:application/pdf')
-            ? 'PDF'
-            : m.content_url?.startsWith('data:image/')
-              ? 'IMAGE'
-              : m.content_url?.startsWith('data:video/')
-                ? 'MP4'
-                : m.type?.toUpperCase() || 'FILE'),
-        content_url: m.content_url || localMatch?.content_url || null,
-        is_deleted: Boolean(meta.is_deleted || localMatch?.is_deleted),
-        deleted_at: meta.deleted_at || localMatch?.deleted_at || null,
-        raw_meta: meta,
-        isLocal: false,
+        posted_to_students: Boolean(m.posted_to_students),
+        target_student_id: m.target_student_id || null,
+        target_student_name: m.target_student_name || null,
+        posted_at: m.posted_at || null,
+        mswd_comments: m.mswd_comments || '',
+        revision_notes: m.revision_notes || '',
+        created_at: m.upload_date,
+        content_text: m.description,
+        file_name: m.file_name || null,
+        file_size: m.file_size || null,
+        file_type: m.file_type || null,
+        content_url: m.content_url || null,
+        is_deleted: Boolean(m.is_deleted),
+        deleted_at: m.deleted_at || null,
+        isLocal: true,
       };
     });
 
-    const byTitleMap = new Map();
-    const getScore = (item) => {
-      let s = 0;
-      if (item.posted_to_students) s += 8;
-      if (item.verified_by_mswd || item.status === 'Approved') s += 4;
-      if (item.status === 'Rejected') s += 2;
-      if (item.content_url) s += 1;
-      return s;
-    };
+  const sbMats = (myMaterials || []).map((m) => {
+    let meta = {};
+    let cleanDescription = m.content_text || '';
+    if (m.content_text && m.content_text.trim().startsWith('{')) {
+      try {
+        const parsed = JSON.parse(m.content_text);
+        if (parsed && parsed.__metadata) {
+          meta = parsed;
+          cleanDescription = parsed.description || '';
+        }
+      } catch { }
+    }
+    const localMatch = localMap.get(m.id);
+    const tagMatch = m.title?.match(/\[(Pre-K1|Pre-K2)?\s*Q?(\d+)?\s*(W[^\s\]]+|Week\s*[\d&]+)?\]/i);
+    const parsedLevel = tagMatch?.[1] || (m.age_range?.includes('3') ? 'Pre-K1' : 'Pre-K2');
+    const parsedQuarter = tagMatch?.[2] ? parseInt(tagMatch[2], 10) : 1;
+    const parsedWeek = tagMatch?.[3]
+      ? tagMatch[3].startsWith('W') && !tagMatch[3].startsWith('Week')
+        ? `Week ${tagMatch[3].slice(1)}`
+        : tagMatch[3]
+      : 'Week 1';
 
-    const staleDupIds = [];
-    [...sbMats, ...teacherMods].forEach((item) => {
-      if (!item || !item.title) return;
-      const titleKey = String(item.title).trim().toLowerCase().replace(/\s+/g, ' ');
-      if (!byTitleMap.has(titleKey)) {
-        byTitleMap.set(titleKey, item);
+    const isRejected =
+      m.status === 'needs_revision' ||
+      m.status === 'rejected' ||
+      localMatch?.status === 'Rejected' ||
+      localMatch?.status === 'Needs Revision';
+    const isApproved =
+      !isRejected &&
+      (m.status === 'approved' ||
+        localMatch?.status === 'Approved' ||
+        localMatch?.verified_by_mswd === true);
+
+    return {
+      id: m.id,
+      assignment_id: meta.assignment_id || localMatch?.assignment_id || null,
+      title: m.title,
+      level: meta.level || localMatch?.level || parsedLevel,
+      quarter: meta.quarter || localMatch?.quarter || parsedQuarter,
+      week: meta.week || localMatch?.week || parsedWeek,
+      theme: meta.theme || localMatch?.theme || m.categories?.name || 'Curriculum Lesson',
+      sub_theme: meta.sub_theme || localMatch?.sub_theme || '',
+      type: m.type,
+      formatLabel:
+        m.type === 'activity'
+          ? 'Activity Worksheet / PDF'
+          : m.type === 'video'
+            ? 'Video Lesson'
+            : m.type === 'image'
+              ? 'Visual Worksheet'
+              : 'Reading Story',
+      age_range: m.age_range,
+      status: isRejected ? 'Rejected' : isApproved ? 'Approved' : 'Pending Review',
+      verified_by_mswd: isApproved,
+      posted_to_students: Boolean(localMatch?.posted_to_students || meta.posted_to_students),
+      target_student_id: localMatch?.target_student_id || meta.target_student_id || null,
+      target_student_name: localMatch?.target_student_name || meta.target_student_name || null,
+      posted_at: localMatch?.posted_at || meta.posted_at || null,
+      mswd_comments: localMatch?.mswd_comments || meta.mswd_comments || '',
+      revision_notes: localMatch?.revision_notes || meta.revision_notes || '',
+      created_at: m.created_at
+        ? new Date(m.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+        : 'Recently',
+      content_text: cleanDescription,
+      file_name:
+        meta.file_name ||
+        localMatch?.file_name ||
+        m.file_name ||
+        (m.content_url?.startsWith('data:application/pdf')
+          ? 'Worksheet File (PDF)'
+          : m.content_url?.startsWith('data:image/')
+            ? 'Activity Image'
+            : m.content_url?.startsWith('data:video/') || m.content_url?.startsWith('idb://')
+              ? 'Video Lesson File'
+              : m.content_url?.startsWith('data:')
+                ? 'Attached Learning Document'
+                : null),
+      file_size: meta.file_size || localMatch?.file_size || m.file_size || null,
+      file_type:
+        meta.file_type ||
+        localMatch?.file_type ||
+        m.file_type ||
+        (m.content_url?.startsWith('data:application/pdf')
+          ? 'PDF'
+          : m.content_url?.startsWith('data:image/')
+            ? 'IMAGE'
+            : m.content_url?.startsWith('data:video/')
+              ? 'MP4'
+              : m.type?.toUpperCase() || 'FILE'),
+      content_url: m.content_url || localMatch?.content_url || null,
+      is_deleted: Boolean(meta.is_deleted || localMatch?.is_deleted),
+      deleted_at: meta.deleted_at || localMatch?.deleted_at || null,
+      raw_meta: meta,
+      isLocal: false,
+    };
+  });
+
+  const byTitleMap = new Map();
+  const getScore = (item) => {
+    let s = 0;
+    if (item.posted_to_students) s += 8;
+    if (item.verified_by_mswd || item.status === 'Approved') s += 4;
+    if (item.status === 'Rejected') s += 2;
+    if (item.content_url) s += 1;
+    return s;
+  };
+
+  const staleDupIds = [];
+  [...sbMats, ...teacherMods].forEach((item) => {
+    if (!item || !item.title) return;
+    const titleKey = String(item.title).trim().toLowerCase().replace(/\s+/g, ' ');
+    if (!byTitleMap.has(titleKey)) {
+      byTitleMap.set(titleKey, item);
+    } else {
+      const existing = byTitleMap.get(titleKey);
+      if (getScore(item) > getScore(existing)) {
+        if (existing.id && existing.id !== item.id && !String(existing.id).startsWith('mod-')) {
+          staleDupIds.push(existing.id);
+        }
+        byTitleMap.set(titleKey, {
+          ...existing,
+          ...item,
+          posted_to_students: Boolean(item.posted_to_students || existing.posted_to_students),
+          content_url: item.content_url || existing.content_url || null,
+          file_name: item.file_name || existing.file_name || null,
+          is_deleted: Boolean(item.is_deleted || existing.is_deleted),
+          deleted_at: item.deleted_at || existing.deleted_at || null,
+        });
       } else {
-        const existing = byTitleMap.get(titleKey);
-        if (getScore(item) > getScore(existing)) {
-          if (existing.id && existing.id !== item.id && !String(existing.id).startsWith('mod-')) {
-            staleDupIds.push(existing.id);
-          }
-          byTitleMap.set(titleKey, {
-            ...existing,
-            ...item,
-            posted_to_students: Boolean(item.posted_to_students || existing.posted_to_students),
-            content_url: item.content_url || existing.content_url || null,
-            file_name: item.file_name || existing.file_name || null,
-            is_deleted: Boolean(item.is_deleted || existing.is_deleted),
-            deleted_at: item.deleted_at || existing.deleted_at || null,
-          });
-        } else {
-          if (item.id && item.id !== existing.id && !String(item.id).startsWith('mod-')) {
-            staleDupIds.push(item.id);
-          }
-          existing.posted_to_students = Boolean(existing.posted_to_students || item.posted_to_students);
-          if (!existing.content_url && item.content_url) existing.content_url = item.content_url;
-          if (!existing.file_name && item.file_name) existing.file_name = item.file_name;
-          if (item.is_deleted) {
-            existing.is_deleted = true;
-            existing.deleted_at = item.deleted_at || existing.deleted_at || null;
-          }
+        if (item.id && item.id !== existing.id && !String(item.id).startsWith('mod-')) {
+          staleDupIds.push(item.id);
+        }
+        existing.posted_to_students = Boolean(existing.posted_to_students || item.posted_to_students);
+        if (!existing.content_url && item.content_url) existing.content_url = item.content_url;
+        if (!existing.file_name && item.file_name) existing.file_name = item.file_name;
+        if (item.is_deleted) {
+          existing.is_deleted = true;
+          existing.deleted_at = item.deleted_at || existing.deleted_at || null;
         }
       }
-    });
+    }
+  });
 
-    if (staleDupIds.length > 0) {
-      supabase
-        .from('materials')
-        .delete()
-        .in('id', staleDupIds)
-        .then(() => { })
-        .catch(() => { });
+  if (staleDupIds.length > 0) {
+    supabase
+      .from('materials')
+      .delete()
+      .in('id', staleDupIds)
+      .then(() => { })
+      .catch(() => { });
+  }
+
+  return Array.from(byTitleMap.values());
+}, [myMaterials, localTeacherModules, currentUserId, myFullName, profile]);
+
+// Filtered uploaded materials
+const filteredUploadedMaterials = useMemo(() => {
+  return combinedUploadedMaterials.filter((m) => {
+    if (uploadedFilterStatus === 'deleted') {
+      if (!m.is_deleted) return false;
+    } else {
+      if (m.is_deleted) return false;
+      if (uploadedFilterStatus === 'pending' && m.status !== 'Pending Review') return false;
+      if (uploadedFilterStatus === 'approved' && m.status !== 'Approved') return false;
+      if (uploadedFilterStatus === 'posted' && !m.posted_to_students) return false;
+      if (uploadedFilterStatus === 'rejected' && m.status !== 'Rejected') return false;
     }
 
-    return Array.from(byTitleMap.values());
-  }, [myMaterials, localTeacherModules, currentUserId, myFullName, profile]);
+    const matchLevel =
+      uploadedFilterLevel === 'all' ||
+      m.level.toLowerCase() === (uploadedFilterLevel === 'PRE-K1' ? 'pre-k1' : 'pre-k2');
+    const matchQuarter =
+      uploadedFilterQuarter === 'all' ||
+      String(m.quarter) === String(uploadedFilterQuarter);
+    const matchType =
+      uploadedFilterType === 'all' || m.type === uploadedFilterType;
+    const matchSearch =
+      !uploadedSearch.trim() ||
+      m.title.toLowerCase().includes(uploadedSearch.toLowerCase()) ||
+      (m.sub_theme || '').toLowerCase().includes(uploadedSearch.toLowerCase()) ||
+      (m.theme || '').toLowerCase().includes(uploadedSearch.toLowerCase());
 
-  // Filtered uploaded materials
-  const filteredUploadedMaterials = useMemo(() => {
-    return combinedUploadedMaterials.filter((m) => {
-      if (uploadedFilterStatus === 'deleted') {
-        if (!m.is_deleted) return false;
-      } else {
-        if (m.is_deleted) return false;
-        if (uploadedFilterStatus === 'pending' && m.status !== 'Pending Review') return false;
-        if (uploadedFilterStatus === 'approved' && m.status !== 'Approved') return false;
-        if (uploadedFilterStatus === 'posted' && !m.posted_to_students) return false;
-        if (uploadedFilterStatus === 'rejected' && m.status !== 'Rejected') return false;
-      }
+    return matchLevel && matchQuarter && matchType && matchSearch;
+  });
+}, [
+  combinedUploadedMaterials,
+  uploadedFilterStatus,
+  uploadedFilterLevel,
+  uploadedFilterQuarter,
+  uploadedFilterType,
+  uploadedSearch,
+]);
 
-      const matchLevel =
-        uploadedFilterLevel === 'all' ||
-        m.level.toLowerCase() === (uploadedFilterLevel === 'PRE-K1' ? 'pre-k1' : 'pre-k2');
-      const matchQuarter =
-        uploadedFilterQuarter === 'all' ||
-        String(m.quarter) === String(uploadedFilterQuarter);
-      const matchType =
-        uploadedFilterType === 'all' || m.type === uploadedFilterType;
-      const matchSearch =
-        !uploadedSearch.trim() ||
-        m.title.toLowerCase().includes(uploadedSearch.toLowerCase()) ||
-        (m.sub_theme || '').toLowerCase().includes(uploadedSearch.toLowerCase()) ||
-        (m.theme || '').toLowerCase().includes(uploadedSearch.toLowerCase());
+// Handle File Chosen / Dropped for Upload (Validates file size limits & supports video up to 50 MB)
+const handleFileSelected = async (file) => {
+  if (!file) return;
+  const validation = validateActivityFile(file);
+  if (!validation.valid) {
+    setUploadMsg({ text: `⚠️ ${validation.error}`, type: 'error' });
+    return;
+  }
+  setUploadMsg({ text: '', type: '' });
+  setUploadFile(file);
+  setUploadFileName(file.name);
 
-      return matchLevel && matchQuarter && matchType && matchSearch;
-    });
-  }, [
-    combinedUploadedMaterials,
-    uploadedFilterStatus,
-    uploadedFilterLevel,
-    uploadedFilterQuarter,
-    uploadedFilterType,
-    uploadedSearch,
-  ]);
+  const sizeFormatted =
+    file.size > 1024 * 1024
+      ? (file.size / (1024 * 1024)).toFixed(1) + ' MB'
+      : (file.size / 1024).toFixed(0) + ' KB';
+  setUploadFileSize(sizeFormatted);
 
-  // Handle File Chosen / Dropped for Upload (Validates file size limits & supports video up to 50 MB)
-  const handleFileSelected = async (file) => {
-    if (!file) return;
-    const validation = validateActivityFile(file);
-    if (!validation.valid) {
-      setUploadMsg({ text: `⚠️ ${validation.error}`, type: 'error' });
-      return;
-    }
-    setUploadMsg({ text: '', type: '' });
-    setUploadFile(file);
-    setUploadFileName(file.name);
+  const ext = file.name.split('.').pop()?.toUpperCase() || 'FILE';
+  setUploadFileType(ext);
 
-    const sizeFormatted =
-      file.size > 1024 * 1024
-        ? (file.size / (1024 * 1024)).toFixed(1) + ' MB'
-        : (file.size / 1024).toFixed(0) + ' KB';
-    setUploadFileSize(sizeFormatted);
+  // Auto-detect format type
+  const lowerExt = ext.toLowerCase();
+  if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(lowerExt) || file.type?.startsWith('image/')) {
+    setUploadType('image');
+  } else if (['mp4', 'mov', 'webm', 'avi', 'mkv', 'm4v'].includes(lowerExt) || file.type?.startsWith('video/')) {
+    setUploadType('video');
+  } else if (['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'].includes(lowerExt)) {
+    setUploadType('file');
+  }
 
-    const ext = file.name.split('.').pop()?.toUpperCase() || 'FILE';
-    setUploadFileType(ext);
-
-    // Auto-detect format type
-    const lowerExt = ext.toLowerCase();
-    if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(lowerExt) || file.type?.startsWith('image/')) {
-      setUploadType('image');
-    } else if (['mp4', 'mov', 'webm', 'avi', 'mkv', 'm4v'].includes(lowerExt) || file.type?.startsWith('video/')) {
-      setUploadType('video');
-    } else if (['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'].includes(lowerExt)) {
-      setUploadType('file');
-    }
-
-    // Auto-fill title if currently blank or standard prefix
-    const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
-    if (!uploadTitle.trim() || uploadTitle.match(/^\[.*\]\s*$/)) {
+  // Auto-fill title if currently blank or standard prefix
+  const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+    let effectiveTitleForIdb = uploadTitle.trim();
+    if (!effectiveTitleForIdb || effectiveTitleForIdb.match(/^\[.*\]\s*$/)) {
       const prefix = uploadWeek ? `[${uploadCurriculumLevel} Q${uploadQuarter} ${uploadWeek}] ` : `[${uploadCurriculumLevel} Q${uploadQuarter}] `;
-      setUploadTitle(`${prefix}${cleanName}`);
+      effectiveTitleForIdb = `${prefix}${cleanName}`;
+      setUploadTitle(effectiveTitleForIdb);
     }
 
-    // Always cache the file Blob in IndexedDB (by key and by filename) so videos up to 50 MB play back reliably
+    // Immediately create a live preview URL so the file is ready even before FileReader finishes
+    const immediateBlobUrl = URL.createObjectURL(file);
+    setUploadFilePreview(immediateBlobUrl);
+
+    // Always cache the file Blob in IndexedDB (by key, filename, and title) so videos up to 50 MB play back reliably
     let generatedIdbKey = null;
     try {
-      generatedIdbKey = await saveMediaBlobToIndexedDB(file);
+      generatedIdbKey = await saveMediaBlobToIndexedDB(file, effectiveTitleForIdb);
+      if (generatedIdbKey) {
+        setUploadUrl(generatedIdbKey);
+      }
     } catch { }
 
     // For very large files (> 20 MB up to 50 MB), use IndexedDB key + Blob URL preview directly
     if (file.size > 20 * 1024 * 1024 && generatedIdbKey) {
-      const blobPreview = URL.createObjectURL(file);
-      setUploadFilePreview(blobPreview);
-      setUploadUrl(generatedIdbKey);
       return;
     }
 
@@ -708,13 +705,13 @@ export default function TeacherDashboard({ profile }) {
     const reader = new FileReader();
     reader.onload = (e) => {
       const dataUrl = e.target.result;
-      setUploadFilePreview(dataUrl);
-      setUploadUrl(dataUrl || generatedIdbKey || '');
+      if (dataUrl) {
+        setUploadFilePreview(dataUrl);
+        setUploadUrl(dataUrl);
+      }
     };
     reader.onerror = () => {
       if (generatedIdbKey) {
-        const blobPreview = URL.createObjectURL(file);
-        setUploadFilePreview(blobPreview);
         setUploadUrl(generatedIdbKey);
       }
     };
@@ -868,9 +865,30 @@ export default function TeacherDashboard({ profile }) {
       return;
     }
 
-    const rawUploadUrl = typeof uploadUrl === 'string' ? uploadUrl.trim() : '';
+    let rawUploadUrl = typeof uploadUrl === 'string' ? uploadUrl.trim() : '';
+    if (uploadFile) {
+      try {
+        const idbKey = await saveMediaBlobToIndexedDB(uploadFile, uploadTitle.trim());
+        if (!rawUploadUrl && idbKey) {
+          rawUploadUrl = idbKey;
+        }
+      } catch { }
+
+      if (!rawUploadUrl.startsWith('data:') && uploadFile.size <= 15 * 1024 * 1024) {
+        try {
+          const dataUrl = await new Promise((resolve) => {
+            const r = new FileReader();
+            r.onload = (ev) => resolve(ev.target?.result || '');
+            r.onerror = () => resolve('');
+            r.readAsDataURL(uploadFile);
+          });
+          if (dataUrl) rawUploadUrl = dataUrl;
+        } catch { }
+      }
+    }
+
     const effectiveUrl = rawUploadUrl || uploadFilePreview || null;
-    const effectiveFileName = uploadFileName || null;
+    const effectiveFileName = uploadFileName || uploadFile?.name || null;
     const idbFallbackUrl = effectiveFileName
       ? `idb://filename/${effectiveFileName.trim().toLowerCase()}`
       : null;
@@ -1182,8 +1200,13 @@ export default function TeacherDashboard({ profile }) {
 
     setLocalTeacherModules(updatedLocal);
     try {
-      localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(updatedLocal));
-      window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updatedLocal }));
+      const storageSafeLocal = updatedLocal.map((m) =>
+        m.content_url && String(m.content_url).startsWith('data:') && String(m.content_url).length > 2000000 && m.file_name
+          ? { ...m, content_url: `idb://filename/${String(m.file_name).trim().toLowerCase()}` }
+          : m
+      );
+      localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(storageSafeLocal));
+      window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: storageSafeLocal }));
     } catch { }
 
     // 2. Always sync posted activity & attached file metadata to Supabase materials for cross-device student access
@@ -1215,14 +1238,25 @@ export default function TeacherDashboard({ profile }) {
         postingMaterial.id &&
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(postingMaterial.id));
 
+      const urlToPersist =
+        postingMaterial.content_url &&
+          (String(postingMaterial.content_url).startsWith('data:') ||
+            String(postingMaterial.content_url).startsWith('http') ||
+            String(postingMaterial.content_url).startsWith('idb://'))
+          ? postingMaterial.content_url
+          : undefined;
+
       if (isUuid) {
+        const updatePayload = {
+          status: 'approved',
+          content_text: JSON.stringify(updatedMeta),
+        };
+        if (urlToPersist && !String(urlToPersist).startsWith('idb://')) {
+          updatePayload.content_url = urlToPersist;
+        }
         await supabase
           .from('materials')
-          .update({
-            status: 'approved',
-            content_url: postingMaterial.content_url || null,
-            content_text: JSON.stringify(updatedMeta),
-          })
+          .update(updatePayload)
           .eq('id', postingMaterial.id);
       } else {
         const catId = categoryOptions.length > 0 ? categoryOptions[0].id : null;
@@ -1230,10 +1264,10 @@ export default function TeacherDashboard({ profile }) {
           .from('materials')
           .insert({
             category_id: catId,
-            type: 'activity',
+            type: postingMaterial.type === 'video' ? 'video' : 'activity',
             title: postingMaterial.title,
             age_range: postingMaterial.level?.toLowerCase().includes('1') ? '3-4' : '4-5',
-            content_url: postingMaterial.content_url || null,
+            content_url: urlToPersist || null,
             content_text: JSON.stringify(updatedMeta),
             created_by: currentUserId,
             status: 'approved',
@@ -1246,7 +1280,12 @@ export default function TeacherDashboard({ profile }) {
             m.id === postingMaterial.id ? { ...m, id: inserted.id } : m
           );
           setLocalTeacherModules(syncedLocal);
-          localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(syncedLocal));
+          const storageSafeSynced = syncedLocal.map((m) =>
+            m.content_url && String(m.content_url).startsWith('data:') && String(m.content_url).length > 2000000 && m.file_name
+              ? { ...m, content_url: `idb://filename/${String(m.file_name).trim().toLowerCase()}` }
+              : m
+          );
+          localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(storageSafeSynced));
         }
       }
       loadMyMaterials();
@@ -2624,8 +2663,8 @@ export default function TeacherDashboard({ profile }) {
                 type="button"
                 onClick={() => setTopicStatusFilter('all')}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${topicStatusFilter === 'all'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
               >
                 <span>All Topics</span>
@@ -2638,8 +2677,8 @@ export default function TeacherDashboard({ profile }) {
                 type="button"
                 onClick={() => setTopicStatusFilter('pending')}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${topicStatusFilter === 'pending'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'bg-amber-50 text-amber-900 hover:bg-amber-100'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'bg-amber-50 text-amber-900 hover:bg-amber-100'
                   }`}
               >
                 <span>⏳ Open / Pending</span>
@@ -2652,8 +2691,8 @@ export default function TeacherDashboard({ profile }) {
                 type="button"
                 onClick={() => setTopicStatusFilter('completed')}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${topicStatusFilter === 'completed'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
                   }`}
               >
                 <span>✅ Complied</span>
@@ -2666,8 +2705,8 @@ export default function TeacherDashboard({ profile }) {
                 type="button"
                 onClick={() => setTopicStatusFilter('expired')}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${topicStatusFilter === 'expired'
-                    ? 'bg-rose-600 text-white shadow-xs'
-                    : 'bg-rose-50 text-rose-900 hover:bg-rose-100'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'bg-rose-50 text-rose-900 hover:bg-rose-100'
                   }`}
               >
                 <span>⚠️ Past Deadline</span>
@@ -2728,10 +2767,10 @@ export default function TeacherDashboard({ profile }) {
                 <div
                   key={item.id}
                   className={`p-5 rounded-2xl border transition-all ${item.isCompleted
-                      ? 'bg-[#F9FCFA] border-emerald-300 shadow-xs'
-                      : item.isPastDeadline
-                        ? 'bg-[#FFF8F8] border-rose-300 shadow-xs'
-                        : 'bg-white border-card-border hover:border-accent shadow-xs'
+                    ? 'bg-[#F9FCFA] border-emerald-300 shadow-xs'
+                    : item.isPastDeadline
+                      ? 'bg-[#FFF8F8] border-rose-300 shadow-xs'
+                      : 'bg-white border-card-border hover:border-accent shadow-xs'
                     }`}
                 >
                   <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
@@ -2739,8 +2778,8 @@ export default function TeacherDashboard({ profile }) {
                       <div className="flex flex-wrap items-center gap-2">
                         <span
                           className={`text-[10.5px] px-2.5 py-0.5 rounded-full font-bold uppercase ${item.level === 'Pre-K1'
-                              ? 'bg-[#DCEBDD] text-[#2E6B38]'
-                              : 'bg-[#E0EFFE] text-[#1E5B94]'
+                            ? 'bg-[#DCEBDD] text-[#2E6B38]'
+                            : 'bg-[#E0EFFE] text-[#1E5B94]'
                             }`}
                         >
                           {item.level || 'Pre-K1'}
@@ -2835,10 +2874,10 @@ export default function TeacherDashboard({ profile }) {
                           <div className="mt-1">
                             <span
                               className={`px-3 py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 ${item.isCompleted
-                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
-                                  : item.isPastDeadline
-                                    ? 'bg-rose-100 text-rose-800 border border-rose-300 animate-pulse'
-                                    : 'bg-amber-50 text-amber-900 border border-amber-300'
+                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                                : item.isPastDeadline
+                                  ? 'bg-rose-100 text-rose-800 border border-rose-300 animate-pulse'
+                                  : 'bg-amber-50 text-amber-900 border border-amber-300'
                                 }`}
                             >
                               <span>📅</span>
@@ -2997,11 +3036,10 @@ export default function TeacherDashboard({ profile }) {
 
           {learnerActionMsg.text && (
             <div
-              className={`p-3 rounded-xl text-xs font-bold flex items-center justify-between ${
-                learnerActionMsg.type === 'error'
+              className={`p-3 rounded-xl text-xs font-bold flex items-center justify-between ${learnerActionMsg.type === 'error'
                   ? 'bg-rose-50 text-rose-800 border border-rose-200'
                   : 'bg-emerald-50 text-emerald-900 border border-emerald-200'
-              }`}
+                }`}
             >
               <span>{learnerActionMsg.text}</span>
               <button
@@ -3410,8 +3448,8 @@ export default function TeacherDashboard({ profile }) {
                         setIsUploadModalOpen(true);
                       }}
                       className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${alreadyComplied
-                          ? 'bg-emerald-50 border-emerald-300 text-emerald-900 hover:bg-emerald-100'
-                          : 'bg-amber-50/70 border-amber-300 text-amber-950 hover:bg-amber-100'
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-900 hover:bg-emerald-100'
+                        : 'bg-amber-50/70 border-amber-300 text-amber-950 hover:bg-amber-100'
                         }`}
                     >
                       <span>{alreadyComplied ? '✓' : '📤'}</span>
@@ -3509,21 +3547,21 @@ export default function TeacherDashboard({ profile }) {
                   type="button"
                   onClick={() => setUploadedFilterStatus(tab.key)}
                   className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${uploadedFilterStatus === tab.key
-                      ? tab.key === 'deleted'
-                        ? 'bg-rose-600 text-white shadow-2xs'
-                        : 'bg-slate-900 text-white shadow-2xs'
-                      : tab.key === 'deleted'
-                        ? 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    ? tab.key === 'deleted'
+                      ? 'bg-rose-600 text-white shadow-2xs'
+                      : 'bg-slate-900 text-white shadow-2xs'
+                    : tab.key === 'deleted'
+                      ? 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                     }`}
                 >
                   <span>{tab.label}</span>
                   <span
                     className={`px-1.5 py-0.2 rounded-full text-[10px] ${uploadedFilterStatus === tab.key
-                        ? 'bg-white/20 text-white'
-                        : tab.key === 'deleted'
-                          ? 'bg-rose-200/70 text-rose-900'
-                          : 'bg-slate-200 text-slate-700'
+                      ? 'bg-white/20 text-white'
+                      : tab.key === 'deleted'
+                        ? 'bg-rose-200/70 text-rose-900'
+                        : 'bg-slate-200 text-slate-700'
                       }`}
                   >
                     {tab.count}
@@ -3639,8 +3677,8 @@ export default function TeacherDashboard({ profile }) {
                           <div className="flex flex-col gap-1">
                             <span
                               className={`inline-block px-2 py-0.5 rounded text-[10.5px] font-bold w-fit ${m.level?.toLowerCase().includes('pre-k1')
-                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                                  : 'bg-blue-50 text-blue-800 border border-blue-200'
+                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                : 'bg-blue-50 text-blue-800 border border-blue-200'
                                 }`}
                             >
                               {m.level?.toUpperCase().includes('PRE-K') ? m.level : 'Pre-K1'}
@@ -3654,10 +3692,10 @@ export default function TeacherDashboard({ profile }) {
                         <td className="px-4 py-3.5 text-center whitespace-nowrap">
                           <span
                             className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${isApproved
-                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
-                                : isRejected
-                                  ? 'bg-rose-50 text-rose-800 border border-rose-300'
-                                  : 'bg-amber-50 text-amber-800 border border-amber-300'
+                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                              : isRejected
+                                ? 'bg-rose-50 text-rose-800 border border-rose-300'
+                                : 'bg-amber-50 text-amber-800 border border-amber-300'
                               }`}
                           >
                             {isApproved
@@ -3918,21 +3956,21 @@ export default function TeacherDashboard({ profile }) {
                     type="button"
                     onClick={() => setSubmissionFilter(tab.key)}
                     className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${submissionFilter === tab.key
-                        ? tab.key === 'deleted'
-                          ? 'bg-rose-600 text-white shadow-2xs'
-                          : 'bg-slate-900 text-white shadow-2xs'
-                        : tab.key === 'deleted'
-                          ? 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200'
-                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      ? tab.key === 'deleted'
+                        ? 'bg-rose-600 text-white shadow-2xs'
+                        : 'bg-slate-900 text-white shadow-2xs'
+                      : tab.key === 'deleted'
+                        ? 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                       }`}
                   >
                     <span>{tab.label}</span>
                     <span
                       className={`px-1.5 py-0.2 rounded-full text-[10px] ${submissionFilter === tab.key
-                          ? 'bg-white/20 text-white'
-                          : tab.key === 'deleted'
-                            ? 'bg-rose-200/70 text-rose-900'
-                            : 'bg-slate-200 text-slate-700'
+                        ? 'bg-white/20 text-white'
+                        : tab.key === 'deleted'
+                          ? 'bg-rose-200/70 text-rose-900'
+                          : 'bg-slate-200 text-slate-700'
                         }`}
                     >
                       {tab.count}
@@ -4216,8 +4254,8 @@ export default function TeacherDashboard({ profile }) {
           {profileMsg.text && (
             <div
               className={`p-4 rounded-2xl text-xs font-bold flex items-center justify-between shadow-xs animate-fadeIn ${profileMsg.type === 'error'
-                  ? 'bg-rose-50 border border-rose-300 text-rose-800'
-                  : 'bg-[#DCEBDD] border border-emerald-300 text-[#2E6B38]'
+                ? 'bg-rose-50 border border-rose-300 text-rose-800'
+                : 'bg-[#DCEBDD] border border-emerald-300 text-[#2E6B38]'
                 }`}
             >
               <div className="flex items-center gap-2">
