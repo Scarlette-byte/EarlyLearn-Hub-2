@@ -23,6 +23,7 @@ import {
   getStoredLearners,
   getLocalCachedEccdAssessments,
   fetchEccdAssessmentsFromSupabase,
+  isPlaceholderStudentName,
 } from '../lib/learnersService.js';
 import {
   cardBox,
@@ -66,7 +67,7 @@ export default function AdminDashboard({ profile }) {
   const [cdcs, setCdcs] = useState(realCdcsList);
   const [learners, setLearners] = useState(() => {
     return getStoredLearners().filter(
-      (l) => (l.full_name || '').trim().toLowerCase() !== 'hannah mae tion' && l.id !== 'lrn-real-001'
+      (l) => !isPlaceholderStudentName(l.full_name) && l.id !== 'lrn-real-001'
     );
   });
   const [teachers, setTeachers] = useState(realTeachersList);
@@ -112,7 +113,7 @@ export default function AdminDashboard({ profile }) {
   const loadLearners = useCallback(async () => {
     try {
       const stored = getStoredLearners().filter(
-        (l) => (l.full_name || '').trim().toLowerCase() !== 'hannah mae tion' && l.id !== 'lrn-real-001'
+        (l) => !isPlaceholderStudentName(l.full_name) && l.id !== 'lrn-real-001'
       );
       const { data, error } = await supabase
         .from('learners')
@@ -135,12 +136,12 @@ export default function AdminDashboard({ profile }) {
         });
       }
       combined = combined.filter(
-        (l) => (l.full_name || '').trim().toLowerCase() !== 'hannah mae tion' && l.id !== 'lrn-real-001'
+        (l) => !isPlaceholderStudentName(l.full_name) && l.id !== 'lrn-real-001'
       );
       setLearners(combined);
     } catch {
       const stored = getStoredLearners().filter(
-        (l) => (l.full_name || '').trim().toLowerCase() !== 'hannah mae tion' && l.id !== 'lrn-real-001'
+        (l) => !isPlaceholderStudentName(l.full_name) && l.id !== 'lrn-real-001'
       );
       setLearners(stored);
     }

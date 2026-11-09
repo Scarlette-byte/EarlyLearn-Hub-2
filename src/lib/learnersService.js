@@ -35,7 +35,10 @@ export function isPlaceholderStudentName(rawName) {
     cleaned === 'demo student' ||
     cleaned === 'student' ||
     cleaned === 'learner' ||
-    cleaned === 'hannah mae tion'
+    cleaned === 'hannah mae tion' ||
+    cleaned === 'mateo bukidnon' ||
+    cleaned === 'mateo' ||
+    cleaned.startsWith('mateo bukidnon')
   );
 }
 
@@ -422,6 +425,9 @@ export function getStoredLearners() {
         filtered.push({ ...unpacked, full_name: cleaned });
       }
     });
+    if (filtered.length !== list.length) {
+      localStorage.setItem(REGISTERED_LEARNERS_STORAGE_KEY, JSON.stringify(filtered));
+    }
     return filtered;
   } catch {
     return [];
@@ -922,7 +928,24 @@ export async function getLearnersForTeacher({ teacherId, teacherName, barangay, 
       .order('created_at', { ascending: false });
 
     if (!error && Array.isArray(allLearners)) {
-      dbLearners = allLearners.map((row) => unpackLearnerRow(row)).filter(Boolean);
+      dbLearners = allLearners
+        .filter((row) => {
+          if (isPlaceholderStudentName(row?.full_name)) {
+            if (row?.id) {
+              supabase.from('learners').delete().eq('id', row.id).then(() => {}).catch(() => {});
+              supabase
+                .from('learners')
+                .update({ full_name: 'Student Test', barangay: null })
+                .eq('id', row.id)
+                .then(() => {})
+                .catch(() => {});
+            }
+            return false;
+          }
+          return true;
+        })
+        .map((row) => unpackLearnerRow(row))
+        .filter(Boolean);
     }
   } catch {
     // Ignore fetch error
@@ -1267,7 +1290,7 @@ async function upsertSingleAssessmentInSupabase(normRecord) {
     // Fallback below if `eccd_assessments` table is not yet created in Supabase
   }
 
-  // 2. Sync into `public.learners` row metadata so cross-device retrieval works in all environments
+  // 2. Sync into `public.learners` row metadata if the learner already exists in `public.learners`
   try {
     const { data: existingLearnerRows } = await supabase
       .from('learners')
@@ -1291,24 +1314,6 @@ async function upsertSingleAssessmentInSupabase(normRecord) {
         .from('learners')
         .update({ parent_contact: updatedPackedContact })
         .eq('id', row.id);
-    } else {
-      const packedContact = packLearnerContactMeta('', {
-        approval_status: 'approved',
-        teacher_id: normRecord.teacher_id || null,
-        adviser_name: normRecord.teacher_name || null,
-        cdc_name: normRecord.cdc_name || null,
-        child_age: normRecord.level?.includes('2') ? '4-4.11' : '3-3.11',
-        eccd_assessment: savedRecord,
-      });
-      const insertPayload = {
-        full_name: normRecord.child_name,
-        barangay: normRecord.barangay || null,
-        parent_contact: packedContact,
-      };
-      if (isValidUuid(normRecord.child_id)) {
-        insertPayload.id = normRecord.child_id;
-      }
-      await supabase.from('learners').upsert(insertPayload);
     }
   } catch {
     // Ignore learners sync note
