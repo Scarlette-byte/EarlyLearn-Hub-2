@@ -1173,332 +1173,251 @@ export default function StudentDashboard({ profile }) {
 
       return (
         <div className="min-h-screen font-nunito text-[#3a3226] bg-[#FFF8EB] sm:bg-gradient-to-b sm:from-[#FFF6DA] sm:to-[#FFEFC2]">
-          <div className="max-w-[620px] mx-auto px-4.5 sm:px-5 pt-6 pb-16 text-center">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-16 text-center">
             {/* HEADER BAR */}
-            <div className="flex justify-between items-center mb-4.5">
+            <div className="flex justify-between items-center mb-5 bg-white/80 backdrop-blur-xs rounded-2xl px-4 sm:px-6 py-3.5 shadow-soft border border-[#F4E8D0]">
               <div className="text-left">
-                <h1 className="font-baloo text-2xl sm:text-[26px] font-bold m-0 text-left text-[#3a3226] flex items-center gap-1.5">
+                <h1 className="font-baloo text-2xl sm:text-3xl font-bold m-0 text-left text-[#3a3226] flex items-center gap-2">
                   <span>👋</span> Hi, {greetingName}!
                 </h1>
-                <p className="text-[13.5px] sm:text-[14px] text-[#6b5c42] mt-0.5 font-medium m-0">
-                  Choose what you'd like to learn
+                <p className="text-[13.5px] sm:text-sm text-[#6b5c42] mt-0.5 font-medium m-0">
+                  Choose what you'd like to learn today
                 </p>
               </div>
               <button
                 onClick={handleLogout}
-                className="border-none bg-white rounded-2xl px-4 py-2 font-extrabold text-[13px] text-[#C9553F] cursor-pointer shadow-flat hover:bg-rose-50 transition-colors"
+                className="border border-rose-200 bg-white rounded-2xl px-4 sm:px-5 py-2.5 font-extrabold text-[13px] text-[#C9553F] cursor-pointer shadow-flat hover:bg-rose-50 transition-colors"
               >
                 Log Out
               </button>
             </div>
 
             {/* ======================================================== */}
-            {/* 👩‍🏫 CLASS ADVISER & DAY CARE CENTER DISPLAY               */}
+            {/* TOP SUMMARY ROW: CLASS ADVISER & MY PROGRESS             */}
             {/* ======================================================== */}
-            <div className="bg-white/95 rounded-2xl p-3.5 sm:p-4 mb-4 text-left shadow-soft border border-[#F4E8D0] flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-[#FFE082] to-[#FFB74D] flex items-center justify-center text-2xl shadow-xs shrink-0 border border-amber-200">
-                  👩‍🏫
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[10px] sm:text-[10.5px] font-extrabold uppercase tracking-wider text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60">
-                      Class Adviser
-                    </span>
-                    {adviserInfo.barangay && (
-                      <span className="text-[10.5px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
-                        📍 Brgy. {adviserInfo.barangay}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6 items-stretch">
+              {/* 👩‍🏫 CLASS ADVISER & DAY CARE CENTER DISPLAY */}
+              <div className="lg:col-span-7 bg-white/95 rounded-2xl p-4 sm:p-5 text-left shadow-soft border border-[#F4E8D0] flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-[#FFE082] to-[#FFB74D] flex items-center justify-center text-2xl sm:text-3xl shadow-xs shrink-0 border border-amber-200">
+                    👩‍🏫
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-200/60">
+                        Class Adviser
                       </span>
-                    )}
+                      {adviserInfo.barangay && (
+                        <span className="text-[10.5px] sm:text-[11px] font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-md">
+                          📍 Brgy. {adviserInfo.barangay}
+                        </span>
+                      )}
+                    </div>
+                    <div className="font-baloo text-[17px] sm:text-xl font-bold text-[#3a3226] leading-snug mt-0.5 truncate">
+                      Teacher {adviserInfo.adviserName.replace(/^Teacher\s+/i, '')}
+                    </div>
+                    <div className="text-xs sm:text-[13px] text-slate-500 font-medium truncate">
+                      🏫 {adviserInfo.cdcName}
+                    </div>
                   </div>
-                  <div className="font-baloo text-[16px] sm:text-[17px] font-bold text-[#3a3226] leading-snug mt-0.5 truncate">
-                    Teacher {adviserInfo.adviserName.replace(/^Teacher\s+/i, '')}
-                  </div>
-                  <div className="text-[12px] text-slate-500 font-medium truncate">
-                    🏫 {adviserInfo.cdcName}
-                  </div>
+                </div>
+
+                <div className="hidden xs:flex flex-col items-end shrink-0">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-3 py-1 rounded-full shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Enrolled
+                  </span>
                 </div>
               </div>
 
-              <div className="hidden xs:flex flex-col items-end shrink-0">
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-full shadow-2xs">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  Enrolled
-                </span>
+              {/* ⭐ MY PROGRESS SECTION */}
+              <div className="lg:col-span-5 bg-white/95 rounded-2xl p-4 sm:p-5 shadow-soft border border-[#F4E8D0] flex flex-col justify-center">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="text-xs sm:text-[13px] text-[#6b5c42] font-extrabold text-left">
+                    ⭐ My Progress (Real-Time)
+                  </div>
+                  {totalCompletedCount > 0 && (
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-black ${checkedActivitiesCount > 0
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          : 'bg-amber-50 text-amber-800 border border-amber-200'
+                        }`}
+                    >
+                      {checkedActivitiesCount > 0
+                        ? `👩‍🏫 ${checkedActivitiesCount} of ${totalCompletedCount} Checked ✅`
+                        : '⏳ Waiting for Teacher Check'}
+                    </span>
+                  )}
+                </div>
+                <div className="bg-[#F0E9D6] rounded-[20px] h-4 overflow-hidden">
+                  <div
+                    className="h-full rounded-[20px] transition-[width] duration-300"
+                    style={{
+                      width: `${progressPct}%`,
+                      background: 'linear-gradient(90deg, #FFB84D, #FF8C69)',
+                    }}
+                  />
+                </div>
+                <div className="mt-2 text-sm sm:text-[15px] font-bold text-[#3a3226] text-left">
+                  {totalTasksCount === 0
+                    ? '🌟 No assigned activities yet — check back soon!'
+                    : `🌟 ${totalCompletedCount} of ${totalTasksCount} ${totalTasksCount === 1 ? 'activity' : 'activities'
+                    } completed!`}
+                </div>
               </div>
             </div>
 
             {/* ======================================================== */}
-            {/* VIEW 1: HOME VIEW                                        */}
+            {/* VIEW 1: HOME VIEW (Responsive 2-Column on Laptop)        */}
             {/* ======================================================== */}
             {view === 'home' && (
-              <div>
-                {/* Announcements (if any) */}
-                {announcements.length > 0 && (
-                  <div className="mb-3.5">
-                    <div className="text-xs font-extrabold text-[#6b5c42] text-left mb-2">
-                      📢 Announcements
-                    </div>
-                    {announcements.map((a, i) => (
-                      <div
-                        key={i}
-                        className="bg-white rounded-2xl px-4 py-3 text-left mb-2 shadow-soft border-l-[5px] border-[#FFB84D]"
-                      >
-                        <div className="font-baloo font-bold text-[14.5px] mb-0.5">{a.title}</div>
-                        <div className="text-[12.5px] text-[#6b6355]">{a.message}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* -------------------------------------------------------- */}
-                {/* 📝 MY ACTIVITIES SECTION                                 */}
-                {/* -------------------------------------------------------- */}
-                <div className="mb-5.5">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-xs font-extrabold text-[#6b5c42] flex items-center gap-1.5">
-                      <span>📝</span> My Activities
-                      {pendingTeacherActivities.length > 0 && (
-                        <span className="text-[10.5px] font-bold text-[#8C6200] bg-[#FFF3D6] px-2 py-0.5 rounded-full ml-1">
-                          {pendingTeacherActivities.length} to do
-                        </span>
-                      )}
-                    </div>
-
-                    <button
-                      onClick={() => setIsUploadModalOpen(true)}
-                      className="px-3 py-1.5 rounded-xl bg-coral hover:bg-coral-deep text-white text-xs font-extrabold flex items-center gap-1 shadow-bump active:translate-y-0.5 transition-all cursor-pointer"
-                    >
-                      <span>📤</span>
-                      <span>+ Upload My Activity</span>
-                    </button>
-                  </div>
-
-                  {/* Sub-Tabs: Teacher's Uploads vs Student's Uploaded Works */}
-                  <div className="flex items-center gap-1.5 p-1 bg-white/70 rounded-xl mb-3 border border-[#F0E4CE]">
-                    <button
-                      onClick={() => setActivityTab('teacher')}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${activityTab === 'teacher'
-                          ? 'bg-white text-dash-ink shadow-xs'
-                          : 'text-dash-ink-soft hover:text-dash-ink'
-                        }`}
-                    >
-                      Teacher's Uploads ({teacherActivities.length})
-                    </button>
-                    <button
-                      onClick={() => setActivityTab('student_uploads')}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${activityTab === 'student_uploads'
-                          ? 'bg-white text-dash-ink shadow-xs'
-                          : 'text-dash-ink-soft hover:text-dash-ink'
-                        }`}
-                    >
-                      My Uploaded Works ({studentUploads.length})
-                    </button>
-                  </div>
-
-                  {/* TAB 1: TEACHER ASSIGNED ACTIVITIES */}
-                  {activityTab === 'teacher' && (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* LEFT / MAIN COLUMN ON LAPTOP: ANNOUNCEMENTS & MY ACTIVITIES */}
+                <div className="lg:col-span-7 space-y-5">
+                  {/* Announcements (if any) */}
+                  {announcements.length > 0 && (
                     <div>
-                      {teacherActivities.length === 0 ? (
-                        <div className="bg-white rounded-2xl p-5 text-center shadow-soft border border-[#F0E4CE]">
-                          <div className="text-2xl mb-1">🎈</div>
-                          <div className="font-baloo font-bold text-base text-[#3a3226]">
-                            No Teacher Activities at the Moment
+                      <div className="text-xs sm:text-sm font-extrabold text-[#6b5c42] text-left mb-2.5">
+                        📢 Announcements
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {announcements.map((a, i) => (
+                          <div
+                            key={i}
+                            className="bg-white rounded-2xl px-4 py-3 text-left shadow-soft border-l-[5px] border-[#FFB84D]"
+                          >
+                            <div className="font-baloo font-bold text-[14.5px] mb-0.5">{a.title}</div>
+                            <div className="text-[12.5px] text-[#6b6355]">{a.message}</div>
                           </div>
-                          <div className="text-xs text-[#7a7a7a] mt-1 max-w-sm mx-auto">
-                            Your teacher hasn't uploaded any new activities yet. You can upload your own drawing or file using the button above!
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* -------------------------------------------------------- */}
+                  {/* 📝 MY ACTIVITIES SECTION                                 */}
+                  {/* -------------------------------------------------------- */}
+                  <div className="bg-white/60 rounded-3xl p-4 sm:p-5 border border-[#F0E4CE] shadow-xs">
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                      <div className="text-sm sm:text-base font-extrabold text-[#3a3226] flex items-center gap-1.5">
+                        <span>📝</span> My Activities
+                        {pendingTeacherActivities.length > 0 && (
+                          <span className="text-[11px] font-bold text-[#8C6200] bg-[#FFF3D6] px-2.5 py-0.5 rounded-full ml-1 border border-amber-200">
+                            {pendingTeacherActivities.length} to do
+                          </span>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => setIsUploadModalOpen(true)}
+                        className="px-3.5 py-2 rounded-xl bg-coral hover:bg-coral-deep text-white text-xs font-extrabold flex items-center gap-1.5 shadow-bump active:translate-y-0.5 transition-all cursor-pointer"
+                      >
+                        <span>📤</span>
+                        <span>+ Upload My Activity</span>
+                      </button>
+                    </div>
+
+                    {/* Sub-Tabs: Teacher's Uploads vs Student's Uploaded Works */}
+                    <div className="flex items-center gap-1.5 p-1 bg-white/90 rounded-xl mb-3.5 border border-[#F0E4CE]">
+                      <button
+                        onClick={() => setActivityTab('teacher')}
+                        className={`flex-1 py-2 rounded-lg text-xs sm:text-[13px] font-bold transition-all cursor-pointer ${activityTab === 'teacher'
+                            ? 'bg-[#FFF3D6] text-[#8C6200] shadow-xs border border-amber-200/80'
+                            : 'text-dash-ink-soft hover:text-dash-ink'
+                          }`}
+                      >
+                        Teacher's Uploads ({teacherActivities.length})
+                      </button>
+                      <button
+                        onClick={() => setActivityTab('student_uploads')}
+                        className={`flex-1 py-2 rounded-lg text-xs sm:text-[13px] font-bold transition-all cursor-pointer ${activityTab === 'student_uploads'
+                            ? 'bg-[#FFF3D6] text-[#8C6200] shadow-xs border border-amber-200/80'
+                            : 'text-dash-ink-soft hover:text-dash-ink'
+                          }`}
+                      >
+                        My Uploaded Works ({studentUploads.length})
+                      </button>
+                    </div>
+
+                    {/* TAB 1: TEACHER ASSIGNED ACTIVITIES */}
+                    {activityTab === 'teacher' && (
+                      <div>
+                        {teacherActivities.length === 0 ? (
+                          <div className="bg-white rounded-2xl p-6 text-center shadow-soft border border-[#F0E4CE]">
+                            <div className="text-3xl mb-1.5">🎈</div>
+                            <div className="font-baloo font-bold text-base sm:text-lg text-[#3a3226]">
+                              No Teacher Activities at the Moment
+                            </div>
+                            <div className="text-xs sm:text-sm text-[#7a7a7a] mt-1 max-w-md mx-auto">
+                              Your teacher hasn't uploaded any new activities yet. You can upload your own drawing or file using the button above!
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-2.5">
-                          {pendingTeacherActivities.map((a) => {
-                            const isVid = isVideoItem({
-                              url: a.content_url,
-                              file_name: a.file_name,
-                              file_type: a.file_type,
-                              module_type: a.module_type,
-                            });
-                            const cardVidUrl = isVid ? resolvedCardVideoUrls[a.id] || null : null;
-                            const cardEmbedUrl = cardVidUrl ? getEmbeddedVideoUrl(cardVidUrl) : null;
-                            return (
-                              <div
-                                key={a.id}
-                                onClick={() => openMaterial(a, 'home')}
-                                className="bg-white rounded-2xl px-4 py-3.5 text-left shadow-soft cursor-pointer border-l-[5px] border-leaf hover:translate-x-0.5 transition-transform space-y-3"
-                              >
-                                <div className="flex items-center gap-3.5">
-                                  <div
-                                    className={`text-3xl flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-xl ${isVid ? 'bg-purple-100 text-purple-700' : 'bg-[#E8F5E9] text-leaf'
-                                      }`}
-                                  >
-                                    {isVid ? '🎬' : a.icon || '✏️'}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="font-baloo font-bold text-[15.5px] text-[#3a3226] truncate">
-                                      {a.title}
+                        ) : (
+                          <div className="space-y-3">
+                            {pendingTeacherActivities.map((a) => {
+                              const isVid = isVideoItem({
+                                url: a.content_url,
+                                file_name: a.file_name,
+                                file_type: a.file_type,
+                                module_type: a.module_type,
+                              });
+                              const cardVidUrl = isVid ? resolvedCardVideoUrls[a.id] || null : null;
+                              const cardEmbedUrl = cardVidUrl ? getEmbeddedVideoUrl(cardVidUrl) : null;
+                              return (
+                                <div
+                                  key={a.id}
+                                  onClick={() => openMaterial(a, 'home')}
+                                  className="bg-white rounded-2xl px-4 sm:px-5 py-4 text-left shadow-soft cursor-pointer border-l-[5px] border-leaf hover:translate-x-0.5 transition-transform space-y-3"
+                                >
+                                  <div className="flex items-center gap-3.5">
+                                    <div
+                                      className={`text-3xl flex-shrink-0 flex items-center justify-center w-11 h-11 rounded-xl ${isVid ? 'bg-purple-100 text-purple-700' : 'bg-[#E8F5E9] text-leaf'
+                                        }`}
+                                    >
+                                      {isVid ? '🎬' : a.icon || '✏️'}
                                     </div>
-                                    <div className="text-[11.5px] text-[#7a7a7a] font-bold flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                      <span>{a.category_name}</span>
-                                      {a.teacher_name && (
-                                        <>
-                                          <span>•</span>
-                                          <span className="text-accent font-semibold">{a.teacher_name}</span>
-                                        </>
-                                      )}
-                                      {isVid ? (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 border border-purple-300 text-[10px] font-extrabold">
-                                          🎬 Video Lesson — Watch &amp; Play
-                                        </span>
-                                      ) : (
-                                        (a.content_url || a.file_name) && (
-                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-extrabold">
-                                            📎 {a.file_name || a.file_type || 'Teacher File Attached'}
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-baloo font-bold text-base sm:text-[17px] text-[#3a3226] truncate">
+                                        {a.title}
+                                      </div>
+                                      <div className="text-xs text-[#7a7a7a] font-bold flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                        <span>{a.category_name}</span>
+                                        {a.teacher_name && (
+                                          <>
+                                            <span>•</span>
+                                            <span className="text-accent font-semibold">{a.teacher_name}</span>
+                                          </>
+                                        )}
+                                        {isVid ? (
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 border border-purple-300 text-[10.5px] font-extrabold">
+                                            🎬 Video Lesson — Watch &amp; Play
                                           </span>
-                                        )
-                                      )}
+                                        ) : (
+                                          (a.content_url || a.file_name) && (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-[10.5px] font-extrabold">
+                                              📎 {a.file_name || a.file_type || 'Teacher File Attached'}
+                                            </span>
+                                          )
+                                        )}
+                                      </div>
                                     </div>
+                                    <span
+                                      className={`text-xs font-bold px-3 py-1.5 rounded-xl shrink-0 ${isVid
+                                          ? 'text-purple-800 bg-purple-100 border border-purple-200'
+                                          : 'text-leaf bg-emerald-50'
+                                        }`}
+                                    >
+                                      {isVid ? '▶️ Open Activity →' : 'Start →'}
+                                    </span>
                                   </div>
-                                  <span
-                                    className={`text-xs font-bold px-2.5 py-1.5 rounded-lg shrink-0 ${isVid
-                                        ? 'text-purple-800 bg-purple-100 border border-purple-200'
-                                        : 'text-leaf bg-emerald-50'
-                                      }`}
-                                  >
-                                    {isVid ? '▶️ Open Activity →' : 'Start →'}
-                                  </span>
-                                </div>
 
-                                {isVid && (
-                                  <div
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="rounded-xl overflow-hidden border-2 border-purple-200 bg-black shadow-sm"
-                                  >
-                                    {cardVidUrl ? (
-                                      cardEmbedUrl ? (
-                                        <iframe
-                                          src={cardEmbedUrl}
-                                          title={a.file_name || a.title}
-                                          className="w-full aspect-video border-0 bg-black"
-                                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                          allowFullScreen
-                                        />
-                                      ) : (
-                                        <video
-                                          key={cardVidUrl}
-                                          controls
-                                          playsInline
-                                          preload="auto"
-                                          src={cardVidUrl}
-                                          onLoadedMetadata={(e) => {
-                                            if (e.currentTarget.currentTime === 0) {
-                                              try {
-                                                e.currentTarget.currentTime = 0.05;
-                                              } catch { }
-                                            }
-                                          }}
-                                          onError={() => {
-                                            setResolvedCardVideoUrls((prev) => ({ ...prev, [a.id]: null }));
-                                          }}
-                                          className="w-full max-h-[260px] aspect-video bg-black block"
-                                        >
-                                          Your browser does not support HTML5 video playback.
-                                        </video>
-                                      )
-                                    ) : (
-                                      <div className="bg-purple-950/90 text-white p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-                                        <div className="text-left">
-                                          <div className="font-bold text-xs text-purple-200 flex items-center gap-1.5">
-                                            <span>🎬</span>
-                                            <span>{a.file_name || a.title}</span>
-                                          </div>
-                                          <div className="text-[11px] text-purple-300 mt-0.5">
-                                            This video was uploaded before local video caching was enabled. Select the teacher&apos;s video file once to display and play it:
-                                          </div>
-                                        </div>
-                                        <label className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-extrabold cursor-pointer shrink-0 transition-colors">
-                                          📂 Load Teacher Video
-                                          <input
-                                            type="file"
-                                            accept="video/*,.mp4,.webm,.mov,.m4v"
-                                            className="hidden"
-                                            onChange={(e) => {
-                                              const f = e.target.files?.[0];
-                                              if (f) handleRelinkTeacherVideo(a, f);
-                                            }}
-                                          />
-                                        </label>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-
-                          {completedTeacherActivities.length > 0 && (
-                            <div className="pt-2 space-y-2">
-                              <div className="text-[11px] font-extrabold text-[#6b5c42] text-left px-1 flex items-center gap-1">
-                                <span>✅</span> Completed Teacher Activities ({completedTeacherActivities.length})
-                              </div>
-                              {completedTeacherActivities.map((a) => {
-                                const checkedByTeacher = isActivityCheckedByTeacher(a);
-                                const isVid = isVideoItem({
-                                  url: a.content_url,
-                                  file_name: a.file_name,
-                                  file_type: a.file_type,
-                                  module_type: a.module_type,
-                                });
-                                const cardVidUrl = isVid ? resolvedCardVideoUrls[a.id] || null : null;
-                                const cardEmbedUrl = cardVidUrl ? getEmbeddedVideoUrl(cardVidUrl) : null;
-                                return (
-                                  <div
-                                    key={a.id}
-                                    onClick={() => openMaterial(a, 'home')}
-                                    className="bg-white/90 rounded-2xl px-4 py-3 text-left shadow-xs cursor-pointer border-l-[5px] border-emerald-400 hover:translate-x-0.5 transition-transform space-y-2.5"
-                                  >
-                                    <div className="flex items-center gap-3.5">
-                                      <div className="text-2xl flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600">
-                                        {checkedByTeacher ? '🌟' : isVid ? '🎬' : '✅'}
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="font-baloo font-bold text-[14.5px] text-[#3a3226] truncate">
-                                          {a.title}
-                                        </div>
-                                        <div className="text-[11px] text-[#7a7a7a] font-bold flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                          <span>{a.category_name}</span>
-                                          {isVid ? (
-                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 text-[10px] font-extrabold">
-                                              🎬 Video Lesson
-                                            </span>
-                                          ) : (
-                                            (a.content_url || a.file_name) && (
-                                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-extrabold">
-                                                📎 {a.file_name || 'File'}
-                                              </span>
-                                            )
-                                          )}
-                                          {checkedByTeacher ? (
-                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-black">
-                                              👩‍🏫 Checked by Teacher ✅
-                                            </span>
-                                          ) : (
-                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black">
-                                              ⏳ Waiting for Teacher Check
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
-                                      <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg shrink-0">
-                                        {isVid ? '▶️ Watch / View →' : 'View / Edit →'}
-                                      </span>
-                                    </div>
-
-                                    {isVid && cardVidUrl && (
-                                      <div
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="rounded-xl overflow-hidden border-2 border-purple-200 bg-black shadow-sm"
-                                      >
-                                        {cardEmbedUrl ? (
+                                  {isVid && (
+                                    <div
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="rounded-xl overflow-hidden border-2 border-purple-200 bg-black shadow-sm"
+                                    >
+                                      {cardVidUrl ? (
+                                        cardEmbedUrl ? (
                                           <iframe
                                             src={cardEmbedUrl}
                                             title={a.file_name || a.title}
@@ -1523,232 +1442,322 @@ export default function StudentDashboard({ profile }) {
                                             onError={() => {
                                               setResolvedCardVideoUrls((prev) => ({ ...prev, [a.id]: null }));
                                             }}
-                                            className="w-full max-h-[240px] aspect-video bg-black block"
+                                            className="w-full max-h-[360px] aspect-video bg-black block"
                                           >
                                             Your browser does not support HTML5 video playback.
                                           </video>
-                                        )}
-                                      </div>
-                                    )}
-                              </div>
-                          );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-                {/* TAB 2: STUDENT'S OWN UPLOADED WORKS */}
-                {activityTab === 'student_uploads' && (
-                  <div>
-                    {studentUploads.length === 0 ? (
-                      <div className="bg-white rounded-2xl p-5 text-center shadow-soft border border-[#F0E4CE]">
-                        <div className="text-2xl mb-1">🎨</div>
-                        <div className="font-baloo font-bold text-base text-[#3a3226]">
-                          No Uploaded Activities Yet
-                        </div>
-                        <div className="text-xs text-[#7a7a7a] mt-1 mb-3">
-                          Upload an image, file, or video of your drawing, coloring sheet, or homework directly to your teacher!
-                        </div>
-                        <button
-                          onClick={() => setIsUploadModalOpen(true)}
-                          className="px-4 py-2 rounded-xl bg-coral hover:bg-coral-deep text-white font-bold text-xs shadow-bump cursor-pointer"
-                        >
-                          📸 Upload Your First Activity
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="space-y-2.5">
-                        {studentUploads
-                          .filter((u) => !u.is_deleted)
-                          .map((u) => {
-                            const isImg = isImageItem({
-                              url: u.mediaUrl,
-                              file_name: u.fileName,
-                              file_type: u.fileType,
-                            });
-                            const isVid = isVideoItem({
-                              url: u.mediaUrl,
-                              file_name: u.fileName,
-                              file_type: u.fileType,
-                            });
-
-                            const openPreview = () =>
-                              handleOpenStudentPreviewModal({
-                                title: u.title,
-                                category: u.category,
-                                note: u.note,
-                                fileUrl: u.mediaUrl,
-                                fileName: u.fileName || u.title,
-                                fileType: u.fileType || (isVid ? 'MP4' : isImg ? 'IMAGE' : 'FILE'),
-                                fileSize: u.fileSize || '',
-                                checked: Boolean(u.teacherChecked || (u.status || '').toLowerCase().includes('checked')),
-                              });
-
-                            return (
-                              <div
-                                key={u.id}
-                                className="bg-white rounded-2xl p-3.5 text-left shadow-soft flex items-start gap-3 border-l-[5px] border-[#FFB84D]"
-                              >
-                                {u.mediaUrl && isImg && u.mediaUrl.startsWith('data:image/') ? (
-                                  <img
-                                    src={u.mediaUrl}
-                                    alt={u.title}
-                                    onClick={openPreview}
-                                    className="w-14 h-14 rounded-xl object-cover shrink-0 border border-gray-200 cursor-pointer hover:opacity-90"
-                                  />
-                                ) : u.mediaUrl && isVid ? (
-                                  <div
-                                    onClick={openPreview}
-                                    className="w-14 h-14 rounded-xl bg-purple-100 text-purple-800 border border-purple-300 flex flex-col items-center justify-center shrink-0 font-extrabold text-[10px] cursor-pointer hover:bg-purple-200"
-                                  >
-                                    <span className="text-xl">🎬</span>
-                                    <span>{u.fileType || 'VIDEO'}</span>
-                                  </div>
-                                ) : u.mediaUrl ? (
-                                  <div
-                                    onClick={openPreview}
-                                    className="w-14 h-14 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex flex-col items-center justify-center shrink-0 font-extrabold text-[10px] cursor-pointer hover:bg-blue-100"
-                                  >
-                                    <span className="text-xl">📄</span>
-                                    <span>{u.fileType || 'FILE'}</span>
-                                  </div>
-                                ) : (
-                                  <div className="w-14 h-14 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center text-2xl shrink-0 font-bold">
-                                    🖼️
-                                  </div>
-                                )}
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <h4 className="font-baloo font-bold text-[15px] text-[#3a3226] m-0 truncate">
-                                      {u.title}
-                                    </h4>
-                                    {u.teacherChecked || (u.status || '').toLowerCase().includes('checked') ? (
-                                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
-                                        👩‍🏫 Checked by Teacher ✅
-                                      </span>
-                                    ) : (
-                                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
-                                        ⏳ Waiting for Teacher Check
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="text-[11px] text-dash-ink-soft mt-0.5">
-                                    Subject: <b className="text-[#3a3226]">{u.category}</b> • {u.uploadedAt}
-                                  </div>
-                                  {u.note && (
-                                    <p className="text-xs text-[#5a4d38] mt-1 leading-snug line-clamp-2 m-0 bg-[#FFFDF8] p-1.5 rounded-lg border border-[#F0E4CE]">
-                                      "{u.note}"
-                                    </p>
-                                  )}
-                                  {u.mediaUrl && (
-                                    <div className="mt-2 flex items-center gap-2 flex-wrap">
-                                      <button
-                                        type="button"
-                                        onClick={openPreview}
-                                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10.5px] font-extrabold cursor-pointer"
-                                      >
-                                        {isVid ? '▶️ Play Video' : '👁️ View'} {u.fileName ? `(${u.fileName})` : ''}
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleOpenOrDownloadFile(u.mediaUrl, u.fileName || 'student-upload', 'download')}
-                                        className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-extrabold cursor-pointer"
-                                      >
-                                        ⬇️ Download
-                                      </button>
+                                        )
+                                      ) : (
+                                        <div className="bg-purple-950/90 text-white p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                                          <div className="text-left">
+                                            <div className="font-bold text-xs text-purple-200 flex items-center gap-1.5">
+                                              <span>🎬</span>
+                                              <span>{a.file_name || a.title}</span>
+                                            </div>
+                                            <div className="text-[11px] text-purple-300 mt-0.5">
+                                              This video was uploaded before local video caching was enabled. Select the teacher&apos;s video file once to display and play it:
+                                            </div>
+                                          </div>
+                                          <label className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-extrabold cursor-pointer shrink-0 transition-colors">
+                                            📂 Load Teacher Video
+                                            <input
+                                              type="file"
+                                              accept="video/*,.mp4,.webm,.mov,.m4v"
+                                              className="hidden"
+                                              onChange={(e) => {
+                                                const f = e.target.files?.[0];
+                                                if (f) handleRelinkTeacherVideo(a, f);
+                                              }}
+                                            />
+                                          </label>
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                 </div>
+                              );
+                            })}
+
+                            {completedTeacherActivities.length > 0 && (
+                              <div className="pt-2 space-y-2.5">
+                                <div className="text-xs font-extrabold text-[#6b5c42] text-left px-1 flex items-center gap-1">
+                                  <span>✅</span> Completed Teacher Activities ({completedTeacherActivities.length})
+                                </div>
+                                {completedTeacherActivities.map((a) => {
+                                  const checkedByTeacher = isActivityCheckedByTeacher(a);
+                                  const isVid = isVideoItem({
+                                    url: a.content_url,
+                                    file_name: a.file_name,
+                                    file_type: a.file_type,
+                                    module_type: a.module_type,
+                                  });
+                                  const cardVidUrl = isVid ? resolvedCardVideoUrls[a.id] || null : null;
+                                  const cardEmbedUrl = cardVidUrl ? getEmbeddedVideoUrl(cardVidUrl) : null;
+                                  return (
+                                    <div
+                                      key={a.id}
+                                      onClick={() => openMaterial(a, 'home')}
+                                      className="bg-white/95 rounded-2xl px-4 sm:px-5 py-3.5 text-left shadow-xs cursor-pointer border-l-[5px] border-emerald-400 hover:translate-x-0.5 transition-transform space-y-2.5"
+                                    >
+                                      <div className="flex items-center gap-3.5">
+                                        <div className="text-2xl flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600">
+                                          {checkedByTeacher ? '🌟' : isVid ? '🎬' : '✅'}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <div className="font-baloo font-bold text-[15px] sm:text-base text-[#3a3226] truncate">
+                                            {a.title}
+                                          </div>
+                                          <div className="text-[11px] text-[#7a7a7a] font-bold flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                            <span>{a.category_name}</span>
+                                            {isVid ? (
+                                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 text-[10px] font-extrabold">
+                                                🎬 Video Lesson
+                                              </span>
+                                            ) : (
+                                              (a.content_url || a.file_name) && (
+                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-extrabold">
+                                                  📎 {a.file_name || 'File'}
+                                                </span>
+                                              )
+                                            )}
+                                            {checkedByTeacher ? (
+                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-black">
+                                                👩‍🏫 Checked by Teacher ✅
+                                              </span>
+                                            ) : (
+                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black">
+                                                ⏳ Waiting for Teacher Check
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg shrink-0">
+                                          {isVid ? '▶️ Watch / View →' : 'View / Edit →'}
+                                        </span>
+                                      </div>
+
+                                      {isVid && cardVidUrl && (
+                                        <div
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="rounded-xl overflow-hidden border-2 border-purple-200 bg-black shadow-sm"
+                                        >
+                                          {cardEmbedUrl ? (
+                                            <iframe
+                                              src={cardEmbedUrl}
+                                              title={a.file_name || a.title}
+                                              className="w-full aspect-video border-0 bg-black"
+                                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                              allowFullScreen
+                                            />
+                                          ) : (
+                                            <video
+                                              key={cardVidUrl}
+                                              controls
+                                              playsInline
+                                              preload="auto"
+                                              src={cardVidUrl}
+                                              onLoadedMetadata={(e) => {
+                                                if (e.currentTarget.currentTime === 0) {
+                                                  try {
+                                                    e.currentTarget.currentTime = 0.05;
+                                                  } catch { }
+                                                }
+                                              }}
+                                              onError={() => {
+                                                setResolvedCardVideoUrls((prev) => ({ ...prev, [a.id]: null }));
+                                              }}
+                                              className="w-full max-h-[340px] aspect-video bg-black block"
+                                            >
+                                              Your browser does not support HTML5 video playback.
+                                            </video>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
-                            );
-                          })}
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* TAB 2: STUDENT'S OWN UPLOADED WORKS */}
+                    {activityTab === 'student_uploads' && (
+                      <div>
+                        {studentUploads.length === 0 ? (
+                          <div className="bg-white rounded-2xl p-6 text-center shadow-soft border border-[#F0E4CE]">
+                            <div className="text-3xl mb-1.5">🎨</div>
+                            <div className="font-baloo font-bold text-base sm:text-lg text-[#3a3226]">
+                              No Uploaded Activities Yet
+                            </div>
+                            <div className="text-xs sm:text-sm text-[#7a7a7a] mt-1 mb-3.5 max-w-md mx-auto">
+                              Upload an image, file, or video of your drawing, coloring sheet, or homework directly to your teacher!
+                            </div>
+                            <button
+                              onClick={() => setIsUploadModalOpen(true)}
+                              className="px-4 py-2 rounded-xl bg-coral hover:bg-coral-deep text-white font-bold text-xs shadow-bump cursor-pointer"
+                            >
+                              📸 Upload Your First Activity
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {studentUploads
+                              .filter((u) => !u.is_deleted)
+                              .map((u) => {
+                                const isImg = isImageItem({
+                                  url: u.mediaUrl,
+                                  file_name: u.fileName,
+                                  file_type: u.fileType,
+                                });
+                                const isVid = isVideoItem({
+                                  url: u.mediaUrl,
+                                  file_name: u.fileName,
+                                  file_type: u.fileType,
+                                });
+
+                                const openPreview = () =>
+                                  handleOpenStudentPreviewModal({
+                                    title: u.title,
+                                    category: u.category,
+                                    note: u.note,
+                                    fileUrl: u.mediaUrl,
+                                    fileName: u.fileName || u.title,
+                                    fileType: u.fileType || (isVid ? 'MP4' : isImg ? 'IMAGE' : 'FILE'),
+                                    fileSize: u.fileSize || '',
+                                    checked: Boolean(u.teacherChecked || (u.status || '').toLowerCase().includes('checked')),
+                                  });
+
+                                return (
+                                  <div
+                                    key={u.id}
+                                    className="bg-white rounded-2xl p-4 text-left shadow-soft flex items-start gap-3.5 border-l-[5px] border-[#FFB84D]"
+                                  >
+                                    {u.mediaUrl && isImg && u.mediaUrl.startsWith('data:image/') ? (
+                                      <img
+                                        src={u.mediaUrl}
+                                        alt={u.title}
+                                        onClick={openPreview}
+                                        className="w-16 h-16 rounded-xl object-cover shrink-0 border border-gray-200 cursor-pointer hover:opacity-90"
+                                      />
+                                    ) : u.mediaUrl && isVid ? (
+                                      <div
+                                        onClick={openPreview}
+                                        className="w-16 h-16 rounded-xl bg-purple-100 text-purple-800 border border-purple-300 flex flex-col items-center justify-center shrink-0 font-extrabold text-[10px] cursor-pointer hover:bg-purple-200"
+                                      >
+                                        <span className="text-xl">🎬</span>
+                                        <span>{u.fileType || 'VIDEO'}</span>
+                                      </div>
+                                    ) : u.mediaUrl ? (
+                                      <div
+                                        onClick={openPreview}
+                                        className="w-16 h-16 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex flex-col items-center justify-center shrink-0 font-extrabold text-[10px] cursor-pointer hover:bg-blue-100"
+                                      >
+                                        <span className="text-xl">📄</span>
+                                        <span>{u.fileType || 'FILE'}</span>
+                                      </div>
+                                    ) : (
+                                      <div className="w-16 h-16 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center text-2xl shrink-0 font-bold">
+                                        🖼️
+                                      </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <h4 className="font-baloo font-bold text-[15px] sm:text-base text-[#3a3226] m-0 truncate">
+                                          {u.title}
+                                        </h4>
+                                        {u.teacherChecked || (u.status || '').toLowerCase().includes('checked') ? (
+                                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
+                                            👩‍🏫 Checked by Teacher ✅
+                                          </span>
+                                        ) : (
+                                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
+                                            ⏳ Waiting for Teacher Check
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="text-[11px] text-dash-ink-soft mt-0.5">
+                                        Subject: <b className="text-[#3a3226]">{u.category}</b> • {u.uploadedAt}
+                                      </div>
+                                      {u.note && (
+                                        <p className="text-xs text-[#5a4d38] mt-1 leading-snug line-clamp-2 m-0 bg-[#FFFDF8] p-2 rounded-lg border border-[#F0E4CE]">
+                                          "{u.note}"
+                                        </p>
+                                      )}
+                                      {u.mediaUrl && (
+                                        <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+                                          <button
+                                            type="button"
+                                            onClick={openPreview}
+                                            className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-extrabold cursor-pointer"
+                                          >
+                                            {isVid ? '▶️ Play Video' : '👁️ View'} {u.fileName ? `(${u.fileName})` : ''}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleOpenOrDownloadFile(u.mediaUrl, u.fileName || 'student-upload', 'download')}
+                                            className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-extrabold cursor-pointer"
+                                          >
+                                            ⬇️ Download
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                )}
-              </div>
+                </div>
 
-            {/* -------------------------------------------------------- */}
-            {/* 6 BILINGUAL CATEGORY CARDS (English & Bisaya)            */}
-            {/* -------------------------------------------------------- */}
-            <div className="text-left mb-2">
-              <span className="text-xs font-extrabold text-[#6b5c42]">
-                📚 Explore &amp; Learn (English &amp; Bisaya)
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 my-3">
-              {categories.map((c, i) => (
-                <button
-                  key={c.id}
-                  onClick={() => openCategory(c)}
-                  className={`group relative border-none rounded-[24px] py-4.5 px-3 flex flex-col items-center gap-2 font-baloo font-bold text-white cursor-pointer shadow-bump transition-all hover:scale-[1.02] active:translate-y-1 active:shadow-bump-active ${PALETTES[i % PALETTES.length]
-                    }`}
-                >
-                  {/* Custom 3D Badge / Icon */}
-                  <CategoryBadge
-                    id={c.id}
-                    className="w-16 h-16 shrink-0 transition-transform group-hover:scale-105 drop-shadow-sm"
-                  />
-
-                  <div className="text-center leading-tight">
-                    <div className="text-[17px] font-black tracking-tight drop-shadow-xs">
-                      {c.name}
-                    </div>
-                    <div className="text-xs font-bold opacity-90 drop-shadow-xs italic">
-                      {c.bisayaName}
-                    </div>
+                {/* RIGHT COLUMN ON LAPTOP: 6 BILINGUAL CATEGORY CARDS */}
+                <div className="lg:col-span-5 bg-white/60 rounded-3xl p-4 sm:p-5 border border-[#F0E4CE] shadow-xs">
+                  <div className="text-left mb-3 flex items-center justify-between">
+                    <span className="text-sm sm:text-base font-extrabold text-[#3a3226]">
+                      📚 Explore &amp; Learn (English &amp; Bisaya)
+                    </span>
+                    <span className="text-[11px] font-bold text-accent bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-200">
+                      6 Interactive Topics
+                    </span>
                   </div>
 
-                  <span className="text-[10.5px] font-extrabold bg-black/15 text-white/95 px-2.5 py-0.5 rounded-full mt-0.5">
-                    {c.items?.length || 0} items • English &amp; Bisaya
-                  </span>
-                </button>
-              ))}
-            </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-3.5">
+                    {categories.map((c, i) => (
+                      <button
+                        key={c.id}
+                        onClick={() => openCategory(c)}
+                        className={`group relative border-none rounded-[24px] py-5 px-3.5 flex flex-col items-center gap-2 font-baloo font-bold text-white cursor-pointer shadow-bump transition-all hover:scale-[1.02] active:translate-y-1 active:shadow-bump-active ${PALETTES[i % PALETTES.length]
+                          }`}
+                      >
+                        {/* Custom 3D Badge / Icon */}
+                        <CategoryBadge
+                          id={c.id}
+                          className="w-16 h-16 sm:w-18 sm:h-18 shrink-0 transition-transform group-hover:scale-105 drop-shadow-sm"
+                        />
 
-            {/* -------------------------------------------------------- */}
-            {/* ⭐ MY PROGRESS SECTION                                    */}
-            {/* -------------------------------------------------------- */}
-            <div className="bg-white rounded-[20px] px-5.5 py-4 shadow-soft mt-3">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <div className="text-xs text-[#6b5c42] font-extrabold text-left">
-                  ⭐ My Progress (Real-Time)
+                        <div className="text-center leading-tight">
+                          <div className="text-[17px] sm:text-lg font-black tracking-tight drop-shadow-xs">
+                            {c.name}
+                          </div>
+                          <div className="text-xs font-bold opacity-90 drop-shadow-xs italic">
+                            {c.bisayaName}
+                          </div>
+                        </div>
+
+                        <span className="text-[10.5px] font-extrabold bg-black/15 text-white/95 px-2.5 py-0.5 rounded-full mt-0.5">
+                          {c.items?.length || 0} items • English &amp; Bisaya
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                {totalCompletedCount > 0 && (
-                  <span
-                    className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-black ${checkedActivitiesCount > 0
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                        : 'bg-amber-50 text-amber-800 border border-amber-200'
-                      }`}
-                  >
-                    {checkedActivitiesCount > 0
-                      ? `👩‍🏫 ${checkedActivitiesCount} of ${totalCompletedCount} Checked by Teacher ✅`
-                      : '⏳ Waiting for Teacher Check'}
-                  </span>
-                )}
               </div>
-              <div className="bg-[#F0E9D6] rounded-[20px] h-4 overflow-hidden">
-                <div
-                  className="h-full rounded-[20px] transition-[width] duration-300"
-                  style={{
-                    width: `${progressPct}%`,
-                    background: 'linear-gradient(90deg, #FFB84D, #FF8C69)',
-                  }}
-                />
-              </div>
-              <div className="mt-2 text-[15px] font-bold text-[#3a3226]">
-                {totalTasksCount === 0
-                  ? '🌟 No assigned activities yet — check back soon!'
-                  : `🌟 ${totalCompletedCount} of ${totalTasksCount} ${totalTasksCount === 1 ? 'activity' : 'activities'
-                  } completed!`}
-              </div>
-            </div>
-          </div>
-        )}
+            )}
 
           {/* ======================================================== */}
           {/* VIEW 2: CATEGORY BILINGUAL CONTENT EXPLORER             */}
@@ -1805,7 +1814,7 @@ export default function StudentDashboard({ profile }) {
 
               {/* 1. ALPHABET / ALPETO BILINGUAL CARDS (A-Z) */}
               {currentCategory.id === 'cat-alphabet' && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5">
                   {currentCategory.items.map((item, idx) => (
                     <div
                       key={item.id}
@@ -1868,7 +1877,7 @@ export default function StudentDashboard({ profile }) {
 
               {/* 2. NUMBERS / MGA NUMERO BILINGUAL CARDS (0 to 10) */}
               {currentCategory.id === 'cat-numbers' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
                   {currentCategory.items.map((item, idx) => (
                     <div
                       key={item.id}
@@ -2030,7 +2039,7 @@ export default function StudentDashboard({ profile }) {
 
               {/* 5. ANIMALS / MGA HAYOP BILINGUAL CARDS (12 Animals) */}
               {currentCategory.id === 'cat-animals' && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5">
                   {currentCategory.items.map((item, idx) => (
                     <div
                       key={item.id}
@@ -2198,7 +2207,7 @@ export default function StudentDashboard({ profile }) {
                       </div>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
                       {currentCategory.items.map((story) => (
                         <div
                           key={story.id}
@@ -2307,9 +2316,9 @@ export default function StudentDashboard({ profile }) {
                 >
                   ⬅ Back
                 </button>
-                <div className="bg-white rounded-[24px] p-6 text-left shadow-soft border border-[#F0E4CE]">
+                <div className="bg-white rounded-[24px] p-5 sm:p-7 text-left shadow-soft border border-[#F0E4CE]">
                   <div className="flex items-center gap-2 mb-2 text-xs font-bold text-accent flex-wrap">
-                    <span className="px-2 py-0.5 rounded-full bg-orange-100 text-[#8C6200]">
+                    <span className="px-2.5 py-0.5 rounded-full bg-orange-100 text-[#8C6200]">
                       {currentMaterial.category_name || 'Class Activity'}
                     </span>
                     {currentMaterial.teacher_name && (
@@ -2317,337 +2326,343 @@ export default function StudentDashboard({ profile }) {
                     )}
                   </div>
 
-                  <h2 className="font-baloo text-2xl m-0 mb-3 text-[#3a3226]">
+                  <h2 className="font-baloo text-2xl sm:text-3xl m-0 mb-4 text-[#3a3226]">
                     {currentMaterial.title}
                   </h2>
 
-                  {currentMaterial.content_text && (
-                    <div className="bg-[#FFFDF8] p-4 rounded-2xl border border-[#F0E4CE] text-[16px] sm:text-[17px] leading-[1.6] text-[#3a3226] mb-4">
-                      {currentMaterial.content_text}
-                    </div>
-                  )}
-
-                  {/* ==================================================== */}
-                  {/* 📎 TEACHER'S UPLOADED FILE / VIDEO / LEARNING MATERIAL */}
-                  {/* ==================================================== */}
-                  {(teacherFileUrl || teacherFileName || isTeacherVideo) && (
-                    <div className="mb-5 rounded-2xl border-2 border-[#E2ECF8] bg-[#F5F9FF] p-4 space-y-3">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div className="text-xs font-extrabold text-blue-900 uppercase tracking-wide flex items-center gap-1.5">
-                          <span>{isTeacherVideo ? '🎬' : '📎'}</span>
-                          <span>
-                            {isTeacherVideo
-                              ? "Teacher's Video Lesson — Click Play to Watch!"
-                              : "Teacher's Uploaded File / Material"}
-                          </span>
-                        </div>
-                        {teacherFileType && (
-                          <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-black text-[10.5px]">
-                            {teacherFileType} {teacherFileSize ? `• ${teacherFileSize}` : ''}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Inline Preview for Video (Embedded YouTube/Drive or Direct Video File) */}
-                      {isTeacherVideo && (
-                        playableTeacherVideoUrl ? (
-                          teacherEmbedUrl ? (
-                            <iframe
-                              src={teacherEmbedUrl}
-                              title={teacherFileName || currentMaterial.title}
-                              className="w-full rounded-xl aspect-video border-2 border-purple-200 bg-black shadow-sm"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                            />
-                          ) : (
-                            <video
-                              key={playableTeacherVideoUrl}
-                              controls
-                              playsInline
-                              preload="auto"
-                              src={playableTeacherVideoUrl}
-                              onLoadedMetadata={(e) => {
-                                if (e.currentTarget.currentTime === 0) {
-                                  try {
-                                    e.currentTarget.currentTime = 0.05;
-                                  } catch {}
-                                }
-                              }}
-                              onError={() => {
-                                setVideoPlaybackBroken(true);
-                              }}
-                              className="w-full rounded-xl aspect-video border-2 border-purple-200 bg-black shadow-sm"
-                            >
-                              Your browser does not support HTML5 video playback.
-                            </video>
-                          )
-                        ) : (
-                          <div className="rounded-xl bg-purple-950/90 text-white p-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-2 border-purple-300">
-                            <div className="text-left">
-                              <div className="font-bold text-xs text-purple-200 flex items-center gap-1.5">
-                                <span>🎬</span>
-                                <span>{teacherFileName || currentMaterial.title}</span>
-                              </div>
-                              <div className="text-[11px] text-purple-300 mt-0.5">
-                                Select the teacher&apos;s video file once to cache and play it directly inside the dashboard without downloading:
-                              </div>
-                            </div>
-                            <label className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-extrabold cursor-pointer shrink-0 transition-colors">
-                              📂 Load Teacher Video
-                              <input
-                                type="file"
-                                accept="video/*,.mp4,.webm,.mov,.m4v"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const f = e.target.files?.[0];
-                                  if (f) handleRelinkTeacherVideo(currentMaterial, f);
-                                }}
-                              />
-                            </label>
-                          </div>
-                        )
-                      )}
-
-                      {/* Inline Preview for Image */}
-                      {!isTeacherVideo && isTeacherImage && teacherFileUrl && (
-                        <div className="rounded-xl overflow-hidden border border-blue-200 bg-white">
-                          <img
-                            src={teacherFileUrl}
-                            alt={teacherFileName || currentMaterial.title}
-                            className="w-full max-h-[380px] object-contain mx-auto block"
-                          />
-                        </div>
-                      )}
-
-                      {/* Inline Preview for PDF */}
-                      {!isTeacherVideo && !isTeacherImage && isTeacherPdf && teacherFileUrl && (
-                        <iframe
-                          src={teacherFileUrl}
-                          title={teacherFileName || currentMaterial.title}
-                          className="w-full h-[360px] rounded-xl border border-blue-200 bg-white"
-                        />
-                      )}
-
-                      {/* File Attachment Action Bar (View & Download) */}
-                      <div className="bg-white rounded-xl p-3 border border-blue-200/80 flex items-center justify-between gap-3 flex-wrap">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center text-xl shrink-0">
-                            {isTeacherImage ? '🖼️' : isTeacherVideo ? '🎬' : isTeacherPdf ? '📕' : '📄'}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="font-bold text-sm text-[#3a3226] truncate">
-                              {teacherFileName || `${currentMaterial.title} (${isTeacherVideo ? 'Video Lesson' : 'Teacher File'})`}
-                            </div>
-                            <div className="text-[11px] text-slate-500 font-semibold">
-                              {teacherFileType || (isTeacherVideo ? 'VIDEO' : 'Learning Resource')}
-                              {teacherFileSize ? ` • ${teacherFileSize}` : ''}
-                            </div>
-                          </div>
-                        </div>
-
-                        {(playableTeacherVideoUrl || teacherFileUrl || rawTeacherFileUrl) && (
-                          <div className="flex items-center gap-2 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleOpenOrDownloadFile(
-                                  playableTeacherVideoUrl || teacherFileUrl || rawTeacherFileUrl,
-                                  teacherFileName || `${currentMaterial.title}`,
-                                  'view'
-                                )
-                              }
-                              className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold cursor-pointer transition-colors flex items-center gap-1"
-                            >
-                              <span>{isTeacherVideo ? '▶️' : '👁️'}</span>
-                              <span>{isTeacherVideo ? 'Watch in New Tab' : 'View File'}</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleOpenOrDownloadFile(
-                                  playableTeacherVideoUrl || teacherFileUrl || rawTeacherFileUrl,
-                                  teacherFileName || `${currentMaterial.title}`,
-                                  'download'
-                                )
-                              }
-                              className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-extrabold cursor-pointer transition-colors flex items-center gap-1"
-                            >
-                              <span>⬇️</span>
-                              <span>Download</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {currentMaterial.type === 'activity' && (
-                    <div className="mt-3 space-y-4">
-                      {/* TEACHER CHECK STATUS BANNER */}
-                      {isActivityCompleted(currentMaterial) && (
-                        <div
-                          className={`rounded-2xl px-4 py-3 border flex items-center justify-between gap-3 flex-wrap ${isActivityCheckedByTeacher(currentMaterial)
-                              ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
-                              : 'bg-amber-50 border-amber-200 text-amber-900'
-                            }`}
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <span className="text-2xl">
-                              {isActivityCheckedByTeacher(currentMaterial) ? '👩‍🏫' : '⏳'}
-                            </span>
-                            <div>
-                              <div className="text-xs font-black uppercase tracking-wide">
-                                {isActivityCheckedByTeacher(currentMaterial)
-                                  ? 'Checked by Teacher ✅'
-                                  : 'Submitted • Waiting for Teacher Check'}
-                              </div>
-                              <div className="text-[11.5px] font-semibold opacity-90">
-                                {isActivityCheckedByTeacher(currentMaterial)
-                                  ? 'Great job! Your teacher has reviewed and checked your submitted activity.'
-                                  : 'Your work has been sent to your teacher. Status will update automatically once checked!'}
-                              </div>
-                            </div>
-                          </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                    {/* LEFT COLUMN ON LAPTOP: TEACHER INSTRUCTIONS & VIDEO / MATERIAL */}
+                    <div className={currentMaterial.type === 'activity' ? 'lg:col-span-7 space-y-4' : 'lg:col-span-12 space-y-4'}>
+                      {currentMaterial.content_text && (
+                        <div className="bg-[#FFFDF8] p-4 sm:p-5 rounded-2xl border border-[#F0E4CE] text-[16px] sm:text-[17px] leading-[1.6] text-[#3a3226]">
+                          {currentMaterial.content_text}
                         </div>
                       )}
 
                       {/* ==================================================== */}
-                      {/* 📤 STUDENT FILE / IMAGE / VIDEO UPLOAD FOR ACTIVITY  */}
+                      {/* 📎 TEACHER'S UPLOADED FILE / VIDEO / LEARNING MATERIAL */}
                       {/* ==================================================== */}
-                      <div className="rounded-2xl border-2 border-dashed border-[#E5D5B5] bg-[#FFFDF7] p-4">
-                        <label className="block text-xs font-extrabold text-[#6b5c42] mb-1.5 flex items-center gap-1.5">
-                          <span>📤</span>
-                          <span>Upload Your Work (Image, File, or Video — Photo, PDF, Word, MP4 Video):</span>
-                        </label>
-                        <div className="mb-2.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-900">
-                          📏 Applicable File Size Limits: 🖼️ Images: Max 10 MB • 📁 Files/Docs (PDF/Word): Max 15 MB • 🎬 Videos (MP4/WebM/MOV): Max 50 MB
-                        </div>
-                        <p className="text-[11.5px] text-[#7a7a7a] m-0 mb-2.5">
-                          Take a photo, record a short video, or choose any image/document file to send to your teacher. You can view/play it anytime before and after Teacher checks it!
-                        </p>
-
-                        <input
-                          type="file"
-                          accept="image/*,video/*,.mp4,.webm,.mov,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt"
-                          onChange={handleActivityFileChange}
-                          className="w-full text-xs text-gray-600 file:mr-3 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-extrabold file:bg-coral file:text-white hover:file:bg-coral-deep cursor-pointer"
-                        />
-
-                        {activityFilePreview && (
-                          <div className="mt-3 bg-white rounded-xl p-3 border border-[#E5D5B5] space-y-2.5">
-                            {isStudentFileImage && (
-                              <img
-                                src={studentPreviewSrc}
-                                alt={activityFileName || 'Uploaded answer'}
-                                className="w-full max-h-56 object-contain rounded-xl border border-gray-200 bg-slate-50"
-                              />
+                      {(teacherFileUrl || teacherFileName || isTeacherVideo) && (
+                        <div className="rounded-2xl border-2 border-[#E2ECF8] bg-[#F5F9FF] p-4 sm:p-5 space-y-3">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="text-xs font-extrabold text-blue-900 uppercase tracking-wide flex items-center gap-1.5">
+                              <span>{isTeacherVideo ? '🎬' : '📎'}</span>
+                              <span>
+                                {isTeacherVideo
+                                  ? "Teacher's Video Lesson — Click Play to Watch!"
+                                  : "Teacher's Uploaded File / Material"}
+                              </span>
+                            </div>
+                            {teacherFileType && (
+                              <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-black text-[10.5px]">
+                                {teacherFileType} {teacherFileSize ? `• ${teacherFileSize}` : ''}
+                              </span>
                             )}
+                          </div>
 
-                            {isStudentFileVideo && (
-                              <video
-                                controls
-                                playsInline
-                                src={studentPreviewSrc}
-                                className="w-full max-h-56 rounded-xl border border-gray-200 bg-black"
-                              />
-                            )}
-
-                            <div className="flex items-center justify-between gap-2 flex-wrap">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="text-xl shrink-0">
-                                  {isStudentFileImage ? '🖼️' : isStudentFileVideo ? '🎬' : '📄'}
-                                </span>
-                                <div className="min-w-0">
-                                  <div className="text-xs font-extrabold text-[#3a3226] truncate">
-                                    {activityFileName || 'Attached_Activity_File'}
+                          {/* Inline Preview for Video (Embedded YouTube/Drive or Direct Video File) */}
+                          {isTeacherVideo && (
+                            playableTeacherVideoUrl ? (
+                              teacherEmbedUrl ? (
+                                <iframe
+                                  src={teacherEmbedUrl}
+                                  title={teacherFileName || currentMaterial.title}
+                                  className="w-full rounded-xl aspect-video border-2 border-purple-200 bg-black shadow-sm"
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                  allowFullScreen
+                                />
+                              ) : (
+                                <video
+                                  key={playableTeacherVideoUrl}
+                                  controls
+                                  playsInline
+                                  preload="auto"
+                                  src={playableTeacherVideoUrl}
+                                  onLoadedMetadata={(e) => {
+                                    if (e.currentTarget.currentTime === 0) {
+                                      try {
+                                        e.currentTarget.currentTime = 0.05;
+                                      } catch {}
+                                    }
+                                  }}
+                                  onError={() => {
+                                    setVideoPlaybackBroken(true);
+                                  }}
+                                  className="w-full rounded-xl aspect-video border-2 border-purple-200 bg-black shadow-sm"
+                                >
+                                  Your browser does not support HTML5 video playback.
+                                </video>
+                              )
+                            ) : (
+                              <div className="rounded-xl bg-purple-950/90 text-white p-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-2 border-purple-300">
+                                <div className="text-left">
+                                  <div className="font-bold text-xs text-purple-200 flex items-center gap-1.5">
+                                    <span>🎬</span>
+                                    <span>{teacherFileName || currentMaterial.title}</span>
                                   </div>
-                                  <div className="text-[10.5px] text-slate-500 font-bold">
-                                    {activityFileType || 'FILE'}
-                                    {activityFileSize ? ` • ${activityFileSize}` : ''}
+                                  <div className="text-[11px] text-purple-300 mt-0.5">
+                                    Select the teacher&apos;s video file once to cache and play it directly inside the dashboard without downloading:
                                   </div>
                                 </div>
+                                <label className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-extrabold cursor-pointer shrink-0 transition-colors">
+                                  📂 Load Teacher Video
+                                  <input
+                                    type="file"
+                                    accept="video/*,.mp4,.webm,.mov,.m4v"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const f = e.target.files?.[0];
+                                      if (f) handleRelinkTeacherVideo(currentMaterial, f);
+                                    }}
+                                  />
+                                </label>
                               </div>
+                            )
+                          )}
 
-                              <div className="flex items-center gap-1.5 shrink-0">
+                          {/* Inline Preview for Image */}
+                          {!isTeacherVideo && isTeacherImage && teacherFileUrl && (
+                            <div className="rounded-xl overflow-hidden border border-blue-200 bg-white">
+                              <img
+                                src={teacherFileUrl}
+                                alt={teacherFileName || currentMaterial.title}
+                                className="w-full max-h-[440px] object-contain mx-auto block"
+                              />
+                            </div>
+                          )}
+
+                          {/* Inline Preview for PDF */}
+                          {!isTeacherVideo && !isTeacherImage && isTeacherPdf && teacherFileUrl && (
+                            <iframe
+                              src={teacherFileUrl}
+                              title={teacherFileName || currentMaterial.title}
+                              className="w-full h-[440px] rounded-xl border border-blue-200 bg-white"
+                            />
+                          )}
+
+                          {/* File Attachment Action Bar (View & Download) */}
+                          <div className="bg-white rounded-xl p-3 border border-blue-200/80 flex items-center justify-between gap-3 flex-wrap">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center text-xl shrink-0">
+                                {isTeacherImage ? '🖼️' : isTeacherVideo ? '🎬' : isTeacherPdf ? '📕' : '📄'}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-bold text-sm text-[#3a3226] truncate">
+                                  {teacherFileName || `${currentMaterial.title} (${isTeacherVideo ? 'Video Lesson' : 'Teacher File'})`}
+                                </div>
+                                <div className="text-[11px] text-slate-500 font-semibold">
+                                  {teacherFileType || (isTeacherVideo ? 'VIDEO' : 'Learning Resource')}
+                                  {teacherFileSize ? ` • ${teacherFileSize}` : ''}
+                                </div>
+                              </div>
+                            </div>
+
+                            {(playableTeacherVideoUrl || teacherFileUrl || rawTeacherFileUrl) && (
+                              <div className="flex items-center gap-2 shrink-0">
                                 <button
                                   type="button"
                                   onClick={() =>
                                     handleOpenOrDownloadFile(
-                                      activityFilePreview,
-                                      activityFileName || 'student-work',
+                                      playableTeacherVideoUrl || teacherFileUrl || rawTeacherFileUrl,
+                                      teacherFileName || `${currentMaterial.title}`,
                                       'view'
                                     )
                                   }
-                                  className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-extrabold cursor-pointer"
+                                  className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold cursor-pointer transition-colors flex items-center gap-1"
                                 >
-                                  👁️ View
+                                  <span>{isTeacherVideo ? '▶️' : '👁️'}</span>
+                                  <span>{isTeacherVideo ? 'Watch in New Tab' : 'View File'}</span>
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    setActivityFilePreview(null);
-                                    setActivityFileDisplayUrl(null);
-                                    setActivityFileName('');
-                                    setActivityFileType('');
-                                    setActivityFileSize('');
-                                    setSubmitted(false);
-                                  }}
-                                  className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-extrabold cursor-pointer"
+                                  onClick={() =>
+                                    handleOpenOrDownloadFile(
+                                      playableTeacherVideoUrl || teacherFileUrl || rawTeacherFileUrl,
+                                      teacherFileName || `${currentMaterial.title}`,
+                                      'download'
+                                    )
+                                  }
+                                  className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-extrabold cursor-pointer transition-colors flex items-center gap-1"
                                 >
-                                  ✕ Remove
+                                  <span>⬇️</span>
+                                  <span>Download</span>
                                 </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* RIGHT COLUMN ON LAPTOP: STUDENT SUBMISSION FORM */}
+                    {currentMaterial.type === 'activity' && (
+                      <div className="lg:col-span-5 space-y-4">
+                        {/* TEACHER CHECK STATUS BANNER */}
+                        {isActivityCompleted(currentMaterial) && (
+                          <div
+                            className={`rounded-2xl px-4 py-3 border flex items-center justify-between gap-3 flex-wrap ${isActivityCheckedByTeacher(currentMaterial)
+                                ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                                : 'bg-amber-50 border-amber-200 text-amber-900'
+                              }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-2xl">
+                                {isActivityCheckedByTeacher(currentMaterial) ? '👩‍🏫' : '⏳'}
+                              </span>
+                              <div>
+                                <div className="text-xs font-black uppercase tracking-wide">
+                                  {isActivityCheckedByTeacher(currentMaterial)
+                                    ? 'Checked by Teacher ✅'
+                                    : 'Submitted • Waiting for Teacher Check'}
+                                </div>
+                                <div className="text-[11.5px] font-semibold opacity-90">
+                                  {isActivityCheckedByTeacher(currentMaterial)
+                                    ? 'Great job! Your teacher has reviewed and checked your submitted activity.'
+                                    : 'Your work has been sent to your teacher. Status will update automatically once checked!'}
+                                </div>
                               </div>
                             </div>
                           </div>
                         )}
-                      </div>
 
-                      <div>
-                        <label className="block text-xs font-extrabold text-[#6b5c42] mb-1.5">
-                          Your Answer or Comment:
-                        </label>
-                        <textarea
-                          value={answer}
-                          onChange={(e) => {
-                            setAnswer(e.target.value);
-                            if (submitted) setSubmitted(false);
-                          }}
-                          placeholder="Type your answer or comment here..."
-                          className="w-full min-h-[90px] rounded-2xl border-2 border-[#F0E9D6] p-3 font-nunito text-[15px] outline-none focus:border-accent"
-                        />
-                      </div>
+                        {/* ==================================================== */}
+                        {/* 📤 STUDENT FILE / IMAGE / VIDEO UPLOAD FOR ACTIVITY  */}
+                        {/* ==================================================== */}
+                        <div className="rounded-2xl border-2 border-dashed border-[#E5D5B5] bg-[#FFFDF7] p-4">
+                          <label className="block text-xs font-extrabold text-[#6b5c42] mb-1.5 flex items-center gap-1.5">
+                            <span>📤</span>
+                            <span>Upload Your Work (Image, File, or Video — Photo, PDF, Word, MP4 Video):</span>
+                          </label>
+                          <div className="mb-2.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-900">
+                            📏 Applicable File Size Limits: 🖼️ Images: Max 10 MB • 📁 Files/Docs (PDF/Word): Max 15 MB • 🎬 Videos (MP4/WebM/MOV): Max 50 MB
+                          </div>
+                          <p className="text-[11.5px] text-[#7a7a7a] m-0 mb-2.5">
+                            Take a photo, record a short video, or choose any image/document file to send to your teacher. You can view/play it anytime before and after Teacher checks it!
+                          </p>
 
-                      <div className="mt-3 flex items-center justify-between flex-wrap gap-2">
-                        <button
-                          onClick={submitAnswer}
-                          disabled={submittingAnswer}
-                          className="border-none bg-[#4CAF7D] hover:bg-[#3d9a69] text-white px-6 py-3 rounded-2xl font-extrabold text-[15px] cursor-pointer shadow-[0_4px_0_rgba(0,0,0,0.1)] active:translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
-                        >
-                          {submittingAnswer
-                            ? 'Submitting...'
-                            : submitted
-                              ? 'Update Submission ✅'
-                              : 'Submit ✅'}
-                        </button>
-                        {submitted && (
+                          <input
+                            type="file"
+                            accept="image/*,video/*,.mp4,.webm,.mov,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt"
+                            onChange={handleActivityFileChange}
+                            className="w-full text-xs text-gray-600 file:mr-3 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-extrabold file:bg-coral file:text-white hover:file:bg-coral-deep cursor-pointer"
+                          />
+
+                          {activityFilePreview && (
+                            <div className="mt-3 bg-white rounded-xl p-3 border border-[#E5D5B5] space-y-2.5">
+                              {isStudentFileImage && (
+                                <img
+                                  src={studentPreviewSrc}
+                                  alt={activityFileName || 'Uploaded answer'}
+                                  className="w-full max-h-56 object-contain rounded-xl border border-gray-200 bg-slate-50"
+                                />
+                              )}
+
+                              {isStudentFileVideo && (
+                                <video
+                                  controls
+                                  playsInline
+                                  src={studentPreviewSrc}
+                                  className="w-full max-h-56 rounded-xl border border-gray-200 bg-black"
+                                />
+                              )}
+
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="text-xl shrink-0">
+                                    {isStudentFileImage ? '🖼️' : isStudentFileVideo ? '🎬' : '📄'}
+                                  </span>
+                                  <div className="min-w-0">
+                                    <div className="text-xs font-extrabold text-[#3a3226] truncate">
+                                      {activityFileName || 'Attached_Activity_File'}
+                                    </div>
+                                    <div className="text-[10.5px] text-slate-500 font-bold">
+                                      {activityFileType || 'FILE'}
+                                      {activityFileSize ? ` • ${activityFileSize}` : ''}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleOpenOrDownloadFile(
+                                        activityFilePreview,
+                                        activityFileName || 'student-work',
+                                        'view'
+                                      )
+                                    }
+                                    className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-extrabold cursor-pointer"
+                                  >
+                                    👁️ View
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActivityFilePreview(null);
+                                      setActivityFileDisplayUrl(null);
+                                      setActivityFileName('');
+                                      setActivityFileType('');
+                                      setActivityFileSize('');
+                                      setSubmitted(false);
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-extrabold cursor-pointer"
+                                  >
+                                    ✕ Remove
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-extrabold text-[#6b5c42] mb-1.5">
+                            Your Answer or Comment:
+                          </label>
+                          <textarea
+                            value={answer}
+                            onChange={(e) => {
+                              setAnswer(e.target.value);
+                              if (submitted) setSubmitted(false);
+                            }}
+                            placeholder="Type your answer or comment here..."
+                            className="w-full min-h-[100px] rounded-2xl border-2 border-[#F0E9D6] p-3 font-nunito text-[15px] outline-none focus:border-accent"
+                          />
+                        </div>
+
+                        <div className="mt-3 flex items-center justify-between flex-wrap gap-2">
                           <button
-                            onClick={() => setView('home')}
-                            className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-xs font-bold text-dash-ink cursor-pointer"
+                            onClick={submitAnswer}
+                            disabled={submittingAnswer}
+                            className="border-none bg-[#4CAF7D] hover:bg-[#3d9a69] text-white px-6 py-3 rounded-2xl font-extrabold text-[15px] cursor-pointer shadow-[0_4px_0_rgba(0,0,0,0.1)] active:translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
                           >
-                            Return Home
+                            {submittingAnswer
+                              ? 'Submitting...'
+                              : submitted
+                                ? 'Update Submission ✅'
+                                : 'Submit ✅'}
                           </button>
+                          {submitted && (
+                            <button
+                              onClick={() => setView('home')}
+                              className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-xs font-bold text-dash-ink cursor-pointer"
+                            >
+                              Return Home
+                            </button>
+                          )}
+                        </div>
+                        {doneMsg.text && (
+                          <div
+                            className={`mt-3 font-extrabold text-sm ${doneMsg.error ? 'text-[#C9553F]' : 'text-[#3D7048]'
+                              }`}
+                          >
+                            {doneMsg.text}
+                          </div>
                         )}
                       </div>
-                      {doneMsg.text && (
-                        <div
-                          className={`mt-3 font-extrabold text-sm ${doneMsg.error ? 'text-[#C9553F]' : 'text-[#3D7048]'
-                            }`}
-                        >
-                          {doneMsg.text}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
             );
