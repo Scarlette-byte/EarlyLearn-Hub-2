@@ -168,7 +168,7 @@ export default function AdminDashboard({ profile }) {
       let dbList = [...(teachersData || [])].filter((t) => {
         if (isDummyTeacherAccount(t)) {
           if (t.id) {
-            supabase.from('teachers').delete().eq('id', t.id).then(() => {}).catch(() => {});
+            supabase.from('teachers').delete().eq('id', t.id).then(() => { }).catch(() => { });
           }
           return false;
         }
@@ -180,7 +180,7 @@ export default function AdminDashboard({ profile }) {
         profilesData.forEach((prof) => {
           if (isDummyTeacherAccount(prof)) {
             if (prof.id) {
-              supabase.from('profiles').delete().eq('id', prof.id).then(() => {}).catch(() => {});
+              supabase.from('profiles').delete().eq('id', prof.id).then(() => { }).catch(() => { });
             }
             return;
           }
@@ -301,7 +301,7 @@ export default function AdminDashboard({ profile }) {
       const cleanData = data.filter((u) => {
         if (isDummyTeacherAccount(u)) {
           if (u.id) {
-            supabase.from('profiles').delete().eq('id', u.id).then(() => {}).catch(() => {});
+            supabase.from('profiles').delete().eq('id', u.id).then(() => { }).catch(() => { });
           }
           return false;
         }
