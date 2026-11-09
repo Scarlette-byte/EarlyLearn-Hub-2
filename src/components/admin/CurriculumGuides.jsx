@@ -10,6 +10,8 @@ import {
   initialTeacherModules,
   formatAssignmentCoverage,
   cleanTeacherDisplayName,
+  isDummyTeacherAccount,
+  purgeDummyTeacherAccountsFromLocalStorage,
 } from '../../lib/curriculumData.js';
 import { supabase, barangays } from '../../lib/supabaseClient';
 import {
@@ -49,6 +51,8 @@ export default function CurriculumGuides({
 
   // Sync when teacher profiles or assignments update
   useEffect(() => {
+    purgeDummyTeacherAccountsFromLocalStorage();
+
     async function fetchSupabaseTeachers() {
       try {
         const { data: teachersData } = await supabase
@@ -59,9 +63,16 @@ export default function CurriculumGuides({
           .select('*')
           .eq('role', 'teacher');
 
-        const list = [...(teachersData || [])];
+        const list = [...(teachersData || [])].filter((t) => !isDummyTeacherAccount(t));
         if (profilesData && profilesData.length > 0) {
           profilesData.forEach((prof) => {
+            if (isDummyTeacherAccount(prof)) {
+              // Best-effort remove dummy teacher account from Supabase profiles
+              if (prof.id) {
+                supabase.from('profiles').delete().eq('id', prof.id).then(() => {}).catch(() => {});
+              }
+              return;
+            }
             const cleanProfName = (prof.full_name || '').replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase();
             const existing = list.find(
               (t) =>
@@ -86,7 +97,7 @@ export default function CurriculumGuides({
             }
           });
         }
-        setDbTeachers(list);
+        setDbTeachers(list.filter((t) => !isDummyTeacherAccount(t)));
       } catch {
         // ignore
       }
@@ -107,8 +118,12 @@ export default function CurriculumGuides({
               try {
                 const parsed = JSON.parse(row.content_text);
                 if (parsed && parsed.__mswd_assignment && parsed.assignment) {
+                  const asg = parsed.assignment;
+                  if (asg.is_deleted || isDummyTeacherAccount(asg.teacherName)) {
+                    return;
+                  }
                   sbAssigns.push({
-                    ...parsed.assignment,
+                    ...asg,
                     sb_row_id: row.id,
                   });
                 }
@@ -120,7 +135,13 @@ export default function CurriculumGuides({
             const seen = new Set();
             const merged = [];
             [...sbAssigns, ...localClean].forEach((a) => {
-              if (a && a.id && !seen.has(a.id)) {
+              if (
+                a &&
+                a.id &&
+                !a.is_deleted &&
+                !isDummyTeacherAccount(a.teacherName) &&
+                !seen.has(a.id)
+              ) {
                 seen.add(a.id);
                 merged.push(a);
               }
@@ -159,39 +180,42 @@ export default function CurriculumGuides({
   const activeTeachersList = useMemo(() => {
     let base = [...realTeachersList];
     if (dbTeachers.length > 0) {
+      const cleanDb = dbTeachers.filter((t) => !isDummyTeacherAccount(t));
       const existingNames = new Set(
-        dbTeachers.map((t) => (t.full_name || '').replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase())
+        cleanDb.map((t) => (t.full_name || '').replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase())
       );
       const nonDuplicateBaseline = base.filter((b) => {
         const bName = (b.full_name || '').toLowerCase();
         return !Array.from(existingNames).some((e) => e && (bName.includes(e) || e.includes(bName)));
       });
-      base = [...dbTeachers, ...nonDuplicateBaseline];
+      base = [...cleanDb, ...nonDuplicateBaseline];
     }
 
     try {
       const overrides = JSON.parse(localStorage.getItem('earlylearn_teacher_profiles_override') || '{}');
-      return base.map((t) => {
-        const ov =
-          overrides[t.id] ||
-          (t.email && overrides[t.email.toLowerCase()]) ||
-          (t.full_name && overrides[t.full_name.toLowerCase()]);
-        if (ov) {
+      return base
+        .map((t) => {
+          const ov =
+            overrides[t.id] ||
+            (t.email && overrides[t.email.toLowerCase()]) ||
+            (t.full_name && overrides[t.full_name.toLowerCase()]);
+          if (ov && !isDummyTeacherAccount(ov)) {
+            return {
+              ...t,
+              full_name: cleanTeacherDisplayName(ov.full_name || t.full_name),
+              barangay: ov.barangay || t.barangay,
+              cdc_name: ov.cdc_name || t.cdc_name,
+              contact_number: ov.contact_number || t.contact_number,
+            };
+          }
           return {
             ...t,
-            full_name: cleanTeacherDisplayName(ov.full_name || t.full_name),
-            barangay: ov.barangay || t.barangay,
-            cdc_name: ov.cdc_name || t.cdc_name,
-            contact_number: ov.contact_number || t.contact_number,
+            full_name: cleanTeacherDisplayName(t.full_name) || t.full_name,
           };
-        }
-        return {
-          ...t,
-          full_name: cleanTeacherDisplayName(t.full_name) || t.full_name,
-        };
-      });
+        })
+        .filter((t) => !isDummyTeacherAccount(t));
     } catch {
-      return base;
+      return base.filter((t) => !isDummyTeacherAccount(t));
     }
   }, [teacherUpdateTick, dbTeachers]);
 
@@ -637,9 +661,6 @@ export default function CurriculumGuides({
               }`}
             >
               <span>Assigned Teachers</span>
-              <span className="bg-slate-800 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
-                {assignments.length}
-              </span>
             </button>
           </div>
         </div>

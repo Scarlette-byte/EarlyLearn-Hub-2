@@ -200,10 +200,10 @@ export default function MswdOverview({
               Barangay Enrollee Population
             </h4>
             <p className="text-xs text-dash-ink-soft leading-relaxed">
-              Official municipal population census covering 3,091 enrollees across all 22 Barangays and 62 Child Development Centers (Pre-K 1: 1,001 • Pre-K 2: 1,646 • ITED: 439 • 5 Yrs: 5).
+              Official municipal population census covering 3,041 enrollees across all 22 Barangays and 62 Child Development Centers (Pre-K 1: 1,001 • Pre-K 2: 1,596 • ITED: 439 • 5 Yrs: 5).
             </p>
             <div className="pt-2 flex items-center justify-between text-xs font-bold text-accent">
-              <span>3,091 Total Enrollees (62 CDCs)</span>
+              <span>3,041 Total Enrollees (62 CDCs)</span>
               <span>Open →</span>
             </div>
           </div>

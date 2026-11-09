@@ -5,7 +5,13 @@ import {
   barangays,
   normalizeAuthIdentifier,
 } from '../lib/supabaseClient';
-import { realTeachersList, realCdcsList, cleanTeacherDisplayName } from '../lib/curriculumData.js';
+import {
+  realTeachersList,
+  realCdcsList,
+  cleanTeacherDisplayName,
+  isDummyTeacherAccount,
+  purgeDummyTeacherAccountsFromLocalStorage,
+} from '../lib/curriculumData.js';
 import {
   parseTeacherContactAndCode,
   packTeacherContactAndCode,
@@ -97,6 +103,8 @@ export default function ManageTeachers() {
   const loadTeachers = useCallback(async () => {
     setLoading(true);
     try {
+      purgeDummyTeacherAccountsFromLocalStorage();
+
       // 1. Fetch from Supabase teachers table
       const { data: teachersData } = await supabase
         .from('teachers')
@@ -110,11 +118,25 @@ export default function ManageTeachers() {
         .eq('role', 'teacher')
         .order('full_name');
 
-      let dbList = [...(teachersData || [])];
+      let dbList = [...(teachersData || [])].filter((t) => {
+        if (isDummyTeacherAccount(t)) {
+          if (t.id) {
+            supabase.from('teachers').delete().eq('id', t.id).then(() => {}).catch(() => {});
+          }
+          return false;
+        }
+        return true;
+      });
 
       // Merge registered teacher accounts from Supabase profiles
       if (profilesData && profilesData.length > 0) {
         profilesData.forEach((prof) => {
+          if (isDummyTeacherAccount(prof)) {
+            if (prof.id) {
+              supabase.from('profiles').delete().eq('id', prof.id).then(() => {}).catch(() => {});
+            }
+            return;
+          }
           const cleanProfName = (prof.full_name || '').replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase();
           const existing = dbList.find(
             (t) =>
@@ -169,7 +191,7 @@ export default function ManageTeachers() {
             overrides[t.id] ||
             (t.email && overrides[t.email.toLowerCase()]) ||
             (t.full_name && overrides[t.full_name.toLowerCase()]);
-          if (override) {
+          if (override && !isDummyTeacherAccount(override)) {
             return {
               ...t,
               full_name: override.full_name || t.full_name,
@@ -185,7 +207,12 @@ export default function ManageTeachers() {
         });
 
         Object.values(overrides).forEach((ov) => {
-          if (ov && ov.id && !combined.some((t) => t.id === ov.id || (ov.email && t.email === ov.email))) {
+          if (
+            ov &&
+            ov.id &&
+            !isDummyTeacherAccount(ov) &&
+            !combined.some((t) => t.id === ov.id || (ov.email && t.email === ov.email))
+          ) {
             combined.unshift({
               id: ov.id,
               full_name: ov.full_name,
@@ -203,16 +230,18 @@ export default function ManageTeachers() {
       }
 
       setTeachers(
-        combined.map((t) => {
-          const { contactNumber, registrationCode } = parseTeacherContactAndCode(t.contact_number);
-          return {
-            ...t,
-            full_name: cleanTeacherDisplayName(t.full_name) || t.full_name,
-            raw_contact_number: t.contact_number,
-            contact_number: contactNumber,
-            registration_code: registrationCode || buildDefaultTeacherCode(t),
-          };
-        })
+        combined
+          .filter((t) => !isDummyTeacherAccount(t))
+          .map((t) => {
+            const { contactNumber, registrationCode } = parseTeacherContactAndCode(t.contact_number);
+            return {
+              ...t,
+              full_name: cleanTeacherDisplayName(t.full_name) || t.full_name,
+              raw_contact_number: t.contact_number,
+              contact_number: contactNumber,
+              registration_code: registrationCode || buildDefaultTeacherCode(t),
+            };
+          })
       );
     } catch {
       setTeachers(realTeachersList);

@@ -333,6 +333,86 @@ export const realTeachersList = [
 export const initialCurriculumAssignments = [];
 
 /**
+ * Checks whether a teacher/profile object or teacher name represents a dummy/test account
+ * such as "Teacher Test" or "Teacher User" that must be excluded from the system.
+ */
+export function isDummyTeacherAccount(teacherOrProfile) {
+  if (!teacherOrProfile) return false;
+  const rawName =
+    typeof teacherOrProfile === 'string'
+      ? teacherOrProfile
+      : teacherOrProfile.full_name ||
+        teacherOrProfile.teacherName ||
+        teacherOrProfile.teacher_name ||
+        teacherOrProfile.name ||
+        '';
+  const rawEmail =
+    typeof teacherOrProfile === 'object' && teacherOrProfile !== null
+      ? teacherOrProfile.email || ''
+      : '';
+
+  const cleanedName = String(rawName)
+    .replace(/\s*\([^)]*\)\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+  const cleanedEmail = String(rawEmail).trim().toLowerCase();
+
+  if (
+    /^(teacher\s*test|test\s*teacher|teacher\s*user|user\s*teacher|demo\s*teacher|sample\s*teacher|test\s*account|teacher\s*account|teacher)$/i.test(
+      cleanedName
+    ) ||
+    cleanedName.includes('teacher test') ||
+    cleanedName.includes('test teacher') ||
+    cleanedName.includes('teacher user') ||
+    cleanedName.includes('user teacher')
+  ) {
+    return true;
+  }
+
+  if (
+    cleanedEmail &&
+    (/^(teacher\.?test|test\.?teacher|teacher\.?user|user\.?teacher|demo\.?teacher)/i.test(
+      cleanedEmail
+    ) ||
+      cleanedEmail === 'teacher@test.com' ||
+      cleanedEmail === 'test@earlylearn.ph' ||
+      cleanedEmail === 'teacher@earlylearn.ph')
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Purges any cached "Teacher Test" or "Teacher User" entries from localStorage overrides.
+ */
+export function purgeDummyTeacherAccountsFromLocalStorage() {
+  try {
+    const rawOverrides = localStorage.getItem('earlylearn_teacher_profiles_override');
+    if (rawOverrides) {
+      const parsed = JSON.parse(rawOverrides);
+      if (parsed && typeof parsed === 'object') {
+        let changed = false;
+        Object.keys(parsed).forEach((key) => {
+          if (isDummyTeacherAccount(parsed[key]) || isDummyTeacherAccount(key)) {
+            delete parsed[key];
+            changed = true;
+          }
+        });
+        if (changed) {
+          localStorage.setItem('earlylearn_teacher_profiles_override', JSON.stringify(parsed));
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/**
  * Helper to retrieve authentic curriculum assignments deployed by MSWD,
  * purging any legacy dummy, placeholder, or test assignments.
  */
@@ -348,10 +428,12 @@ export function getCleanCurriculumAssignments() {
           a &&
           a.id &&
           a.topicTitle &&
+          !a.is_deleted &&
           a.topicTitle !== 'Prescribed ECCD Topic' &&
           a.assignedDate !== '2026-10-17' &&
           !/^asg-0[1-9]|^asg-1[0-5]|^asg-07-.*|^asg-test-.*$/.test(a.id) &&
-          !a.isDummy
+          !a.isDummy &&
+          !isDummyTeacherAccount(a.teacherName)
       )
       .map((a) => {
         if (a.topicTitle === 'Curriculum Learning Topic') {
@@ -495,6 +577,7 @@ export function isAuthenticSupabaseMaterial(m) {
     try {
       const parsed = JSON.parse(m.content_text);
       if (parsed && parsed.__metadata === true) {
+        if (isDummyTeacherAccount(parsed.teacher_name)) return false;
         return true;
       }
     } catch {
@@ -518,6 +601,7 @@ export function isAuthenticLocalTeacherModule(m) {
   ) {
     return false;
   }
+  if (isDummyTeacherAccount(m.teacher_name)) return false;
 
   // Exclude seeded bilingual category flashcards that were accidentally cached from Supabase
   if (

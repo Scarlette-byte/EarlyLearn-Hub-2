@@ -14,7 +14,10 @@ import {
 } from '../lib/mswdData.js';
 import {
   realTeachersList,
-  realCdcsList, cleanTeacherDisplayName,
+  realCdcsList,
+  cleanTeacherDisplayName,
+  isDummyTeacherAccount,
+  purgeDummyTeacherAccountsFromLocalStorage,
 } from '../lib/curriculumData.js';
 import { getStoredLearners } from '../lib/learnersService.js';
 import {
@@ -149,6 +152,8 @@ export default function AdminDashboard({ profile }) {
   // --- Load Teachers / CDWs merging with realTeachersList and real-time profile edits ---
   const loadTeachers = useCallback(async () => {
     try {
+      purgeDummyTeacherAccountsFromLocalStorage();
+
       // 1. Fetch from Supabase teachers table
       const { data: teachersData } = await supabase
         .from('teachers')
@@ -162,11 +167,25 @@ export default function AdminDashboard({ profile }) {
         .eq('role', 'teacher')
         .order('full_name');
 
-      let dbList = [...(teachersData || [])];
+      let dbList = [...(teachersData || [])].filter((t) => {
+        if (isDummyTeacherAccount(t)) {
+          if (t.id) {
+            supabase.from('teachers').delete().eq('id', t.id).then(() => {}).catch(() => {});
+          }
+          return false;
+        }
+        return true;
+      });
 
       // Merge registered teacher accounts from Supabase profiles
       if (profilesData && profilesData.length > 0) {
         profilesData.forEach((prof) => {
+          if (isDummyTeacherAccount(prof)) {
+            if (prof.id) {
+              supabase.from('profiles').delete().eq('id', prof.id).then(() => {}).catch(() => {});
+            }
+            return;
+          }
           const cleanProfName = (prof.full_name || '').replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase();
           const existing = dbList.find(
             (t) =>
@@ -218,7 +237,7 @@ export default function AdminDashboard({ profile }) {
             overrides[t.id] ||
             (t.email && overrides[t.email.toLowerCase()]) ||
             (t.full_name && overrides[t.full_name.toLowerCase()]);
-          if (override) {
+          if (override && !isDummyTeacherAccount(override)) {
             return {
               ...t,
               full_name: override.full_name || t.full_name,
@@ -234,7 +253,12 @@ export default function AdminDashboard({ profile }) {
         });
 
         Object.values(overrides).forEach((ov) => {
-          if (ov && ov.id && !combined.some((t) => t.id === ov.id || (ov.email && t.email === ov.email))) {
+          if (
+            ov &&
+            ov.id &&
+            !isDummyTeacherAccount(ov) &&
+            !combined.some((t) => t.id === ov.id || (ov.email && t.email === ov.email))
+          ) {
             combined.unshift({
               id: ov.id,
               full_name: ov.full_name,
@@ -252,10 +276,12 @@ export default function AdminDashboard({ profile }) {
       }
 
       setTeachers(
-        combined.map((t) => ({
-          ...t,
-          full_name: cleanTeacherDisplayName(t.full_name) || t.full_name,
-        }))
+        combined
+          .filter((t) => !isDummyTeacherAccount(t))
+          .map((t) => ({
+            ...t,
+            full_name: cleanTeacherDisplayName(t.full_name) || t.full_name,
+          }))
       );
     } catch {
       setTeachers(realTeachersList);
@@ -274,7 +300,16 @@ export default function AdminDashboard({ profile }) {
         setUsersMsg({ text: '❌ ' + (error?.message || 'Failed to load users'), type: 'error' });
         return;
       }
-      setProfiles(data);
+      const cleanData = data.filter((u) => {
+        if (isDummyTeacherAccount(u)) {
+          if (u.id) {
+            supabase.from('profiles').delete().eq('id', u.id).then(() => {}).catch(() => {});
+          }
+          return false;
+        }
+        return true;
+      });
+      setProfiles(cleanData);
     } catch {
       setProfiles([]);
     }

@@ -11,9 +11,9 @@ export const enrolleePopulationSummary = {
   totalCdcs: 62,
   totalIted: 439,        // Ages 0 - 2
   totalPreK1: 1001,      // Ages 3 - 3.11
-  totalPreK2: 1646,      // Ages 4 - 4.11
+  totalPreK2: 1596,      // Ages 4 - 4.11
   total5YearsOld: 5,     // 5 Years Old
-  grandTotal: 3091,      // Total Municipal Enrollees
+  grandTotal: 3041,      // Total Municipal Enrollees
 };
 
 export const barangayEnrolleesData = [
@@ -24,7 +24,7 @@ export const barangayEnrolleesData = [
     cdcName: 'BALANBAN CHILD',
     ited: 0,
     preK1: 9,
-    preK2: 15,
+    preK2: 36,
     fiveYearsOld: 0,
     total: 45,
     barangayTotal: 180,

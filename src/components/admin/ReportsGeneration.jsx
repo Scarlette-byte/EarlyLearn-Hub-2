@@ -6,6 +6,7 @@ import {
   getCleanCurriculumAssignments,
   formatAssignmentCoverage,
   cleanTeacherDisplayName,
+  isDummyTeacherAccount,
 } from '../../lib/curriculumData.js';
 import {
   barangayEnrolleesData,
@@ -36,7 +37,9 @@ export default function ReportsGeneration({
 
   // 1. Real Teachers Roster (merged with local updates from Teacher Dashboard)
   const activeTeachers = useMemo(() => {
-    let list = teachers.length > 0 ? teachers : realTeachersList;
+    let list = (teachers.length > 0 ? teachers : realTeachersList).filter(
+      (t) => !isDummyTeacherAccount(t)
+    );
     try {
       const overrides = JSON.parse(
         localStorage.getItem('earlylearn_teacher_profiles_override') || '{}'
@@ -46,7 +49,7 @@ export default function ReportsGeneration({
           overrides[t.id] ||
           (t.email && overrides[t.email.toLowerCase()]) ||
           (t.full_name && overrides[t.full_name.toLowerCase()]);
-        if (ov) {
+        if (ov && !isDummyTeacherAccount(ov)) {
           return {
             ...t,
             full_name: cleanTeacherDisplayName(ov.full_name || t.full_name),
@@ -64,7 +67,7 @@ export default function ReportsGeneration({
     } catch {
       // ignore
     }
-    return list;
+    return list.filter((t) => !isDummyTeacherAccount(t));
   }, [teachers]);
 
   // 2. Real CDCs and Centers
@@ -402,7 +405,7 @@ export default function ReportsGeneration({
               MSWD Official Reports Generation
             </h2>
             <p className="text-xs text-dash-ink-soft mt-1">
-              Official verified reports populated with real data from Manolo Fortich&apos;s 62 Day Care Centers, 84 teachers, 3,091 enrollees, curriculum guides, and teacher modules.
+              Official verified reports populated with real data from Manolo Fortich&apos;s 62 Day Care Centers, 84 teachers, 3,041 enrollees, curriculum guides, and teacher modules.
             </p>
           </div>
 
@@ -438,7 +441,7 @@ export default function ReportsGeneration({
               <option value="curriculum">Curriculum Guide Teacher Assignments</option>
               <option value="modules">Teacher Uploaded Modules &amp; Activity Monitoring</option>
               <option value="teachers">Daycare Centers &amp; Teacher Staffing Roster</option>
-              <option value="enrollment">Child Enrollee Population Census (3,091 Total)</option>
+              <option value="enrollment">Child Enrollee Population Census (3,041 Total)</option>
               <option value="development">ECCD Child Developmental Milestones</option>
             </select>
           </div>

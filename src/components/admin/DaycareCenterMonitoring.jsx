@@ -4,7 +4,11 @@ import {
   barangayEnrolleesData,
   enrolleePopulationSummary,
 } from '../../lib/enrolleePopulationData.js';
-import { realTeachersList, cleanTeacherDisplayName } from '../../lib/curriculumData.js';
+import {
+  realTeachersList,
+  cleanTeacherDisplayName,
+  isDummyTeacherAccount,
+} from '../../lib/curriculumData.js';
 
 // Format raw census CDC name into formal official center title
 function formatFormalCdcName(rawName, barangay) {
@@ -119,12 +123,15 @@ export default function DaycareCenterMonitoring({
 
   // Combine real teachers list (merging props teachers with realTeachersList baseline)
   const allTeachers = useMemo(() => {
-    const combined = (teachers || []).map((t) => ({
-      ...t,
-      full_name: cleanTeacherDisplayName(t.full_name) || t.full_name,
-    }));
+    const combined = (teachers || [])
+      .filter((t) => !isDummyTeacherAccount(t))
+      .map((t) => ({
+        ...t,
+        full_name: cleanTeacherDisplayName(t.full_name) || t.full_name,
+      }));
     const seenNames = new Set(combined.map((t) => cleanTeacherDisplayName(t.full_name).toLowerCase()));
     realTeachersList.forEach((bt) => {
+      if (isDummyTeacherAccount(bt)) return;
       const cleanBtName = cleanTeacherDisplayName(bt.full_name);
       if (!seenNames.has(cleanBtName.toLowerCase())) {
         combined.push({
@@ -224,7 +231,7 @@ export default function DaycareCenterMonitoring({
 
   // Overall municipal stats from the real MSWD census
   const totalCentersCount = masterCenterList.length;
-  const grandTotalEnrollees = enrolleePopulationSummary.grandTotal; // 3,091
+  const grandTotalEnrollees = enrolleePopulationSummary.grandTotal; // 3,041
   const grandTotalTeachers = allTeachers.length; // 84
 
   return (
@@ -261,7 +268,13 @@ export default function DaycareCenterMonitoring({
             <span>•</span>
             <span className="font-semibold text-slate-700">Pre-K2: {enrolleePopulationSummary.totalPreK2.toLocaleString()}</span>
             <span>•</span>
-            <span>ITED: {enrolleePopulationSummary.totalIted}</span>
+            <span className="font-semibold text-amber-800">ITED: {enrolleePopulationSummary.totalIted}</span>
+            {enrolleePopulationSummary.total5YearsOld > 0 && (
+              <>
+                <span>•</span>
+                <span>5 Yrs: {enrolleePopulationSummary.total5YearsOld}</span>
+              </>
+            )}
           </div>
         </div>
 
@@ -555,15 +568,18 @@ export default function DaycareCenterMonitoring({
 
                           {/* Level breakdown tags */}
                           <div className="flex items-center gap-1 text-[10px] text-slate-600 flex-wrap">
+                            <span className="bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-semibold">
+                              ITED (0–2): {cdc.ited}
+                            </span>
                             <span className="bg-sky-50 text-sky-800 border border-sky-200 px-1.5 py-0.5 rounded font-semibold">
                               Pre-K1: {cdc.preK1}
                             </span>
                             <span className="bg-purple-50 text-purple-800 border border-purple-200 px-1.5 py-0.5 rounded font-semibold">
                               Pre-K2: {cdc.preK2}
                             </span>
-                            {cdc.ited > 0 && (
-                              <span className="bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-semibold">
-                                ITED: {cdc.ited}
+                            {cdc.fiveYearsOld > 0 && (
+                              <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded font-semibold">
+                                5 Yrs: {cdc.fiveYearsOld}
                               </span>
                             )}
                           </div>
@@ -665,16 +681,19 @@ export default function DaycareCenterMonitoring({
                 </div>
 
                 {/* Census age pills */}
-                <div className="flex items-center gap-1.5 text-[10px] mt-2.5 pt-2 border-t border-[#F4EDE0]">
+                <div className="flex items-center gap-1.5 text-[10px] mt-2.5 pt-2 border-t border-[#F4EDE0] flex-wrap">
+                  <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 font-bold border border-amber-200">
+                    ITED (0–2): {cdc.ited}
+                  </span>
                   <span className="px-2 py-0.5 rounded bg-sky-50 text-sky-800 font-bold border border-sky-200">
                     Pre-K 1: {cdc.preK1}
                   </span>
                   <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-800 font-bold border border-purple-200">
                     Pre-K 2: {cdc.preK2}
                   </span>
-                  {cdc.ited > 0 && (
-                    <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 font-bold border border-amber-200">
-                      ITED: {cdc.ited}
+                  {cdc.fiveYearsOld > 0 && (
+                    <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
+                      5 Yrs: {cdc.fiveYearsOld}
                     </span>
                   )}
                 </div>
@@ -726,13 +745,20 @@ export default function DaycareCenterMonitoring({
             </div>
 
             {/* Census Numbers Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-center">
               <div className="p-3 bg-[#FAF5EC] rounded-xl border border-[#EADBCE]">
                 <span className="text-dash-ink-soft block text-[11px] font-bold">Total Enrollees</span>
                 <b className="font-fraunces text-2xl text-accent block mt-0.5">
                   {inspectingCdc.enrolled}
                 </b>
                 <span className="text-[9.5px] text-slate-500 font-semibold">MSWDO Census</span>
+              </div>
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
+                <span className="text-amber-800 block text-[11px] font-bold">ITED (0–2)</span>
+                <b className="font-fraunces text-2xl text-amber-900 block mt-0.5">
+                  {inspectingCdc.ited}
+                </b>
+                <span className="text-[9.5px] text-amber-700 font-semibold">Infant &amp; Toddler</span>
               </div>
               <div className="p-3 bg-sky-50 rounded-xl border border-sky-100">
                 <span className="text-sky-800 block text-[11px] font-bold">Pre-K 1 (3–3.11)</span>
@@ -746,9 +772,11 @@ export default function DaycareCenterMonitoring({
                 <b className="font-fraunces text-2xl text-purple-900 block mt-0.5">
                   {inspectingCdc.preK2}
                 </b>
-                <span className="text-[9.5px] text-purple-700 font-semibold">Nursery Class</span>
+                <span className="text-[9.5px] text-purple-700 font-semibold">
+                  {inspectingCdc.fiveYearsOld > 0 ? `+ ${inspectingCdc.fiveYearsOld} (5 Yrs Old)` : 'Nursery Class'}
+                </span>
               </div>
-              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 col-span-2 sm:col-span-1">
                 <span className="text-emerald-800 block text-[11px] font-bold">Attendance</span>
                 <b className="font-fraunces text-2xl text-emerald-900 block mt-0.5">
                   {inspectingCdc.attendanceRate}%
@@ -792,14 +820,20 @@ export default function DaycareCenterMonitoring({
               <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 m-0">
                 Center Daily Schedule &amp; Learning Shifts
               </h4>
-              <div className="grid grid-cols-2 gap-2 text-slate-700">
+              <div className={`grid grid-cols-1 ${inspectingCdc.ited > 0 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-2 text-slate-700`}>
+                {inspectingCdc.ited > 0 && (
+                  <div className="p-2.5 rounded-xl bg-amber-50/60 border border-amber-200">
+                    <span className="font-bold text-amber-800 block">🍼 ITED Program (0–2)</span>
+                    <span className="text-[11px] text-slate-600">Early Dev Care • {inspectingCdc.ited} Enrolled</span>
+                  </div>
+                )}
                 <div className="p-2.5 rounded-xl bg-[#FFFDF8] border border-[#EADBCE]">
                   <span className="font-bold text-accent block">☀️ Morning Shift (Pre-K 1)</span>
-                  <span className="text-[11px] text-slate-600">8:00 AM – 10:30 AM • 3–3.11 Year Olds</span>
+                  <span className="text-[11px] text-slate-600">8:00 AM – 10:30 AM • 3–3.11 Year Olds ({inspectingCdc.preK1})</span>
                 </div>
                 <div className="p-2.5 rounded-xl bg-[#FFFDF8] border border-[#EADBCE]">
                   <span className="font-bold text-purple-700 block">🌤️ Afternoon Shift (Pre-K 2)</span>
-                  <span className="text-[11px] text-slate-600">1:00 PM – 3:30 PM • 4–4.11 Year Olds</span>
+                  <span className="text-[11px] text-slate-600">1:00 PM – 3:30 PM • 4–4.11 Year Olds ({inspectingCdc.preK2})</span>
                 </div>
               </div>
             </div>
