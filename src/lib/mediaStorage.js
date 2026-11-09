@@ -1,4 +1,6 @@
-// Shared File Size Limits, Validation, Video/Media Detection & IndexedDB Large-File Storage
+import { supabase } from './supabaseClient';
+
+// Shared File Size Limits, Validation, Video/Media Detection & IndexedDB + Supabase Large-File Storage
 // Ensures video files (up to 50 MB), documents (up to 15 MB), and images (up to 10 MB)
 // can be uploaded, stored, retrieved, and played back reliably across Admin, Teacher, and Student dashboards.
 
@@ -397,13 +399,130 @@ function openMediaDB() {
                 }
               }
 
-              /**
-               * Converts a data: URL, idb:// reference, or filename/title lookup into a browser-viewable/playable URL.
-               */
-              export async function resolveViewableMediaUrl(rawUrl, fallbackFileName = '', fallbackTitle = '') {
-                const urlStr = typeof rawUrl === 'string' && rawUrl !== 'true' && rawUrl !== 'false' ? rawUrl.trim() : '';
+/**
+ * Persists a file or data URL to Supabase so that even larger videos (> 2.4 MB)
+ * are stored in Supabase `materials` across chunks and accessible on any device.
+ * Returns either a direct `data:...` string (for smaller files) or `sbchunk://<id>` (for chunked files).
+ */
+export async function saveMediaToSupabaseChunks({
+  file,
+  dataUrl,
+  fileName = '',
+  titleHint = '',
+  userId = null,
+  categoryId = null,
+}) {
+  let finalDataUrl = typeof dataUrl === 'string' && dataUrl.startsWith('data:') ? dataUrl : '';
 
-                if (urlStr.startsWith('idb://')) {
+  if (!finalDataUrl && file instanceof Blob) {
+    try {
+      finalDataUrl = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => resolve(ev.target?.result || '');
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(file);
+      });
+    } catch {
+      finalDataUrl = '';
+    }
+  }
+
+  if (!finalDataUrl || !finalDataUrl.startsWith('data:')) {
+    return null;
+  }
+
+  if (finalDataUrl.length <= 2400000) {
+    return finalDataUrl;
+  }
+
+  const safeSlug = String(fileName || titleHint || 'video')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, '_');
+  const chunkGroupId = `${Date.now()}_${safeSlug}`;
+  const chunkSize = 2000000;
+  const totalChunks = Math.ceil(finalDataUrl.length / chunkSize);
+
+  try {
+    for (let i = 0; i < totalChunks; i++) {
+      const slice = finalDataUrl.slice(i * chunkSize, (i + 1) * chunkSize);
+      const chunkTitle = `[MEDIA_CHUNK]::${chunkGroupId}::${String(i).padStart(4, '0')}`;
+      const { error } = await supabase.from('materials').insert({
+        category_id: categoryId,
+        type: 'video',
+        title: chunkTitle,
+        age_range: '3-4',
+        content_url: `chunk:${i + 1}/${totalChunks}`,
+        content_text: slice,
+        created_by: userId,
+        status: 'approved',
+      });
+      if (error) {
+        console.warn('Supabase media chunk insert warning:', error);
+        return null;
+      }
+    }
+
+    const sbChunkRef = `sbchunk://${chunkGroupId}`;
+    if (file instanceof Blob) {
+      await saveMediaBlobToIndexedDB(sbChunkRef, file, titleHint);
+    }
+    return sbChunkRef;
+  } catch (err) {
+    console.warn('Supabase chunk save error:', err);
+    return null;
+  }
+}
+
+async function loadMediaFromSupabaseChunks(sbChunkUrl, fallbackFileName = '', fallbackTitle = '') {
+  if (!sbChunkUrl || !sbChunkUrl.startsWith('sbchunk://')) return null;
+
+  const cachedLocal = await getMediaBlobFromIndexedDB(sbChunkUrl, fallbackFileName);
+  if (cachedLocal && cachedLocal.startsWith('blob:')) {
+    return cachedLocal;
+  }
+
+  const chunkGroupId = sbChunkUrl.replace('sbchunk://', '').trim();
+  if (!chunkGroupId) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('materials')
+      .select('title, content_text')
+      .like('title', `[MEDIA_CHUNK]::${chunkGroupId}::%`)
+      .order('title', { ascending: true });
+
+    if (error || !Array.isArray(data) || data.length === 0) {
+      return null;
+    }
+
+    const fullDataUrl = data.map((row) => row.content_text || '').join('');
+    if (!fullDataUrl.startsWith('data:')) return null;
+
+    const res = await fetch(fullDataUrl);
+    const rawBlob = await res.blob();
+    const normBlob = normalizePlayableBlob(rawBlob, fallbackFileName);
+
+    await saveMediaBlobToIndexedDB(sbChunkUrl, normBlob, fallbackTitle);
+    return URL.createObjectURL(normBlob);
+  } catch (err) {
+    console.warn('Failed reassembling Supabase media chunks:', err);
+    return null;
+  }
+}
+
+/**
+ * Converts a data: URL, sbchunk:// reference, idb:// reference, or filename/title lookup into a browser-viewable/playable URL.
+ */
+export async function resolveViewableMediaUrl(rawUrl, fallbackFileName = '', fallbackTitle = '') {
+  const urlStr = typeof rawUrl === 'string' && rawUrl !== 'true' && rawUrl !== 'false' ? rawUrl.trim() : '';
+
+  if (urlStr.startsWith('sbchunk://')) {
+    const fromChunks = await loadMediaFromSupabaseChunks(urlStr, fallbackFileName, fallbackTitle);
+    if (fromChunks) return fromChunks;
+  }
+
+  if (urlStr.startsWith('idb://')) {
                   const fromIdb = await getMediaBlobFromIndexedDB(urlStr, fallbackFileName);
                   if (fromIdb) {
                     if (fromIdb.startsWith('blob:')) return fromIdb;

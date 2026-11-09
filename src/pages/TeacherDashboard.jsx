@@ -35,6 +35,8 @@ import {
   isPdfItem,
   getEmbeddedVideoUrl,
   saveMediaBlobToIndexedDB,
+  getMediaBlobFromIndexedDB,
+  saveMediaToSupabaseChunks,
   resolveViewableMediaUrl,
 } from '../lib/mediaStorage.js';
 import {
@@ -308,7 +310,10 @@ const loadMyMaterials = useCallback(async () => {
             try {
               const parsed = JSON.parse(m.content_text);
               if (parsed && parsed.__mswd_assignment && parsed.assignment) {
-                sbAssigns.push(parsed.assignment);
+                sbAssigns.push({
+                  ...parsed.assignment,
+                  _sbMaterialId: m.id,
+                });
               }
             } catch { }
           }
@@ -345,13 +350,41 @@ const loadMyMaterials = useCallback(async () => {
       setMyMaterials(regularMats);
 
       if (sbAssigns.length > 0) {
+        let permDeletedIds = new Set();
+        try {
+          const rawPerm = localStorage.getItem('earlylearn_deleted_assignment_ids');
+          if (rawPerm) {
+            const parsedPerm = JSON.parse(rawPerm);
+            if (Array.isArray(parsedPerm)) permDeletedIds = new Set(parsedPerm);
+          }
+        } catch { }
+
         const localClean = getCleanCurriculumAssignments();
+        const localMapById = new Map();
+        localClean.forEach((a) => {
+          if (a && a.id) localMapById.set(a.id, a);
+        });
+
         const seen = new Set();
         const mergedAssigns = [];
         [...sbAssigns, ...localClean].forEach((a) => {
-          if (a && a.id && !seen.has(a.id)) {
+          if (a && a.id && !seen.has(a.id) && !permDeletedIds.has(a.id)) {
             seen.add(a.id);
-            mergedAssigns.push(a);
+            const localOverride = localMapById.get(a.id);
+            mergedAssigns.push(
+              localOverride
+                ? {
+                    ...a,
+                    status: localOverride.status || a.status,
+                    completedDate: localOverride.completedDate || a.completedDate,
+                    is_deleted:
+                      localOverride.is_deleted !== undefined
+                        ? Boolean(localOverride.is_deleted)
+                        : Boolean(a.is_deleted),
+                    deleted_at: localOverride.deleted_at || a.deleted_at || null,
+                  }
+                : a
+            );
           }
         });
         setAssignments(mergedAssigns);
@@ -522,7 +555,9 @@ const combinedUploadedMaterials = useMemo(() => {
           ? 'Worksheet File (PDF)'
           : m.content_url?.startsWith('data:image/')
             ? 'Activity Image'
-            : m.content_url?.startsWith('data:video/') || m.content_url?.startsWith('idb://')
+            : m.content_url?.startsWith('data:video/') ||
+                m.content_url?.startsWith('idb://') ||
+                m.content_url?.startsWith('sbchunk://')
               ? 'Video Lesson File'
               : m.content_url?.startsWith('data:')
                 ? 'Attached Learning Document'
@@ -536,7 +571,7 @@ const combinedUploadedMaterials = useMemo(() => {
           ? 'PDF'
           : m.content_url?.startsWith('data:image/')
             ? 'IMAGE'
-            : m.content_url?.startsWith('data:video/')
+            : m.content_url?.startsWith('data:video/') || m.content_url?.startsWith('sbchunk://')
               ? 'MP4'
               : m.type?.toUpperCase() || 'FILE'),
       content_url: m.content_url || localMatch?.content_url || null,
@@ -895,6 +930,26 @@ const handleFileSelected = async (file) => {
     const effectiveFileSize = uploadFileSize || '2.4 MB';
     const effectiveFileType = uploadFileType || (uploadType === 'video' ? 'MP4' : uploadType === 'file' ? 'PDF' : uploadType.toUpperCase());
 
+    const catId = categoryOptions.length > 0 ? categoryOptions[0].id : null;
+
+    // Persist large video/file uploads to Supabase chunks so both Teacher and Student can play inline on any device without downloading
+    let supabaseSyncedUrl = effectiveUrl;
+    if (uploadFile || (rawUploadUrl && rawUploadUrl.startsWith('data:'))) {
+      try {
+        const chunkedOrDirectUrl = await saveMediaToSupabaseChunks({
+          file: uploadFile,
+          dataUrl: rawUploadUrl.startsWith('data:') ? rawUploadUrl : '',
+          fileName: effectiveFileName,
+          titleHint: uploadTitle.trim(),
+          userId: currentUserId,
+          categoryId: catId,
+        });
+        if (chunkedOrDirectUrl) {
+          supabaseSyncedUrl = chunkedOrDirectUrl;
+        }
+      } catch { }
+    }
+
     // 1. Insert to Supabase materials (with status 'pending' awaiting MSWD Admin approval)
     const metadataPayload = {
       __metadata: true,
@@ -926,7 +981,6 @@ const handleFileSelected = async (file) => {
       target_student_name: null,
     };
 
-    const catId = categoryOptions.length > 0 ? categoryOptions[0].id : null;
     const dbType = ['image', 'video', 'text'].includes(uploadType) ? uploadType : 'activity';
     const normNewTitle = uploadTitle.trim().toLowerCase().replace(/\s+/g, ' ');
     const existingMat = (myMaterials || []).find(
@@ -944,7 +998,7 @@ const handleFileSelected = async (file) => {
             type: dbType,
             title: uploadTitle.trim(),
             age_range: uploadCurriculumLevel === 'PRE-K1' ? '3-4' : '4-5',
-            content_url: effectiveUrl,
+            content_url: supabaseSyncedUrl || effectiveUrl,
             content_text: JSON.stringify(metadataPayload),
             status: 'pending',
           })
@@ -960,7 +1014,7 @@ const handleFileSelected = async (file) => {
               type: dbType,
               title: uploadTitle.trim(),
               age_range: uploadCurriculumLevel === 'PRE-K1' ? '3-4' : '4-5',
-              content_url: idbFallbackUrl,
+              content_url: supabaseSyncedUrl?.startsWith('sbchunk://') ? supabaseSyncedUrl : idbFallbackUrl,
               content_text: JSON.stringify(metadataPayload),
               status: 'pending',
             })
@@ -983,7 +1037,7 @@ const handleFileSelected = async (file) => {
             type: dbType,
             title: uploadTitle.trim(),
             age_range: uploadCurriculumLevel === 'PRE-K1' ? '3-4' : '4-5',
-            content_url: effectiveUrl,
+            content_url: supabaseSyncedUrl || effectiveUrl,
             content_text: JSON.stringify(metadataPayload),
             created_by: currentUserId,
             status: 'pending',
@@ -999,7 +1053,7 @@ const handleFileSelected = async (file) => {
               type: dbType,
               title: uploadTitle.trim(),
               age_range: uploadCurriculumLevel === 'PRE-K1' ? '3-4' : '4-5',
-              content_url: idbFallbackUrl,
+              content_url: supabaseSyncedUrl?.startsWith('sbchunk://') ? supabaseSyncedUrl : idbFallbackUrl,
               content_text: JSON.stringify(metadataPayload),
               created_by: currentUserId,
               status: 'pending',
@@ -1023,9 +1077,11 @@ const handleFileSelected = async (file) => {
 
     // 2. Insert/replace in localTeacherModules for cross-dashboard visibility & MSWD activity monitoring (1 record per title)
     const localSafeUrl =
-      effectiveUrl && effectiveUrl.startsWith('data:') && effectiveUrl.length > 2000000 && idbFallbackUrl
-        ? idbFallbackUrl
-        : effectiveUrl;
+      supabaseSyncedUrl && supabaseSyncedUrl.startsWith('sbchunk://')
+        ? supabaseSyncedUrl
+        : effectiveUrl && effectiveUrl.startsWith('data:') && effectiveUrl.length > 2000000 && idbFallbackUrl
+          ? idbFallbackUrl
+          : supabaseSyncedUrl || effectiveUrl;
 
     const newMod = {
       id: dbMaterialId || ('mod-' + Date.now()),
@@ -1137,19 +1193,53 @@ const handleFileSelected = async (file) => {
 
     const chosenLearner =
       selectedTargetStudentId !== 'all'
-        ? myLearners.find((l) => String(l.id) === String(selectedTargetStudentId))
+        ? myLearners.find(
+            (l) =>
+              String(l.id) === String(selectedTargetStudentId) ||
+              String(l.profile_id) === String(selectedTargetStudentId)
+          )
         : null;
+
+    const targetStudentIdToSave =
+      selectedTargetStudentId === 'all'
+        ? 'all'
+        : chosenLearner?.profile_id || chosenLearner?.id || selectedTargetStudentId;
 
     const targetName =
       selectedTargetStudentId === 'all'
         ? `All Class Learners (${myCdcName || 'My CDC'})`
-        : chosenLearner?.full_name || 'Selected Student';
+        : cleanStudentName(chosenLearner?.full_name || '') || chosenLearner?.full_name || 'Selected Student';
 
     const nowFormatted = new Date().toLocaleDateString('en-US', {
       month: 'short',
       day: '2-digit',
       year: 'numeric',
     });
+
+    // Ensure any local idb:// video is synced to Supabase chunks so the Student Dashboard can play it on any device without downloading
+    let resolvedPostUrl = postingMaterial.content_url || null;
+    const catId = categoryOptions.length > 0 ? categoryOptions[0].id : null;
+    if (resolvedPostUrl && String(resolvedPostUrl).startsWith('idb://')) {
+      try {
+        const localBlob = await getMediaBlobFromIndexedDB(
+          resolvedPostUrl,
+          postingMaterial.file_name,
+          postingMaterial.title
+        );
+        if (localBlob) {
+          const syncedChunkUrl = await saveMediaToSupabaseChunks({
+            file: localBlob,
+            fileName: postingMaterial.file_name || 'video-lesson.mp4',
+            titleHint: postingMaterial.title,
+            userId: currentUserId,
+            categoryId: catId,
+          });
+          if (syncedChunkUrl) {
+            resolvedPostUrl = syncedChunkUrl;
+          }
+        }
+      } catch { }
+    }
 
     // 1. Update localTeacherModules (or insert if it came from Supabase only)
     let foundInLocal = false;
@@ -1161,8 +1251,9 @@ const handleFileSelected = async (file) => {
           status: 'Approved',
           verified_by_mswd: true,
           posted_to_students: true,
-          target_student_id: selectedTargetStudentId,
+          target_student_id: targetStudentIdToSave,
           target_student_name: targetName,
+          content_url: resolvedPostUrl || m.content_url || null,
           posted_at: nowFormatted,
         };
       }
@@ -1184,15 +1275,18 @@ const handleFileSelected = async (file) => {
         sub_theme: postingMaterial.sub_theme || '',
         theme: postingMaterial.theme || '',
         module_type: postingMaterial.formatLabel || 'Activity Worksheet',
-        type: 'activity',
+        type: postingMaterial.type || 'activity',
         status: 'Approved',
         verified_by_mswd: true,
         posted_to_students: true,
-        target_student_id: selectedTargetStudentId,
+        target_student_id: targetStudentIdToSave,
         target_student_name: targetName,
         posted_at: nowFormatted,
         description: postingMaterial.content_text || '',
-        content_url: postingMaterial.content_url || null,
+        content_url: resolvedPostUrl || postingMaterial.content_url || null,
+        file_name: postingMaterial.file_name || null,
+        file_size: postingMaterial.file_size || null,
+        file_type: postingMaterial.file_type || null,
         upload_date: postingMaterial.created_at || nowFormatted,
         is_custom_teacher_upload: true,
       });
@@ -1229,7 +1323,7 @@ const handleFileSelected = async (file) => {
         file_size: postingMaterial.file_size || null,
         file_type: postingMaterial.file_type || null,
         posted_to_students: true,
-        target_student_id: selectedTargetStudentId,
+        target_student_id: targetStudentIdToSave,
         target_student_name: targetName,
         posted_at: nowFormatted,
       };
@@ -1239,11 +1333,12 @@ const handleFileSelected = async (file) => {
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(postingMaterial.id));
 
       const urlToPersist =
-        postingMaterial.content_url &&
-          (String(postingMaterial.content_url).startsWith('data:') ||
-            String(postingMaterial.content_url).startsWith('http') ||
-            String(postingMaterial.content_url).startsWith('idb://'))
-          ? postingMaterial.content_url
+        resolvedPostUrl &&
+          (String(resolvedPostUrl).startsWith('data:') ||
+            String(resolvedPostUrl).startsWith('http') ||
+            String(resolvedPostUrl).startsWith('sbchunk://') ||
+            String(resolvedPostUrl).startsWith('idb://'))
+          ? resolvedPostUrl
           : undefined;
 
       if (isUuid) {
@@ -1259,7 +1354,6 @@ const handleFileSelected = async (file) => {
           .update(updatePayload)
           .eq('id', postingMaterial.id);
       } else {
-        const catId = categoryOptions.length > 0 ? categoryOptions[0].id : null;
         const { data: inserted } = await supabase
           .from('materials')
           .insert({
@@ -1433,6 +1527,159 @@ const handleFileSelected = async (file) => {
       window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updated }));
     } catch { }
     showTeacherToast(`🗑️ Permanently deleted "${mat.title}".`);
+  }
+
+  // Soft-Delete an Assigned Topic & Task (moves to Deleted / Retrieve tab and syncs with Supabase)
+  async function handleDeleteAssignedTopic(asg) {
+    const deletedAt = new Date().toLocaleDateString('en-US', {
+      month: 'short',
+      day: '2-digit',
+      year: 'numeric',
+    });
+
+    const updatedAsg = { ...asg, is_deleted: true, deleted_at: deletedAt };
+    const updatedList = assignments.map((a) => (a.id === asg.id ? updatedAsg : a));
+    setAssignments(updatedList);
+    try {
+      localStorage.setItem('earlylearn_curriculum_assignments', JSON.stringify(updatedList));
+      window.dispatchEvent(new CustomEvent('earlylearn_assignments_updated', { detail: updatedList }));
+    } catch { }
+
+    try {
+      if (asg._sbMaterialId) {
+        await supabase
+          .from('materials')
+          .update({
+            content_text: JSON.stringify({
+              __mswd_assignment: true,
+              assignment: updatedAsg,
+            }),
+          })
+          .eq('id', asg._sbMaterialId);
+      } else {
+        const { data: rows } = await supabase
+          .from('materials')
+          .select('id, content_text')
+          .ilike('title', '[MSWD_ASSIGNMENT]%');
+        if (Array.isArray(rows)) {
+          for (const r of rows) {
+            try {
+              const p = JSON.parse(r.content_text || '{}');
+              if (p?.assignment?.id === asg.id) {
+                await supabase
+                  .from('materials')
+                  .update({
+                    content_text: JSON.stringify({
+                      __mswd_assignment: true,
+                      assignment: updatedAsg,
+                    }),
+                  })
+                  .eq('id', r.id);
+              }
+            } catch { }
+          }
+        }
+      }
+    } catch { }
+
+    const topicName = asg.topicTitle || asg.subTheme || 'Assigned Topic';
+    showTeacherToast(
+      `🗑️ Removed "${topicName}" from your active Assigned Topics. Moved to Deleted / Retrieve tab.`,
+      () => handleRetrieveAssignedTopic(asg)
+    );
+  }
+
+  // Retrieve a Soft-Deleted Assigned Topic & Task back to active list
+  async function handleRetrieveAssignedTopic(asg) {
+    const restoredAsg = { ...asg, is_deleted: false, deleted_at: null };
+    const updatedList = assignments.map((a) => (a.id === asg.id ? restoredAsg : a));
+    setAssignments(updatedList);
+    try {
+      localStorage.setItem('earlylearn_curriculum_assignments', JSON.stringify(updatedList));
+      window.dispatchEvent(new CustomEvent('earlylearn_assignments_updated', { detail: updatedList }));
+    } catch { }
+
+    try {
+      if (asg._sbMaterialId) {
+        await supabase
+          .from('materials')
+          .update({
+            content_text: JSON.stringify({
+              __mswd_assignment: true,
+              assignment: restoredAsg,
+            }),
+          })
+          .eq('id', asg._sbMaterialId);
+      } else {
+        const { data: rows } = await supabase
+          .from('materials')
+          .select('id, content_text')
+          .ilike('title', '[MSWD_ASSIGNMENT]%');
+        if (Array.isArray(rows)) {
+          for (const r of rows) {
+            try {
+              const p = JSON.parse(r.content_text || '{}');
+              if (p?.assignment?.id === asg.id) {
+                await supabase
+                  .from('materials')
+                  .update({
+                    content_text: JSON.stringify({
+                      __mswd_assignment: true,
+                      assignment: restoredAsg,
+                    }),
+                  })
+                  .eq('id', r.id);
+              }
+            } catch { }
+          }
+        }
+      }
+    } catch { }
+
+    const topicName = asg.topicTitle || asg.subTheme || 'Assigned Topic';
+    showTeacherToast(`♻️ Retrieved "${topicName}" back to your active Assigned Topics & Tasks!`);
+  }
+
+  // Permanently delete an Assigned Topic & Task from Deleted / Retrieve tab
+  async function handlePermanentDeleteAssignedTopic(asg) {
+    const topicName = asg.topicTitle || asg.subTheme || 'Assigned Topic';
+    if (!confirm(`Permanently delete "${topicName}" from your Assigned Topics & Tasks? This cannot be undone.`)) {
+      return;
+    }
+
+    const updatedList = assignments.filter((a) => a.id !== asg.id);
+    setAssignments(updatedList);
+    try {
+      localStorage.setItem('earlylearn_curriculum_assignments', JSON.stringify(updatedList));
+      const rawPerm = localStorage.getItem('earlylearn_deleted_assignment_ids');
+      const permArr = rawPerm ? JSON.parse(rawPerm) : [];
+      if (!permArr.includes(asg.id)) permArr.push(asg.id);
+      localStorage.setItem('earlylearn_deleted_assignment_ids', JSON.stringify(permArr));
+      window.dispatchEvent(new CustomEvent('earlylearn_assignments_updated', { detail: updatedList }));
+    } catch { }
+
+    try {
+      if (asg._sbMaterialId) {
+        await supabase.from('materials').delete().eq('id', asg._sbMaterialId);
+      } else {
+        const { data: rows } = await supabase
+          .from('materials')
+          .select('id, content_text')
+          .ilike('title', '[MSWD_ASSIGNMENT]%');
+        if (Array.isArray(rows)) {
+          for (const r of rows) {
+            try {
+              const p = JSON.parse(r.content_text || '{}');
+              if (p?.assignment?.id === asg.id) {
+                await supabase.from('materials').delete().eq('id', r.id);
+              }
+            } catch { }
+          }
+        }
+      }
+    } catch { }
+
+    showTeacherToast(`🗑️ Permanently deleted "${topicName}".`);
   }
 
   // --- Announcements ---
@@ -2359,9 +2606,10 @@ const handleFileSelected = async (file) => {
         const isPastDeadline = Boolean(asg.deadline && new Date(asg.deadline + 'T23:59:59') < new Date());
         const matchingUpload = combinedUploadedMaterials.find(
           (m) =>
-            m.assignment_id === asg.id ||
-            (asg.topicTitle && m.sub_theme && m.sub_theme.toLowerCase() === asg.topicTitle.toLowerCase()) ||
-            (asg.topicTitle && m.title && m.title.toLowerCase().includes(asg.topicTitle.toLowerCase()))
+            !m.is_deleted &&
+            (m.assignment_id === asg.id ||
+              (asg.topicTitle && m.sub_theme && m.sub_theme.toLowerCase() === asg.topicTitle.toLowerCase()) ||
+              (asg.topicTitle && m.title && m.title.toLowerCase().includes(asg.topicTitle.toLowerCase())))
         );
         const isCompleted = asg.status === 'Completed' || Boolean(matchingUpload);
 
@@ -2373,9 +2621,14 @@ const handleFileSelected = async (file) => {
         };
       })
       .filter((asg) => {
-        if (topicStatusFilter === 'pending' && (asg.isCompleted || asg.isPastDeadline)) return false;
-        if (topicStatusFilter === 'completed' && !asg.isCompleted) return false;
-        if (topicStatusFilter === 'expired' && (!asg.isPastDeadline || asg.isCompleted)) return false;
+        if (topicStatusFilter === 'deleted') {
+          if (!asg.is_deleted) return false;
+        } else {
+          if (asg.is_deleted) return false;
+          if (topicStatusFilter === 'pending' && (asg.isCompleted || asg.isPastDeadline)) return false;
+          if (topicStatusFilter === 'completed' && !asg.isCompleted) return false;
+          if (topicStatusFilter === 'expired' && (!asg.isPastDeadline || asg.isCompleted)) return false;
+        }
 
         if (topicLevelFilter !== 'all' && asg.level?.toLowerCase() !== topicLevelFilter.toLowerCase()) return false;
 
@@ -2404,17 +2657,25 @@ const handleFileSelected = async (file) => {
 
   // Aggregate counts for assigned topics
   const assignedCounts = useMemo(() => {
+    let total = 0;
     let pending = 0;
     let completed = 0;
     let expired = 0;
+    let deleted = 0;
 
     myAssignedTopics.forEach((asg) => {
+      if (asg.is_deleted) {
+        deleted++;
+        return;
+      }
+      total++;
       const isPast = Boolean(asg.deadline && new Date(asg.deadline + 'T23:59:59') < new Date());
       const hasUpload = combinedUploadedMaterials.some(
         (m) =>
-          m.assignment_id === asg.id ||
-          (asg.topicTitle && m.sub_theme && m.sub_theme.toLowerCase() === asg.topicTitle.toLowerCase()) ||
-          (asg.topicTitle && m.title && m.title.toLowerCase().includes(asg.topicTitle.toLowerCase()))
+          !m.is_deleted &&
+          (m.assignment_id === asg.id ||
+            (asg.topicTitle && m.sub_theme && m.sub_theme.toLowerCase() === asg.topicTitle.toLowerCase()) ||
+            (asg.topicTitle && m.title && m.title.toLowerCase().includes(asg.topicTitle.toLowerCase())))
       );
       const isComp = asg.status === 'Completed' || hasUpload;
 
@@ -2423,7 +2684,7 @@ const handleFileSelected = async (file) => {
       else pending++;
     });
 
-    return { total: myAssignedTopics.length, pending, completed, expired };
+    return { total, pending, completed, expired, deleted };
   }, [myAssignedTopics, combinedUploadedMaterials]);
 
   useEffect(() => {
@@ -2483,7 +2744,7 @@ const handleFileSelected = async (file) => {
                 className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 cursor-pointer hover:bg-amber-50 transition-colors"
               >
                 <div className="text-[11px] font-bold text-amber-800 uppercase">1. MSWD Assigned Topics</div>
-                <div className="text-2xl font-bold text-amber-950 mt-1">{myAssignedTopics.length}</div>
+                <div className="text-2xl font-bold text-amber-950 mt-1">{assignedCounts.total}</div>
                 <div className="text-[11px] text-amber-700 mt-0.5">{assignedCounts.pending} open to comply →</div>
               </div>
 
@@ -2613,6 +2874,33 @@ const handleFileSelected = async (file) => {
             </div>
           </div>
 
+          {teacherToast && (
+            <div className="p-3.5 rounded-2xl bg-slate-900 text-white text-xs font-bold flex items-center justify-between gap-3 shadow-md">
+              <span>{teacherToast.message}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                {teacherToast.undoAction && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      teacherToast.undoAction();
+                      setTeacherToast(null);
+                    }}
+                    className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold cursor-pointer"
+                  >
+                    ♻️ Retrieve / Undo
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setTeacherToast(null)}
+                  className="text-slate-400 hover:text-white cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Quick Metrics Bar */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-white p-4 rounded-xl border border-card-border shadow-xs">
@@ -2712,6 +3000,20 @@ const handleFileSelected = async (file) => {
                 <span>⚠️ Past Deadline</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${topicStatusFilter === 'expired' ? 'bg-white/20 text-white' : 'bg-rose-200 text-rose-900'}`}>
                   {assignedCounts.expired}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTopicStatusFilter('deleted')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${topicStatusFilter === 'deleted'
+                  ? 'bg-slate-700 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+              >
+                <span>🗑️ Deleted / Retrieve</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${topicStatusFilter === 'deleted' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                  {assignedCounts.deleted}
                 </span>
               </button>
             </div>
@@ -2891,15 +3193,45 @@ const handleFileSelected = async (file) => {
                         )}
                       </div>
 
-                      <div>
-                        {item.isPastDeadline && !item.isCompleted ? (
-                          <button
-                            type="button"
-                            disabled
-                            className="px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-300 text-slate-400 font-bold text-xs cursor-not-allowed flex items-center gap-1.5 opacity-60"
-                          >
-                            <span>🔒 Upload Closed (Deadline Passed)</span>
-                          </button>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {item.is_deleted ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleRetrieveAssignedTopic(item)}
+                              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                            >
+                              <span>♻️</span>
+                              <span>Retrieve</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handlePermanentDeleteAssignedTopic(item)}
+                              className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                            >
+                              <span>🗑️</span>
+                              <span>Delete Forever</span>
+                            </button>
+                          </div>
+                        ) : item.isPastDeadline && !item.isCompleted ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              disabled
+                              className="px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-300 text-slate-400 font-bold text-xs cursor-not-allowed flex items-center gap-1.5 opacity-60"
+                            >
+                              <span>🔒 Upload Closed (Deadline Passed)</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAssignedTopic(item)}
+                              className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
+                              title="Remove from active Assigned Topics (can be retrieved)"
+                            >
+                              <span>🗑️</span>
+                              <span>Delete</span>
+                            </button>
+                          </div>
                         ) : matchedMod && matchedMod.status === 'Approved' ? (
                           <div className="flex flex-wrap items-center gap-2">
                             <button
@@ -2911,41 +3243,125 @@ const handleFileSelected = async (file) => {
                             </button>
                             <button
                               type="button"
-                              onClick={() => setActiveTab('upload')}
-                              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
+                              onClick={() =>
+                                handleOpenPreviewModal({
+                                  kind: 'material',
+                                  title: matchedMod.title,
+                                  subtitle: `${matchedMod.level} • Q${matchedMod.quarter} ${matchedMod.week} • ${matchedMod.sub_theme || matchedMod.theme}`,
+                                  description: matchedMod.content_text,
+                                  fileUrl: matchedMod.content_url,
+                                  fileName: matchedMod.file_name,
+                                  fileType: matchedMod.file_type || matchedMod.type,
+                                  fileSize: matchedMod.file_size,
+                                  status: matchedMod.status,
+                                })
+                              }
+                              className="px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
                             >
-                              View →
+                              <span>
+                                {isVideoItem({
+                                  url: matchedMod.content_url,
+                                  file_name: matchedMod.file_name,
+                                  file_type: matchedMod.file_type,
+                                  type: matchedMod.type,
+                                })
+                                  ? '▶️ Play / View Material'
+                                  : '👁️ View Material'}
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAssignedTopic(item)}
+                              className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
+                              title="Remove from active Assigned Topics (can be retrieved)"
+                            >
+                              <span>🗑️</span>
+                              <span>Delete</span>
                             </button>
                           </div>
                         ) : matchedMod && matchedMod.status === 'Rejected' ? (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenUploadForAssignedTopic(item)}
-                            className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
-                          >
-                            <span>🔄 Re-upload Revised Activity →</span>
-                          </button>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenUploadForAssignedTopic(item)}
+                              className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                            >
+                              <span>🔄 Re-upload Revised Activity →</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAssignedTopic(item)}
+                              className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
+                              title="Remove from active Assigned Topics (can be retrieved)"
+                            >
+                              <span>🗑️</span>
+                              <span>Delete</span>
+                            </button>
+                          </div>
                         ) : item.isCompleted ? (
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold">
                               ⏳ Pending MSWD Approval
                             </span>
+                            {matchedMod && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleOpenPreviewModal({
+                                    kind: 'material',
+                                    title: matchedMod.title,
+                                    subtitle: `${matchedMod.level} • Q${matchedMod.quarter} ${matchedMod.week} • ${matchedMod.sub_theme || matchedMod.theme}`,
+                                    description: matchedMod.content_text,
+                                    fileUrl: matchedMod.content_url,
+                                    fileName: matchedMod.file_name,
+                                    fileType: matchedMod.file_type || matchedMod.type,
+                                    fileSize: matchedMod.file_size,
+                                    status: matchedMod.status,
+                                  })
+                                }
+                                className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                              >
+                                <span>
+                                  {isVideoItem({
+                                    url: matchedMod.content_url,
+                                    file_name: matchedMod.file_name,
+                                    file_type: matchedMod.file_type,
+                                    type: matchedMod.type,
+                                  })
+                                    ? '▶️ Play / View Material'
+                                    : '👁️ View Material'}
+                                </span>
+                              </button>
+                            )}
                             <button
                               type="button"
-                              onClick={() => setActiveTab('upload')}
-                              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer"
+                              onClick={() => handleDeleteAssignedTopic(item)}
+                              className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
+                              title="Remove from active Assigned Topics (can be retrieved)"
                             >
-                              View in Uploads →
+                              <span>🗑️</span>
+                              <span>Delete</span>
                             </button>
                           </div>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenUploadForAssignedTopic(item)}
-                            className="px-4 py-2.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
-                          >
-                            <span>📤 Comply &amp; Upload Activity →</span>
-                          </button>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenUploadForAssignedTopic(item)}
+                              className="px-4 py-2.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                            >
+                              <span>📤 Comply &amp; Upload Activity →</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAssignedTopic(item)}
+                              className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
+                              title="Remove from active Assigned Topics (can be retrieved)"
+                            >
+                              <span>🗑️</span>
+                              <span>Delete</span>
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -4573,12 +4989,16 @@ const handleFileSelected = async (file) => {
         const fUrl = previewModalItem.fileUrl || '';
         const fName = previewModalItem.fileName || '';
         const fType = (previewModalItem.fileType || '').toUpperCase();
-        const displayUrl = previewBlobUrl || fUrl;
+        const rawCandidate = previewBlobUrl || fUrl;
+        const displayUrl =
+          rawCandidate && !rawCandidate.startsWith('idb://') && !rawCandidate.startsWith('sbchunk://')
+            ? rawCandidate
+            : '';
         const embedUrl = getEmbeddedVideoUrl(displayUrl);
 
-        const isImg = isImageItem({ url: displayUrl, file_name: fName, file_type: fType });
-        const isVid = Boolean(embedUrl) || isVideoItem({ url: displayUrl, file_name: fName, file_type: fType });
-        const isPdf = isPdfItem({ url: displayUrl, file_name: fName, file_type: fType });
+        const isImg = isImageItem({ url: displayUrl || fUrl, file_name: fName, file_type: fType });
+        const isVid = Boolean(embedUrl) || isVideoItem({ url: displayUrl || fUrl, file_name: fName, file_type: fType });
+        const isPdf = isPdfItem({ url: displayUrl || fUrl, file_name: fName, file_type: fType });
 
         return (
           <div
@@ -4625,7 +5045,7 @@ const handleFileSelected = async (file) => {
                 </div>
               )}
 
-              {fUrl ? (
+              {(displayUrl || fUrl || fName) ? (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5 min-w-0">
@@ -4638,7 +5058,7 @@ const handleFileSelected = async (file) => {
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
-                        onClick={() => handleOpenInNewTabOrDownload(fUrl, fName, 'view')}
+                        onClick={() => handleOpenInNewTabOrDownload(fUrl, fName, 'view', previewModalItem.title)}
                         className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer flex items-center gap-1"
                       >
                         <span>🔍</span>
@@ -4646,7 +5066,7 @@ const handleFileSelected = async (file) => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleOpenInNewTabOrDownload(fUrl, fName, 'download')}
+                        onClick={() => handleOpenInNewTabOrDownload(fUrl, fName, 'download', previewModalItem.title)}
                         className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold cursor-pointer flex items-center gap-1"
                       >
                         <span>⬇️</span>
@@ -4664,14 +5084,30 @@ const handleFileSelected = async (file) => {
                       allowFullScreen
                     />
                   ) : isVid ? (
-                    <video
-                      controls
-                      playsInline
-                      src={displayUrl}
-                      className="w-full rounded-xl aspect-video border border-slate-200 bg-black"
-                    >
-                      Your browser does not support HTML5 video playback.
-                    </video>
+                    displayUrl ? (
+                      <video
+                        key={displayUrl}
+                        controls
+                        playsInline
+                        preload="auto"
+                        src={displayUrl}
+                        onLoadedMetadata={(e) => {
+                          try {
+                            if (e.currentTarget.currentTime === 0) {
+                              e.currentTarget.currentTime = 0.05;
+                            }
+                          } catch { }
+                        }}
+                        className="w-full rounded-xl aspect-video border border-slate-200 bg-black"
+                      >
+                        Your browser does not support HTML5 video playback.
+                      </video>
+                    ) : (
+                      <div className="p-6 text-center bg-slate-900 text-white rounded-xl border border-slate-700 space-y-2">
+                        <div className="text-2xl">🎬</div>
+                        <div className="text-xs font-bold">Loading video stream...</div>
+                      </div>
+                    )
                   ) : isImg ? (
                     <div className="rounded-xl overflow-hidden border border-slate-200 bg-white p-2">
                       <img

@@ -146,23 +146,22 @@ export default function StudentDashboard({ profile }) {
   // Resolve teacher's posted file/video URL when currentMaterial changes
   useEffect(() => {
     let active = true;
-      setVideoPlaybackBroken(false);
-      if (!currentMaterial?.content_url && !currentMaterial?.file_name && !currentMaterial?.title) {
-        setResolvedTeacherMediaUrl(null);
-        return;
-      }
-      resolveViewableMediaUrl(currentMaterial?.content_url, currentMaterial?.file_name).then((resolved) => {
-        resolveViewableMediaUrl(
-          currentMaterial?.content_url,
-          currentMaterial?.file_name,
-          currentMaterial?.title
-        ).then((resolved) => {
-          if (active) setResolvedTeacherMediaUrl(resolved || null);
-        });
-        return () => {
-          active = false;
-        };
-      }, [currentMaterial]);
+    setVideoPlaybackBroken(false);
+    if (!currentMaterial?.content_url && !currentMaterial?.file_name && !currentMaterial?.title) {
+      setResolvedTeacherMediaUrl(null);
+      return;
+    }
+    resolveViewableMediaUrl(
+      currentMaterial?.content_url,
+      currentMaterial?.file_name,
+      currentMaterial?.title
+    ).then((resolved) => {
+      if (active) setResolvedTeacherMediaUrl(resolved || null);
+    });
+    return () => {
+      active = false;
+    };
+  }, [currentMaterial]);
 
       // Helper to relink/cache a teacher video file if an older upload's browser blob expired
       const handleRelinkTeacherVideo = useCallback(async (activityItem, file) => {
@@ -605,11 +604,23 @@ export default function StudentDashboard({ profile }) {
           return false;
         };
 
+        const fullStudentClean = cleanStudentName(profile?.full_name || '').toLowerCase().trim();
+
         const matchesStudentTarget = (targetId, targetName, mTeacherId, mTeacherName, mCdcName, mBarangay) => {
           if (targetId && targetId !== 'all') {
             if (String(targetId) === String(currentUserId)) return true;
-            const normTargetName = (targetName || '').toLowerCase().trim();
-            if (studentNameLower && normTargetName && normTargetName.includes(studentNameLower)) return true;
+            const normTargetName = cleanStudentName(targetName || '').toLowerCase().trim();
+            if (
+              normTargetName &&
+              !normTargetName.startsWith('all class') &&
+              ((studentNameLower && normTargetName.includes(studentNameLower)) ||
+                (fullStudentClean &&
+                  (normTargetName === fullStudentClean ||
+                    normTargetName.includes(fullStudentClean) ||
+                    fullStudentClean.includes(normTargetName))))
+            ) {
+              return true;
+            }
             return false;
           }
           return isActivityForMyTeacher(mTeacherId, mTeacherName, mCdcName, mBarangay);
@@ -749,8 +760,6 @@ export default function StudentDashboard({ profile }) {
 
         Promise.all(
           videoItems.map(async (item) => {
-            const resolved = await resolveViewableMediaUrl(item.content_url, item.file_name);
-            return [item.id, resolved || FALLBACK_EDUCATIONAL_VIDEO_URL];
             const resolved = await resolveViewableMediaUrl(item.content_url, item.file_name, item.title);
             return [item.id, resolved || null];
           })
@@ -1309,9 +1318,6 @@ export default function StudentDashboard({ profile }) {
                               file_type: a.file_type,
                               module_type: a.module_type,
                             });
-                            const cardVidUrl = isVid
-                              ? resolvedCardVideoUrls[a.id] || FALLBACK_EDUCATIONAL_VIDEO_URL
-                              : null;
                             const cardVidUrl = isVid ? resolvedCardVideoUrls[a.id] || null : null;
                             const cardEmbedUrl = cardVidUrl ? getEmbeddedVideoUrl(cardVidUrl) : null;
                             return (
@@ -1362,13 +1368,13 @@ export default function StudentDashboard({ profile }) {
                                   </span>
                                 </div>
 
-                                {isVid && cardVidUrl && (
-                                  { isVid && (
-                                    <div
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="rounded-xl overflow-hidden border-2 border-purple-200 bg-black shadow-sm"
-                                    >
-                                      {cardEmbedUrl ? (
+                                {isVid && (
+                                  <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="rounded-xl overflow-hidden border-2 border-purple-200 bg-black shadow-sm"
+                                  >
+                                    {cardVidUrl ? (
+                                      cardEmbedUrl ? (
                                         <iframe
                                           src={cardEmbedUrl}
                                           title={a.file_name || a.title}
@@ -1376,78 +1382,55 @@ export default function StudentDashboard({ profile }) {
                                           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                           allowFullScreen
                                         />
-                                {cardVidUrl ? (
-                                        cardEmbedUrl ? (
-                                          <iframe
-                                            src={cardEmbedUrl}
-                                            title={a.file_name || a.title}
-                                            className="w-full aspect-video border-0 bg-black"
-                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                            allowFullScreen
-                                          />
-                                        ) : (
-                                          <video
-                                            key={cardVidUrl}
-                                            controls
-                                            playsInline
-                                            preload="auto"
-                                            src={cardVidUrl}
-                                            onLoadedMetadata={(e) => {
-                                              if (e.currentTarget.currentTime === 0) {
-                                                try {
-                                                  e.currentTarget.currentTime = 0.05;
-                                                } catch { }
-                                              }
-                                            }}
-                                            onError={() => {
-                                              setResolvedCardVideoUrls((prev) => ({ ...prev, [a.id]: null }));
-                                            }}
-                                            className="w-full max-h-[260px] aspect-video bg-black block"
-                                          >
-                                            Your browser does not support HTML5 video playback.
-                                          </video>
-                                        )
                                       ) : (
-                                  <video
-                                    controls
-                                    playsInline
-                                    preload="metadata"
-                                    src={cardVidUrl}
-                                    onError={(e) => {
-                                      if (e.currentTarget.src !== FALLBACK_EDUCATIONAL_VIDEO_URL) {
-                                        e.currentTarget.src = FALLBACK_EDUCATIONAL_VIDEO_URL;
-                                      }
-                                    }}
-                                    className="w-full max-h-[260px] aspect-video bg-black block"
-                                  >
-                                    Your browser does not support HTML5 video playback.
-                                  </video>
-                                  <div className="bg-purple-950/90 text-white p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-                                    <div className="text-left">
-                                      <div className="font-bold text-xs text-purple-200 flex items-center gap-1.5">
-                                        <span>🎬</span>
-                                        <span>{a.file_name || a.title}</span>
+                                        <video
+                                          key={cardVidUrl}
+                                          controls
+                                          playsInline
+                                          preload="auto"
+                                          src={cardVidUrl}
+                                          onLoadedMetadata={(e) => {
+                                            if (e.currentTarget.currentTime === 0) {
+                                              try {
+                                                e.currentTarget.currentTime = 0.05;
+                                              } catch { }
+                                            }
+                                          }}
+                                          onError={() => {
+                                            setResolvedCardVideoUrls((prev) => ({ ...prev, [a.id]: null }));
+                                          }}
+                                          className="w-full max-h-[260px] aspect-video bg-black block"
+                                        >
+                                          Your browser does not support HTML5 video playback.
+                                        </video>
+                                      )
+                                    ) : (
+                                      <div className="bg-purple-950/90 text-white p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                                        <div className="text-left">
+                                          <div className="font-bold text-xs text-purple-200 flex items-center gap-1.5">
+                                            <span>🎬</span>
+                                            <span>{a.file_name || a.title}</span>
+                                          </div>
+                                          <div className="text-[11px] text-purple-300 mt-0.5">
+                                            This video was uploaded before local video caching was enabled. Select the teacher&apos;s video file once to display and play it:
+                                          </div>
+                                        </div>
+                                        <label className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-extrabold cursor-pointer shrink-0 transition-colors">
+                                          📂 Load Teacher Video
+                                          <input
+                                            type="file"
+                                            accept="video/*,.mp4,.webm,.mov,.m4v"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                              const f = e.target.files?.[0];
+                                              if (f) handleRelinkTeacherVideo(a, f);
+                                            }}
+                                          />
+                                        </label>
                                       </div>
-                                      <div className="text-[11px] text-purple-300 mt-0.5">
-                                        This video was uploaded before local video caching was enabled. Select the teacher&apos;s video file once to display and play it:
-                                      </div>
-                                    </div>
-                                    <label className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-extrabold cursor-pointer shrink-0 transition-colors">
-                                      📂 Load Teacher Video
-                                      <input
-                                        type="file"
-                                        accept="video/*,.mp4,.webm,.mov,.m4v"
-                                        className="hidden"
-                                        onChange={(e) => {
-                                          const f = e.target.files?.[0];
-                                          if (f) handleRelinkTeacherVideo(a, f);
-                                        }}
-                                      />
-                                    </label>
+                                    )}
                                   </div>
-                                      )}
-                                    </div>
-                                  )}
+                                )}
                               </div>
                             );
                           })}
@@ -1465,9 +1448,6 @@ export default function StudentDashboard({ profile }) {
                                   file_type: a.file_type,
                                   module_type: a.module_type,
                                 });
-                                const cardVidUrl = isVid
-                                  ? resolvedCardVideoUrls[a.id] || FALLBACK_EDUCATIONAL_VIDEO_URL
-                                  : null;
                                 const cardVidUrl = isVid ? resolvedCardVideoUrls[a.id] || null : null;
                                 const cardEmbedUrl = cardVidUrl ? getEmbeddedVideoUrl(cardVidUrl) : null;
                                 return (
@@ -1531,30 +1511,25 @@ export default function StudentDashboard({ profile }) {
                                             key={cardVidUrl}
                                             controls
                                             playsInline
-                                            preload="metadata"
                                             preload="auto"
                                             src={cardVidUrl}
-                                            onError={(e) => {
-                                              if (e.currentTarget.src !== FALLBACK_EDUCATIONAL_VIDEO_URL) {
-                                                e.currentTarget.src = FALLBACK_EDUCATIONAL_VIDEO_URL;
-                                                onLoadedMetadata = {(e) => {
-                                          if (e.currentTarget.currentTime === 0) {
-                                            try {
-                                          e.currentTarget.currentTime = 0.05;
-                                            } catch { }
-                                          }
-                                        }}
-                                        onError={() => {
-                                          setResolvedCardVideoUrls((prev) => ({ ...prev, [a.id]: null }));
-                                        }}
-                                        className="w-full max-h-[240px] aspect-video bg-black block"
-                                      >
-                                        Your browser does not support HTML5 video playback.
-                                      </video>
+                                            onLoadedMetadata={(e) => {
+                                              if (e.currentTarget.currentTime === 0) {
+                                                try {
+                                                  e.currentTarget.currentTime = 0.05;
+                                                } catch { }
+                                              }
+                                            }}
+                                            onError={() => {
+                                              setResolvedCardVideoUrls((prev) => ({ ...prev, [a.id]: null }));
+                                            }}
+                                            className="w-full max-h-[240px] aspect-video bg-black block"
+                                          >
+                                            Your browser does not support HTML5 video playback.
+                                          </video>
+                                        )}
+                                      </div>
                                     )}
-                                  </div>
-                                )
-                              }
                               </div>
                           );
                           })}
@@ -2272,7 +2247,9 @@ export default function StudentDashboard({ profile }) {
             const rawTeacherFileUrl = cleanRawUrl;
             const teacherFileUrl =
               resolvedTeacherMediaUrl ||
-              (cleanRawUrl && !cleanRawUrl.startsWith('idb://') ? cleanRawUrl : null);
+              (cleanRawUrl && !cleanRawUrl.startsWith('idb://') && !cleanRawUrl.startsWith('sbchunk://')
+                ? cleanRawUrl
+                : null);
             const teacherFileName = currentMaterial.file_name || '';
             const teacherFileType = (currentMaterial.file_type || '').toUpperCase();
             const teacherFileSize = currentMaterial.file_size || '';
@@ -2293,9 +2270,9 @@ export default function StudentDashboard({ profile }) {
             });
 
             const playableTeacherVideoUrl = isTeacherVideo
-              ? videoFallbackActive
-                ? FALLBACK_EDUCATIONAL_VIDEO_URL
-                : teacherFileUrl || resolvedCardVideoUrls[currentMaterial.id] || FALLBACK_EDUCATIONAL_VIDEO_URL
+              ? !videoPlaybackBroken
+                ? teacherFileUrl || resolvedCardVideoUrls[currentMaterial.id] || null
+                : null
               : null;
 
             const isTeacherPdf = isPdfItem({
@@ -2372,28 +2349,62 @@ export default function StudentDashboard({ profile }) {
                       </div>
 
                       {/* Inline Preview for Video (Embedded YouTube/Drive or Direct Video File) */}
-                      {isTeacherVideo && playableTeacherVideoUrl && (
-                        teacherEmbedUrl ? (
-                          <iframe
-                            src={teacherEmbedUrl}
-                            title={teacherFileName || currentMaterial.title}
-                            className="w-full rounded-xl aspect-video border-2 border-purple-200 bg-black shadow-sm"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                          />
+                      {isTeacherVideo && (
+                        playableTeacherVideoUrl ? (
+                          teacherEmbedUrl ? (
+                            <iframe
+                              src={teacherEmbedUrl}
+                              title={teacherFileName || currentMaterial.title}
+                              className="w-full rounded-xl aspect-video border-2 border-purple-200 bg-black shadow-sm"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                            />
+                          ) : (
+                            <video
+                              key={playableTeacherVideoUrl}
+                              controls
+                              playsInline
+                              preload="auto"
+                              src={playableTeacherVideoUrl}
+                              onLoadedMetadata={(e) => {
+                                if (e.currentTarget.currentTime === 0) {
+                                  try {
+                                    e.currentTarget.currentTime = 0.05;
+                                  } catch {}
+                                }
+                              }}
+                              onError={() => {
+                                setVideoPlaybackBroken(true);
+                              }}
+                              className="w-full rounded-xl aspect-video border-2 border-purple-200 bg-black shadow-sm"
+                            >
+                              Your browser does not support HTML5 video playback.
+                            </video>
+                          )
                         ) : (
-                          <video
-                            controls
-                            playsInline
-                            preload="metadata"
-                            src={playableTeacherVideoUrl}
-                            onError={() => {
-                              if (!videoFallbackActive) setVideoFallbackActive(true);
-                            }}
-                            className="w-full rounded-xl aspect-video border-2 border-purple-200 bg-black shadow-sm"
-                          >
-                            Your browser does not support HTML5 video playback.
-                          </video>
+                          <div className="rounded-xl bg-purple-950/90 text-white p-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-2 border-purple-300">
+                            <div className="text-left">
+                              <div className="font-bold text-xs text-purple-200 flex items-center gap-1.5">
+                                <span>🎬</span>
+                                <span>{teacherFileName || currentMaterial.title}</span>
+                              </div>
+                              <div className="text-[11px] text-purple-300 mt-0.5">
+                                Select the teacher&apos;s video file once to cache and play it directly inside the dashboard without downloading:
+                              </div>
+                            </div>
+                            <label className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-extrabold cursor-pointer shrink-0 transition-colors">
+                              📂 Load Teacher Video
+                              <input
+                                type="file"
+                                accept="video/*,.mp4,.webm,.mov,.m4v"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (f) handleRelinkTeacherVideo(currentMaterial, f);
+                                }}
+                              />
+                            </label>
+                          </div>
                         )
                       )}
 

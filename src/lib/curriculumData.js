@@ -388,7 +388,7 @@ export function extractMswdTopicChoices(myAssignedTopics = []) {
   const seenKeys = new Set();
 
   (myAssignedTopics || []).forEach((asg) => {
-    if (!asg) return;
+    if (!asg || asg.is_deleted) return;
     const normLevel = (asg.level || '').toUpperCase().includes('2') ? 'PRE-K2' : 'PRE-K1';
     const qNum = Number(asg.quarter || (Array.isArray(asg.quarters) && asg.quarters[0]) || 1);
 
@@ -482,7 +482,7 @@ export const initialTeacherModules = [];
  */
 export function isAuthenticSupabaseMaterial(m) {
   if (!m || !m.title) return false;
-  if (m.title.startsWith('[MSWD_ASSIGNMENT]')) return false;
+  if (m.title.startsWith('[MSWD_ASSIGNMENT]') || m.title.startsWith('[MEDIA_CHUNK]')) return false;
 
   // All real teacher uploads store a JSON object with `__metadata: true` inside `content_text`
   if (m.content_text && typeof m.content_text === 'string' && m.content_text.trim().startsWith('{')) {
