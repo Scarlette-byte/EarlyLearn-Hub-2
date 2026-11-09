@@ -16,6 +16,7 @@ import {
   isPdfItem,
   getEmbeddedVideoUrl,
   saveMediaBlobToIndexedDB,
+  saveMediaToSupabaseChunks,
   resolveViewableMediaUrl,
 } from '../../lib/mediaStorage.js';
 import {
@@ -40,6 +41,7 @@ export default function ProgramMonitoring({
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [inspectingModule, setInspectingModule] = useState(null);
   const [inspectingMediaUrl, setInspectingMediaUrl] = useState(null);
+  const [inspectingMediaLoading, setInspectingMediaLoading] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
   // Helper to retrieve authentic real teacher modules only, clearing out dummy partial data and category flashcards
@@ -75,17 +77,60 @@ export default function ProgramMonitoring({
   // Resolve viewable media URL whenever inspectingModule changes
   useEffect(() => {
     let active = true;
-    if (inspectingModule?.content_url) {
-      resolveViewableMediaUrl(inspectingModule.content_url).then((resolved) => {
-        if (active) setInspectingMediaUrl(resolved || inspectingModule.content_url);
+    if (inspectingModule?.content_url || inspectingModule?.file_name || inspectingModule?.title) {
+      setInspectingMediaLoading(true);
+      resolveViewableMediaUrl(
+        inspectingModule.content_url,
+        inspectingModule.file_name,
+        inspectingModule.title
+      ).then((resolved) => {
+        if (!active) return;
+        const raw = inspectingModule.content_url || '';
+        const fallbackSafe =
+          raw && !raw.startsWith('idb://') && !raw.startsWith('sbchunk://') ? raw : null;
+        setInspectingMediaUrl(resolved || fallbackSafe);
+        setInspectingMediaLoading(false);
       });
     } else {
       setInspectingMediaUrl(null);
+      setInspectingMediaLoading(false);
     }
     return () => {
       active = false;
     };
   }, [inspectingModule]);
+
+  const handleRelinkAdminMedia = useCallback(async (mod, file) => {
+    if (!mod || !file) return;
+    try {
+      const idbKey = await saveMediaBlobToIndexedDB(file, mod.title || '');
+      const blobUrl = URL.createObjectURL(file);
+      setInspectingMediaUrl(blobUrl);
+
+      const syncedUrl = await saveMediaToSupabaseChunks({
+        file,
+        fileName: file.name,
+        titleHint: mod.title || '',
+      });
+      const finalUrl = syncedUrl || idbKey;
+
+      if (mod.id && !String(mod.id).startsWith('mod-') && syncedUrl) {
+        await supabase.from('materials').update({ content_url: syncedUrl }).eq('id', mod.id);
+      }
+
+      setModules((prev) => {
+        const updated = prev.map((m) =>
+          m.id === mod.id || m.title === mod.title
+            ? { ...m, content_url: finalUrl || m.content_url, file_name: file.name }
+            : m
+        );
+        try {
+          localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(updated));
+        } catch { }
+        return updated;
+      });
+    } catch { }
+  }, []);
 
   // Helper to categorize a teacher post into 'activity' | 'file' | 'video'
   const getItemCategory = (mod) => {
@@ -149,9 +194,25 @@ export default function ProgramMonitoring({
             sub_theme: meta.sub_theme || '',
             theme: meta.theme || 'Early Childhood Learning',
             module_type: meta.module_type || (m.type === 'video' ? 'Video Lesson' : m.type === 'image' ? 'Worksheet Image' : 'Activity Worksheet'),
-            file_type: meta.file_type || (m.content_url?.startsWith('data:application/pdf') ? 'PDF' : m.content_url?.startsWith('data:video/') ? 'MP4' : m.type?.toUpperCase() || 'PDF'),
+            file_type:
+              meta.file_type ||
+              (m.content_url?.startsWith('data:application/pdf')
+                ? 'PDF'
+                : m.content_url?.startsWith('data:video/') ||
+                    m.content_url?.startsWith('sbchunk://') ||
+                    m.content_url?.startsWith('idb://video')
+                  ? 'MP4'
+                  : m.content_url?.startsWith('data:image/')
+                    ? 'IMAGE'
+                    : m.type?.toUpperCase() || 'PDF'),
             file_size: meta.file_size || '2.4 MB',
-            file_name: meta.file_name || (m.content_url?.startsWith('data:application/pdf') ? 'Worksheet File (PDF)' : null),
+            file_name:
+              meta.file_name ||
+              (m.content_url?.startsWith('data:application/pdf')
+                ? 'Worksheet File (PDF)'
+                : m.content_url?.startsWith('data:video/') || m.content_url?.startsWith('sbchunk://')
+                  ? 'Video Lesson File'
+                  : null),
             upload_date: m.created_at ? new Date(m.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : 'Recent',
             status: displayStatus,
             verified_by_mswd: isApproved,
@@ -196,10 +257,21 @@ export default function ProgramMonitoring({
         setModules(() => {
           const localList = getCleanTeacherModules();
           const merged = deduplicatedSb.map((sbItem) => {
-            const loc = localList.find((l) => l.id === sbItem.id);
+            const loc = localList.find(
+              (l) =>
+                l.id === sbItem.id ||
+                (l.title && sbItem.title && l.title.trim().toLowerCase() === sbItem.title.trim().toLowerCase())
+            );
             if (loc) {
+              const bestUrl =
+                sbItem.content_url && !String(sbItem.content_url).startsWith('idb://filename/')
+                  ? sbItem.content_url
+                  : loc.content_url || sbItem.content_url || null;
               return {
                 ...sbItem,
+                file_name: sbItem.file_name || loc.file_name || null,
+                file_type: sbItem.file_type || loc.file_type || 'PDF',
+                file_size: sbItem.file_size || loc.file_size || '2.4 MB',
                 is_deleted: Boolean(loc.is_deleted ?? sbItem.is_deleted),
                 deleted_at: loc.deleted_at || sbItem.deleted_at || null,
                 posted_to_students: Boolean(loc.posted_to_students ?? sbItem.posted_to_students),
@@ -207,7 +279,7 @@ export default function ProgramMonitoring({
                 target_student_name: loc.target_student_name || sbItem.target_student_name || 'All Class Learners',
                 mswd_comments: loc.mswd_comments || sbItem.mswd_comments || '',
                 revision_notes: loc.revision_notes || sbItem.revision_notes || '',
-                content_url: sbItem.content_url || loc.content_url || null,
+                content_url: bestUrl,
               };
             }
             return sbItem;
@@ -257,11 +329,18 @@ export default function ProgramMonitoring({
     };
   }, [loadSupabaseModules]);
 
-  // Download or open file attachment helper (supports data: URLs, idb:// URLs, and external URLs)
-  const handleDownloadFile = async (mod, mode = 'download') => {
+  // Open / view or download file attachment helper (defaults to 'view' so it opens in browser without downloading)
+  const handleDownloadFile = async (mod, mode = 'view') => {
     if (!mod) return;
-    if (mod.content_url) {
-      const resolvedUrl = (await resolveViewableMediaUrl(mod.content_url)) || mod.content_url;
+    const resolvedUrl =
+      (await resolveViewableMediaUrl(mod.content_url, mod.file_name, mod.title)) ||
+      (mod.content_url &&
+      !String(mod.content_url).startsWith('idb://') &&
+      !String(mod.content_url).startsWith('sbchunk://')
+        ? mod.content_url
+        : null);
+
+    if (resolvedUrl) {
       if (mode === 'view') {
         window.open(resolvedUrl, '_blank', 'noopener,noreferrer');
       } else {
@@ -276,7 +355,7 @@ export default function ProgramMonitoring({
         document.body.removeChild(link);
       }
     } else {
-      alert(`No attached file found for "${mod.title}".`);
+      alert(`The uploaded file for "${mod.title}" is not cached on this browser yet. Please click "Load Teacher File / Video to View" inside the preview box.`);
     }
   };
 
@@ -1637,7 +1716,11 @@ export default function ProgramMonitoring({
                 <div>
                   <span className="text-dash-ink-soft block">Post Category</span>
                   <span className="font-bold text-dash-ink">
-                    {getItemCategory(inspectingModule) === 'activity' ? '✏️ Activity Worksheet' : '📁 Document File / PDF'}
+                    {getItemCategory(inspectingModule) === 'video'
+                      ? '🎬 Video Lesson'
+                      : getItemCategory(inspectingModule) === 'file'
+                        ? '📁 Document File / PDF'
+                        : '✏️ Activity Worksheet'}
                   </span>
                 </div>
                 <div>
@@ -1674,23 +1757,22 @@ export default function ProgramMonitoring({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h5 className="font-bold text-dash-ink text-xs uppercase m-0">
-                  Attached Activity Media (View / Play Before &amp; After Checking)
+                  Teacher&apos;s Uploaded Material (View / Play Directly Without Downloading)
                 </h5>
                 {inspectingMediaUrl && (
-                  <a
-                    href={inspectingMediaUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[11px] font-bold text-accent hover:underline flex items-center gap-1"
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadFile(inspectingModule, 'view')}
+                    className="text-[11px] font-bold text-accent hover:underline flex items-center gap-1 cursor-pointer bg-transparent border-0"
                   >
-                    <span>🔍 Open in New Tab ↗</span>
-                  </a>
+                    <span>🔍 View / Open in New Tab ↗</span>
+                  </button>
                 )}
               </div>
 
               {inspectingMediaLoading ? (
                 <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-600 font-semibold">
-                  ⏳ Loading activity media preview...
+                  ⏳ Loading teacher&apos;s uploaded material...
                 </div>
               ) : inspectingMediaUrl ? (
                 <div className="rounded-2xl border border-[#E5DAC4] bg-slate-900/5 overflow-hidden p-3 space-y-2">
@@ -1728,10 +1810,19 @@ export default function ProgramMonitoring({
                     if (isVid) {
                       return (
                         <video
+                          key={inspectingMediaUrl}
                           src={inspectingMediaUrl}
                           controls
                           playsInline
-                          className="w-full max-h-[380px] rounded-xl bg-black border border-slate-300 mx-auto"
+                          preload="auto"
+                          onLoadedMetadata={(e) => {
+                            if (e.currentTarget.currentTime === 0) {
+                              try {
+                                e.currentTarget.currentTime = 0.05;
+                              } catch { }
+                            }
+                          }}
+                          className="w-full max-h-[400px] rounded-xl bg-black border border-slate-300 mx-auto block"
                         >
                           Your browser does not support HTML5 video playback.
                         </video>
@@ -1743,7 +1834,7 @@ export default function ProgramMonitoring({
                           <img
                             src={inspectingMediaUrl}
                             alt={inspectingModule.title}
-                            className="max-h-[380px] w-auto object-contain rounded-lg"
+                            className="max-h-[400px] w-auto object-contain rounded-lg"
                           />
                         </div>
                       );
@@ -1753,7 +1844,7 @@ export default function ProgramMonitoring({
                         <iframe
                           src={inspectingMediaUrl}
                           title={inspectingModule.title}
-                          className="w-full h-[380px] rounded-xl border border-slate-200 bg-white"
+                          className="w-full h-[420px] rounded-xl border border-slate-200 bg-white"
                         />
                       );
                     }
@@ -1770,24 +1861,39 @@ export default function ProgramMonitoring({
                             </div>
                           </div>
                         </div>
-                        <a
-                          href={inspectingMediaUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs"
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadFile(inspectingModule, 'view')}
+                          className="px-3.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer"
                         >
-                          👁️ Open File
-                        </a>
+                          👁️ Open / View File
+                        </button>
                       </div>
                     );
                   })()}
                 </div>
               ) : (
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
-                  <span>📄 Official Printable Activity Worksheet Summary available via Download button below.</span>
-                  <span className="font-mono text-[11px] text-slate-500">
-                    {inspectingModule.file_type || 'PDF'} • {inspectingModule.file_size || '1.3 MB'}
-                  </span>
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="font-bold text-slate-900">
+                      📎 {inspectingModule.file_name || inspectingModule.title} ({inspectingModule.file_type || 'FILE'} • {inspectingModule.file_size || '2.4 MB'})
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      If this material was uploaded before cloud chunk sync was enabled, select the file once to cache and view/play it directly:
+                    </div>
+                  </div>
+                  <label className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs cursor-pointer shrink-0 transition-colors">
+                    📂 Load Teacher File / Video to View
+                    <input
+                      type="file"
+                      accept="image/*,video/*,.mp4,.webm,.mov,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleRelinkAdminMedia(inspectingModule, f);
+                      }}
+                    />
+                  </label>
                 </div>
               )}
             </div>
@@ -1818,14 +1924,17 @@ export default function ProgramMonitoring({
 
             <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-card-border">
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    handleDownloadFile(inspectingModule);
-                  }}
-                  className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-                >
-                  <span>📥 Download File / Worksheet</span>
-                </button>
+                {inspectingMediaUrl && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleDownloadFile(inspectingModule, 'view');
+                    }}
+                    className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>👁️ View / Open Material in New Tab</span>
+                  </button>
+                )}
 
                 {!inspectingModule.is_deleted ? (
                   <button
@@ -2162,43 +2271,30 @@ export default function ProgramMonitoring({
                   onChange={handleAdminFileChange}
                   className="w-full text-xs text-slate-700 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer"
                 />
-                {adminFileError && (
+                {newFileError && (
                   <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 font-bold text-[11px]">
-                    ⚠️ {adminFileError}
+                    ⚠️ {newFileError}
                   </div>
                 )}
-                {adminFile && !adminFileError && (
+                {newFileName && !newFileError && (
                   <div className="p-2.5 rounded-xl bg-white border border-emerald-200 space-y-2">
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="font-bold text-emerald-800 truncate">
-                        ✓ Attached: {adminFile.name} ({formatFileSize(adminFile.size)})
+                        ✓ Attached: {newFileName} ({newFileSize})
                       </span>
                       <button
                         type="button"
                         onClick={() => {
-                          setAdminFile(null);
-                          setAdminFilePreviewUrl('');
+                          setNewFilePreview(null);
+                          setNewFileName('');
+                          setNewFileSize('');
+                          setNewFileType('');
                         }}
                         className="text-rose-600 font-bold hover:underline cursor-pointer"
                       >
                         Remove
                       </button>
                     </div>
-                    {adminFilePreviewUrl && adminFile.type?.startsWith('video/') && (
-                      <video
-                        src={adminFilePreviewUrl}
-                        controls
-                        playsInline
-                        className="w-full max-h-44 rounded-lg bg-black border border-slate-200"
-                      />
-                    )}
-                    {adminFilePreviewUrl && adminFile.type?.startsWith('image/') && (
-                      <img
-                        src={adminFilePreviewUrl}
-                        alt={adminFile.name}
-                        className="max-h-40 rounded-lg object-contain mx-auto border border-slate-200"
-                      />
-                    )}
                   </div>
                 )}
               </div>

@@ -244,6 +244,16 @@ function normalizePlayableBlob(blob, fileNameHint = '') {
     }
   } else if (nameLower.endsWith('.webm') && currentType !== 'video/webm') {
     return new Blob([blob], { type: 'video/webm' });
+  } else if (nameLower.endsWith('.pdf') && currentType !== 'application/pdf') {
+    return new Blob([blob], { type: 'application/pdf' });
+  } else if (nameLower.endsWith('.png') && currentType !== 'image/png') {
+    return new Blob([blob], { type: 'image/png' });
+  } else if ((nameLower.endsWith('.jpg') || nameLower.endsWith('.jpeg')) && currentType !== 'image/jpeg') {
+    return new Blob([blob], { type: 'image/jpeg' });
+  } else if (nameLower.endsWith('.gif') && currentType !== 'image/gif') {
+    return new Blob([blob], { type: 'image/gif' });
+  } else if (nameLower.endsWith('.webp') && currentType !== 'image/webp') {
+    return new Blob([blob], { type: 'image/webp' });
   }
   return blob;
 }
