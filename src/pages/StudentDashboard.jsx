@@ -3,7 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { BILINGUAL_CATEGORIES, playAudioWord } from '../lib/studentLearningData.js';
 import { CategoryBadge } from '../components/Category3DBadges.jsx';
-import { getDefaultTeacherForBarangay, syncStudentLogin, cleanStudentName } from '../lib/learnersService.js';
+import {
+  getDefaultTeacherForBarangay,
+  syncStudentLogin,
+  cleanStudentName,
+  getParentChildAssessment,
+} from '../lib/learnersService.js';
 import { isAuthenticSupabaseMaterial, getCleanTeacherModulesList } from '../lib/curriculumData.js';
 import {
   validateActivityFile,
@@ -640,11 +645,32 @@ export default function StudentDashboard({ profile }) {
         }
       }, [currentUserId, greetingName]);
 
+      // Child's latest ECCD 4-Domain Developmental Assessment (read-only for parents, strictly scoped to this child)
+      const [myChildAssessment, setMyChildAssessment] = useState(null);
+
+      const loadChildAssessment = useCallback(async () => {
+        try {
+          const approvalStatus =
+            profile?.approval_status || profile?.user_metadata?.approval_status || 'approved';
+          const latest = await getParentChildAssessment({
+            userId: currentUserId,
+            childName: greetingName,
+            barangay: studentBarangay,
+            cdcName: adviserInfo?.cdcName || profile?.cdc_name || '',
+            approvalStatus,
+          });
+          setMyChildAssessment(latest);
+        } catch {
+          setMyChildAssessment(null);
+        }
+      }, [currentUserId, greetingName, studentBarangay, adviserInfo?.cdcName, profile]);
+
       // Listen to teacher uploads in localStorage & Supabase Realtime across devices
       useEffect(() => {
         loadAnnouncements();
         loadDbMaterials();
         loadStudentSubmissions();
+        loadChildAssessment();
 
         // Ensure student registration is synced with teacher dashboard
         syncStudentLogin(null, profile);
@@ -655,6 +681,9 @@ export default function StudentDashboard({ profile }) {
           }
           if (e.key === 'earlylearn_announcements') {
             loadAnnouncements();
+          }
+          if (e.key === 'earlylearn_teacher_eccd_assessments') {
+            loadChildAssessment();
           }
           if (
             e.key === 'earlylearn_student_uploads' ||
@@ -677,16 +706,24 @@ export default function StudentDashboard({ profile }) {
         function handleAnnouncementsEvent() {
           loadAnnouncements();
         }
+        function handleAssessmentsEvent() {
+          loadChildAssessment();
+        }
 
         window.addEventListener('storage', handleStorageChange);
         window.addEventListener('earlylearn_modules_updated', handleModulesEvent);
         window.addEventListener('earlylearn_announcements_updated', handleAnnouncementsEvent);
+        window.addEventListener('earlylearn_assessments_updated', handleAssessmentsEvent);
 
         const channel = supabase
           .channel(`student-dashboard-sync-${currentUserId}`)
           .on('postgres_changes', { event: '*', schema: 'public', table: 'materials' }, () => {
             loadDbMaterials();
             loadAnnouncements();
+            loadChildAssessment();
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'eccd_assessments' }, () => {
+            loadChildAssessment();
           })
           .on('postgres_changes', { event: '*', schema: 'public', table: 'submissions' }, () => {
             loadStudentSubmissions();
@@ -700,9 +737,10 @@ export default function StudentDashboard({ profile }) {
           window.removeEventListener('storage', handleStorageChange);
           window.removeEventListener('earlylearn_modules_updated', handleModulesEvent);
           window.removeEventListener('earlylearn_announcements_updated', handleAnnouncementsEvent);
+          window.removeEventListener('earlylearn_assessments_updated', handleAssessmentsEvent);
           supabase.removeChannel(channel);
         };
-      }, [loadAnnouncements, loadDbMaterials, loadStudentSubmissions, currentUserId, profile]);
+      }, [loadAnnouncements, loadDbMaterials, loadStudentSubmissions, loadChildAssessment, currentUserId, profile]);
 
       // -------------------------------------------------------------------------
       // "MY ACTIVITIES": STRICTLY BASED ON:
@@ -782,7 +820,13 @@ export default function StudentDashboard({ profile }) {
 
         // 1. Load from Supabase dbMaterials first so cross-device IDs & files are primary
         (dbMaterials || []).forEach((m) => {
-          if (m.title && !m.title.startsWith('[MSWD_ASSIGNMENT]')) {
+          if (
+            m.title &&
+            !m.title.startsWith('[MSWD_ASSIGNMENT]') &&
+            !m.title.startsWith('[TEACHER_ANNOUNCEMENT]') &&
+            !m.title.startsWith('[MEDIA_CHUNK]') &&
+            !m.title.startsWith('[ECCD_ASSESSMENT]')
+          ) {
             let meta = {};
             let cleanDescription = m.content_text || '';
             if (m.content_text && m.content_text.trim().startsWith('{')) {
@@ -1884,6 +1928,164 @@ export default function StudentDashboard({ profile }) {
                               })}
                           </div>
                         )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* -------------------------------------------------------- */}
+                  {/* 🌱 MY CHILD'S DEVELOPMENTAL PROGRESS (READ-ONLY)         */}
+                  {/* -------------------------------------------------------- */}
+                  <div className="bg-white/60 rounded-3xl p-4 sm:p-5 border border-[#F0E4CE] shadow-xs text-left space-y-3.5">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="text-sm sm:text-base font-extrabold text-[#3a3226] flex items-center gap-1.5">
+                        <span>🌱</span>
+                        <span>My Child&apos;s Developmental Progress</span>
+                      </div>
+                      <span className="text-[10.5px] font-extrabold text-[#2E6B38] bg-[#DCEBDD] px-2.5 py-0.5 rounded-full border border-[#BDE0C0]">
+                        👩‍🏫 Teacher Evaluation • Read-Only
+                      </span>
+                    </div>
+
+                    {myChildAssessment ? (
+                      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#F0E4CE] shadow-soft space-y-4">
+                        {/* Header: Overall Developmental Status & Assessment Date */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-[#F6F1E7]">
+                          <div>
+                            <div className="text-[11px] font-bold text-[#7a7a7a] uppercase tracking-wider">
+                              Overall Developmental Status
+                            </div>
+                            <div className="mt-1 flex items-center gap-2 flex-wrap">
+                              <span
+                                className={`inline-block px-3 py-1 rounded-full text-xs font-extrabold border ${
+                                  myChildAssessment.overall_status === 'Developing as Expected'
+                                    ? 'bg-[#DCEBDD] text-[#2E6B38] border-[#BDE0C0]'
+                                    : myChildAssessment.overall_status === 'Needs Reinforcement'
+                                      ? 'bg-[#FFF3D6] text-[#8C6200] border-[#F5DC9A]'
+                                      : 'bg-[#FDE2E2] text-[#9E2A2B] border-[#F8B4B4]'
+                                }`}
+                              >
+                                {myChildAssessment.overall_status || 'Developing as Expected'}
+                              </span>
+                              {myChildAssessment.level && (
+                                <span className="text-[11px] font-bold text-[#6b5c42] bg-[#FAF5EC] px-2.5 py-0.5 rounded-lg border border-[#EFE4CE]">
+                                  {myChildAssessment.level}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="sm:text-right text-xs text-[#6b5c42]">
+                            <div className="font-bold text-[#3a3226]">
+                              📅 Assessed: {myChildAssessment.date || myChildAssessment.assessment_date}
+                            </div>
+                            {myChildAssessment.teacher_name && (
+                              <div className="text-[11px] text-[#7a7a7a] mt-0.5">
+                                Evaluated by {myChildAssessment.teacher_name}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 4 Developmental Domains Grid */}
+                        <div>
+                          <div className="text-xs font-extrabold text-[#6b5c42] mb-2">
+                            ECCD 4 Developmental Domains:
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            {[
+                              {
+                                label: 'Cognitive',
+                                icon: '🧩',
+                                desc: 'Sorting, counting, shapes & problem solving',
+                                status: myChildAssessment.cognitive_status || 'Developing as Expected',
+                              },
+                              {
+                                label: 'Physical/Motor',
+                                icon: '🏃',
+                                desc: 'Balance, fine motor grip, tracing & play',
+                                status: myChildAssessment.physical_status || 'Developing as Expected',
+                              },
+                              {
+                                label: 'Social-Emotional',
+                                icon: '🤝',
+                                desc: 'Sharing, routines, greeting circle & empathy',
+                                status: myChildAssessment.social_status || 'Developing as Expected',
+                              },
+                              {
+                                label: 'Language',
+                                icon: '🗣️',
+                                desc: 'Vocabulary, rhymes, listening & speech',
+                                status: myChildAssessment.language_status || 'Developing as Expected',
+                              },
+                            ].map((dom) => {
+                              const badgeClass =
+                                dom.status === 'Developing as Expected'
+                                  ? 'bg-[#DCEBDD] text-[#2E6B38] border-[#BDE0C0]'
+                                  : dom.status === 'Needs Support'
+                                    ? 'bg-[#FFF3D6] text-[#8C6200] border-[#F5DC9A]'
+                                    : 'bg-[#FDE2E2] text-[#9E2A2B] border-[#F8B4B4]';
+                              return (
+                                <div
+                                  key={dom.label}
+                                  className="p-3 rounded-xl bg-[#FFFDF8] border border-[#F0E4CE] flex flex-col justify-between gap-2"
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-center gap-1.5 font-baloo font-bold text-sm text-[#3a3226]">
+                                      <span>{dom.icon}</span>
+                                      <span>{dom.label}</span>
+                                    </div>
+                                    <span
+                                      className={`px-2 py-0.5 rounded-full text-[10.5px] font-extrabold border shrink-0 ${badgeClass}`}
+                                    >
+                                      {dom.status}
+                                    </span>
+                                  </div>
+                                  <div className="text-[11px] text-[#7a7a7a] leading-snug">{dom.desc}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Teacher's Observations & Recommendations */}
+                        {(myChildAssessment.observations || myChildAssessment.recommendation) && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                            <div className="p-3.5 rounded-xl bg-[#FAF5EC] border border-[#EFE4CE] space-y-1">
+                              <div className="text-xs font-extrabold text-[#3a3226] flex items-center gap-1">
+                                <span>📋</span>
+                                <span>Teacher&apos;s Observations</span>
+                              </div>
+                              <p className="text-xs text-[#5a4d38] leading-relaxed m-0">
+                                {myChildAssessment.observations ||
+                                  'Active learner participating well in daily classroom routines.'}
+                              </p>
+                            </div>
+
+                            <div className="p-3.5 rounded-xl bg-[#F4FBF6] border border-[#CBE6D0] space-y-1">
+                              <div className="text-xs font-extrabold text-[#2E6B38] flex items-center gap-1">
+                                <span>💡</span>
+                                <span>Recommendations for Home</span>
+                              </div>
+                              <p className="text-xs text-[#2E6B38] leading-relaxed m-0">
+                                {myChildAssessment.recommendation ||
+                                  'Continue guided reading, counting games, and daily practice at home.'}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-white rounded-2xl p-5 text-center shadow-soft border border-[#F0E4CE] space-y-2.5">
+                        <div className="text-3xl">🌱</div>
+                        <div className="font-baloo font-bold text-base sm:text-lg text-[#3a3226]">
+                          No Developmental Assessment Recorded Yet
+                        </div>
+                        <p className="text-xs sm:text-sm text-[#7a7a7a] max-w-md mx-auto m-0 leading-relaxed">
+                          Once <b className="text-[#3a3226]">{adviserInfo.adviserName}</b> completes{' '}
+                          <b className="text-[#3a3226]">{greetingName}</b>&apos;s ECCD 4-Domain evaluation (Cognitive,
+                          Physical/Motor, Social-Emotional, and Language), the results, observations, and home
+                          recommendations will appear here.
+                        </p>
                       </div>
                     )}
                   </div>

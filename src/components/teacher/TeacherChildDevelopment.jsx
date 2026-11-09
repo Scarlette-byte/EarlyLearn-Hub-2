@@ -1,7 +1,13 @@
-import { useState, useMemo, useEffect } from 'react';
-import { cleanStudentName, isPlaceholderStudentName } from '../../lib/learnersService.js';
-
-const STORAGE_KEY = 'earlylearn_teacher_eccd_assessments';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { supabase } from '../../lib/supabaseClient.js';
+import {
+  cleanStudentName,
+  isPlaceholderStudentName,
+  getLocalCachedEccdAssessments,
+  getAssessmentsForTeacher,
+  saveEccdAssessmentToSupabase,
+  canTeacherManageLearnerAssessment,
+} from '../../lib/learnersService.js';
 
 export default function TeacherChildDevelopment({
   teacherProfile,
@@ -13,19 +19,57 @@ export default function TeacherChildDevelopment({
   const teacherId = teacherProfile?.id;
   const teacherName = teacherProfile?.full_name || 'Child Development Teacher';
 
-  // Load stored teacher assessments
-  const [assessments, setAssessments] = useState(() => {
+  // Load initial assessments from local cache, then immediately synchronize from Supabase (primary storage)
+  const [assessments, setAssessments] = useState(() =>
+    getLocalCachedEccdAssessments().filter((a) =>
+      canTeacherManageLearnerAssessment(a, teacherProfile, learners, teacherBarangay, cdcName)
+    )
+  );
+  const [isSaving, setIsSaving] = useState(false);
+
+  const loadAssessmentsFromSupabase = useCallback(async () => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed)
-          ? parsed.filter((a) => !isPlaceholderStudentName(a.child_name || ''))
-          : [];
-    } catch {
-      return [];
+      const synced = await getAssessmentsForTeacher({
+        teacherProfile,
+        assignedLearners: learners,
+        teacherBarangay,
+        cdcName,
+      });
+      setAssessments(synced);
+    } catch (err) {
+      console.warn('Error loading ECCD assessments from Supabase:', err);
     }
-  });
+  }, [teacherProfile, learners, teacherBarangay, cdcName]);
+
+  useEffect(() => {
+    loadAssessmentsFromSupabase();
+
+    const handleSync = () => {
+      loadAssessmentsFromSupabase();
+    };
+    window.addEventListener('earlylearn_assessments_updated', handleSync);
+    window.addEventListener('storage', handleSync);
+
+    const channel = supabase
+      .channel('teacher-eccd-assessments-sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'eccd_assessments' },
+        () => loadAssessmentsFromSupabase()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'materials' },
+        () => loadAssessmentsFromSupabase()
+      )
+      .subscribe();
+
+    return () => {
+      window.removeEventListener('earlylearn_assessments_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+      supabase.removeChannel(channel);
+    };
+  }, [loadAssessmentsFromSupabase]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'evaluated' | 'pending' | 'Developing as Expected' | 'Needs Reinforcement' | 'Requires Follow-up'
@@ -118,6 +162,14 @@ export default function TeacherChildDevelopment({
   }
 
   function handleOpenEvaluate(learner) {
+    if (!canTeacherManageLearnerAssessment(learner, teacherProfile, learners, teacherBarangay, cdcName)) {
+      setMsg({
+        text: '⚠️ You can only manage assessments for learners assigned to your class.',
+        type: 'error',
+      });
+      return;
+    }
+
     const normName = (learner.full_name || '').trim().toLowerCase();
     const existing = (learner.id && assessmentMap.get(String(learner.id))) || assessmentMap.get(normName);
 
@@ -170,9 +222,9 @@ export default function TeacherChildDevelopment({
     });
   }
 
-  function handleSaveAssessment(e) {
+  async function handleSaveAssessment(e) {
     e.preventDefault();
-    if (!evaluatingLearner) return;
+    if (!evaluatingLearner || isSaving) return;
 
     const record = {
       id: evalForm.id || `ass-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
@@ -195,28 +247,40 @@ export default function TeacherChildDevelopment({
       updated_at: new Date().toISOString(),
     };
 
-    const updatedList = assessments.filter(
-      (a) =>
-        a.id !== record.id &&
-        a.child_id !== record.child_id &&
-        (a.child_name || '').trim().toLowerCase() !== record.child_name.trim().toLowerCase()
-    );
-    updatedList.unshift(record);
-
-    setAssessments(updatedList);
+    setIsSaving(true);
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
-      window.dispatchEvent(new Event('earlylearn_assessments_updated'));
-    } catch (err) {
-      console.warn('Failed saving assessment:', err);
-    }
+      const saved = await saveEccdAssessmentToSupabase({
+        assessmentRecord: record,
+        teacherProfile,
+        assignedLearners: learners,
+        teacherBarangay,
+        cdcName,
+      });
 
-    setEvaluatingLearner(null);
-    setMsg({
-      text: `✅ Developmental evaluation saved for ${evaluatingLearner.full_name}!`,
-      type: 'ok',
-    });
-    setTimeout(() => setMsg({ text: '', type: '' }), 4000);
+      setAssessments((prev) => {
+        const filtered = prev.filter(
+          (a) =>
+            a.id !== saved.id &&
+            (!saved.child_id || a.child_id !== saved.child_id) &&
+            (a.child_name || '').trim().toLowerCase() !== saved.child_name.trim().toLowerCase()
+        );
+        return [saved, ...filtered];
+      });
+
+      setEvaluatingLearner(null);
+      setMsg({
+        text: `✅ Developmental evaluation saved to Supabase for ${evaluatingLearner.full_name} and synced to Parent Dashboard!`,
+        type: 'ok',
+      });
+      setTimeout(() => setMsg({ text: '', type: '' }), 4500);
+    } catch (err) {
+      setMsg({
+        text: `❌ ${err.message || 'Could not save assessment.'}`,
+        type: 'error',
+      });
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   function getStatusBadge(status) {
@@ -717,9 +781,10 @@ export default function TeacherChildDevelopment({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                  disabled={isSaving}
+                  className="px-5 py-2 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer disabled:opacity-50"
                 >
-                  Save Assessment
+                  {isSaving ? 'Saving to Supabase...' : 'Save Assessment'}
                 </button>
               </div>
             </form>

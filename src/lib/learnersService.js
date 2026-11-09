@@ -261,6 +261,7 @@ export function packLearnerContactMeta(cleanContact, metaObj = {}) {
     cdc_name: metaObj.cdc_name || null,
     child_age: metaObj.child_age || '3-3.11',
     registration_code: metaObj.registration_code || null,
+    ...(metaObj.eccd_assessment ? { eccd_assessment: metaObj.eccd_assessment } : {}),
   };
   return `${baseContact} ||META:${JSON.stringify(payload)}`.trim();
 }
@@ -323,6 +324,7 @@ export function unpackLearnerRow(row) {
         ? row.birthdate
         : formatLearnerAgeLabel(normalizedAgeCode),
     registration_code: row.registration_code || meta.registration_code || null,
+    eccd_assessment: row.eccd_assessment || meta.eccd_assessment || null,
   };
 }
 
@@ -1020,4 +1022,617 @@ export async function getLearnersForTeacher({ teacherId, teacherName, barangay, 
     return (a.full_name || '').localeCompare(b.full_name || '');
   });
   return results;
+}
+
+// ============================================================================
+// OBJECTIVE 6: CHILD DEVELOPMENT ASSESSMENT & PROGRESS TRACKING (SUPABASE SYNC)
+// ============================================================================
+const ECCD_ASSESSMENTS_STORAGE_KEY = 'earlylearn_teacher_eccd_assessments';
+
+/**
+ * Normalizes a raw ECCD assessment row (from `eccd_assessments`, `materials` sync bridge, or localStorage)
+ * into a consistent assessment object.
+ */
+export function normalizeEccdAssessmentRecord(raw) {
+  if (!raw) return null;
+  const childName = cleanStudentName(raw.child_name || '');
+  if (!childName || isPlaceholderStudentName(childName)) return null;
+
+  const parsedAge = parseInt(String(raw.age ?? '3').replace(/[^0-9]/g, ''), 10);
+  const ageNum = Number.isFinite(parsedAge) && parsedAge > 0 ? parsedAge : 3;
+
+  return {
+    id: raw.id || `ass-${Date.now()}`,
+    child_id: raw.child_id ? String(raw.child_id).trim() : '',
+    child_name: childName,
+    age: ageNum,
+    level: raw.level || (ageNum >= 4 ? 'PRE-K 2' : 'PRE-K 1'),
+    barangay: raw.barangay || '',
+    cdc_name: raw.cdc_name || (raw.barangay ? `${raw.barangay} Child Development Center` : ''),
+    teacher_id: raw.teacher_id || null,
+    teacher_name: raw.teacher_name || 'Child Development Teacher',
+    date: raw.date || raw.assessment_date || new Date().toISOString().split('T')[0],
+    assessment_date: raw.assessment_date || raw.date || new Date().toISOString().split('T')[0],
+    cognitive_status: raw.cognitive_status || 'Developing as Expected',
+    physical_status: raw.physical_status || 'Developing as Expected',
+    social_status: raw.social_status || 'Developing as Expected',
+    language_status: raw.language_status || 'Developing as Expected',
+    overall_status: raw.overall_status || 'Developing as Expected',
+    observations: raw.observations || '',
+    recommendation: raw.recommendation || '',
+    mswd_verified: Boolean(raw.mswd_verified),
+    updated_at: raw.updated_at || raw.created_at || new Date().toISOString(),
+  };
+}
+
+/**
+ * Reads cached ECCD assessments from browser localStorage (used as offline cache & migration source).
+ */
+export function getLocalCachedEccdAssessments() {
+  try {
+    if (typeof localStorage === 'undefined') return [];
+    const raw = localStorage.getItem(ECCD_ASSESSMENTS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(normalizeEccdAssessmentRecord).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Deduplicates a list of ECCD assessments (1 latest assessment per child_id / child_name).
+ */
+export function deduplicateEccdAssessments(list = []) {
+  const byChildKey = new Map();
+  for (const item of list) {
+    const norm = normalizeEccdAssessmentRecord(item);
+    if (!norm) continue;
+    const nameKey = norm.child_name.toLowerCase();
+    const idKey = norm.child_id ? `id:${norm.child_id}` : null;
+    const existing = (idKey && byChildKey.get(idKey)) || byChildKey.get(nameKey);
+
+    if (!existing) {
+      byChildKey.set(nameKey, norm);
+      if (idKey) byChildKey.set(idKey, norm);
+    } else {
+      const existingTime = Date.parse(existing.updated_at || existing.date || '') || 0;
+      const newTime = Date.parse(norm.updated_at || norm.date || '') || 0;
+      if (newTime >= existingTime) {
+        const merged = {
+          ...existing,
+          ...norm,
+          child_id: norm.child_id || existing.child_id || '',
+        };
+        byChildKey.set(nameKey, merged);
+        if (merged.child_id) byChildKey.set(`id:${merged.child_id}`, merged);
+      }
+    }
+  }
+
+  const unique = [];
+  const seenNames = new Set();
+  for (const val of byChildKey.values()) {
+    const nk = val.child_name.toLowerCase();
+    if (!seenNames.has(nk)) {
+      seenNames.add(nk);
+      unique.push(val);
+    }
+  }
+  return unique;
+}
+
+/**
+ * Verifies that a teacher is authorized to manage assessments for a specific learner.
+ * Ensures teachers can only manage assessments for their assigned learners.
+ */
+export function canTeacherManageLearnerAssessment(
+  learnerOrRecord,
+  teacherProfile,
+  assignedLearners = [],
+  teacherBarangay = '',
+  cdcName = ''
+) {
+  if (!learnerOrRecord || !teacherProfile) return false;
+  const role = (teacherProfile.role || '').toLowerCase();
+  if (role === 'admin' || role === 'superadmin') return true;
+
+  const targetId = String(learnerOrRecord.child_id || learnerOrRecord.id || '').trim();
+  const targetName = cleanStudentName(
+    learnerOrRecord.child_name || learnerOrRecord.full_name || ''
+  ).toLowerCase();
+
+  // 1. If the teacher's assigned learners roster is provided, check membership first
+  if (Array.isArray(assignedLearners) && assignedLearners.length > 0) {
+    const inAssignedRoster = assignedLearners.some((l) => {
+      const lId = String(l.id || l.profile_id || '').trim();
+      const lName = cleanStudentName(l.full_name || '').toLowerCase();
+      return (targetId && lId && targetId === lId) || (targetName && lName && targetName === lName);
+    });
+    if (inAssignedRoster) return true;
+  }
+
+  // 2. Check direct teacher_id / adviser_name / barangay / CDC match on the learner/record itself
+  const myId = String(teacherProfile.id || '').trim();
+  const myName = cleanStudentName(teacherProfile.full_name || '')
+    .replace(/^Teacher\s+/i, '')
+    .toLowerCase();
+  const myBrgy = (teacherBarangay || teacherProfile.barangay || '').trim().toLowerCase();
+  const myCdc = (cdcName || teacherProfile.cdc_name || '').trim().toLowerCase();
+
+  const recTeacherId = String(learnerOrRecord.teacher_id || '').trim();
+  const recTeacherName = cleanStudentName(
+    learnerOrRecord.teacher_name || learnerOrRecord.adviser_name || ''
+  )
+    .replace(/^Teacher\s+/i, '')
+    .toLowerCase();
+  const recBrgy = (learnerOrRecord.barangay || '').trim().toLowerCase();
+  const recCdc = (learnerOrRecord.cdc_name || '').trim().toLowerCase();
+
+  // If the learner/record explicitly specifies a different barangay or CDC, deny access
+  if (recBrgy && myBrgy && recBrgy !== myBrgy) {
+    return false;
+  }
+  if (recCdc && myCdc && recCdc !== myCdc) {
+    return false;
+  }
+
+  if (myId && recTeacherId && myId === recTeacherId) return true;
+  if (myName && recTeacherName && (myName.includes(recTeacherName) || recTeacherName.includes(myName))) {
+    return true;
+  }
+  if (myCdc && recCdc && myCdc === recCdc) return true;
+  if (myBrgy && recBrgy && myBrgy === recBrgy) return true;
+
+  return false;
+}
+
+/**
+ * Helper to persist a single normalized assessment record into Supabase (`eccd_assessments` primary table,
+ * plus `learners` metadata and `materials` sync bridge if the dedicated table is not yet created).
+ */
+async function upsertSingleAssessmentInSupabase(normRecord) {
+  let savedRecord = { ...normRecord };
+  let savedToDedicatedTable = false;
+
+  // 1. Primary: Try `public.eccd_assessments` table
+  try {
+    const dbPayload = {
+      child_id: normRecord.child_id ? String(normRecord.child_id) : null,
+      child_name: normRecord.child_name,
+      age: Number(normRecord.age) || 3,
+      level: normRecord.level || 'PRE-K 1',
+      barangay: normRecord.barangay || null,
+      cdc_name: normRecord.cdc_name || null,
+      teacher_id: isValidUuid(normRecord.teacher_id) ? normRecord.teacher_id : null,
+      teacher_name: normRecord.teacher_name || null,
+      assessment_date: normRecord.date,
+      cognitive_status: normRecord.cognitive_status,
+      physical_status: normRecord.physical_status,
+      social_status: normRecord.social_status,
+      language_status: normRecord.language_status,
+      overall_status: normRecord.overall_status,
+      observations: normRecord.observations || '',
+      recommendation: normRecord.recommendation || '',
+      mswd_verified: Boolean(normRecord.mswd_verified),
+      updated_at: normRecord.updated_at || new Date().toISOString(),
+    };
+
+    // Check if an assessment already exists for this child in `eccd_assessments`
+    let existingRowId = isValidUuid(normRecord.id) ? normRecord.id : null;
+    if (!existingRowId) {
+      const { data: existingRows, error: findErr } = await supabase
+        .from('eccd_assessments')
+        .select('id, child_id, child_name')
+        .ilike('child_name', normRecord.child_name)
+        .limit(5);
+
+      if (!findErr && Array.isArray(existingRows) && existingRows.length > 0) {
+        const exact =
+          existingRows.find(
+            (r) =>
+              (normRecord.child_id && String(r.child_id) === String(normRecord.child_id)) ||
+              cleanStudentName(r.child_name).toLowerCase() === normRecord.child_name.toLowerCase()
+          ) || existingRows[0];
+        if (exact?.id) existingRowId = exact.id;
+      }
+    }
+
+    if (existingRowId) {
+      const { data: updated, error: updErr } = await supabase
+        .from('eccd_assessments')
+        .update(dbPayload)
+        .eq('id', existingRowId)
+        .select()
+        .single();
+      if (!updErr && updated) {
+        savedRecord = normalizeEccdAssessmentRecord({ ...normRecord, ...updated, date: updated.assessment_date });
+        savedToDedicatedTable = true;
+      }
+    }
+
+    if (!savedToDedicatedTable) {
+      const { data: inserted, error: insErr } = await supabase
+        .from('eccd_assessments')
+        .insert(dbPayload)
+        .select()
+        .single();
+      if (!insErr && inserted) {
+        savedRecord = normalizeEccdAssessmentRecord({ ...normRecord, ...inserted, date: inserted.assessment_date });
+        savedToDedicatedTable = true;
+      }
+    }
+  } catch {
+    // Fallback below if `eccd_assessments` table is not yet created in Supabase
+  }
+
+  // 2. Sync into `public.learners` row metadata so cross-device retrieval works in all environments
+  try {
+    const { data: existingLearnerRows } = await supabase
+      .from('learners')
+      .select('*')
+      .ilike('full_name', normRecord.child_name)
+      .limit(1);
+
+    if (Array.isArray(existingLearnerRows) && existingLearnerRows.length > 0) {
+      const row = existingLearnerRows[0];
+      const unpacked = unpackLearnerRow(row);
+      const updatedPackedContact = packLearnerContactMeta(unpacked.parent_contact, {
+        approval_status: unpacked.approval_status || 'approved',
+        teacher_id: unpacked.teacher_id || normRecord.teacher_id || null,
+        adviser_name: unpacked.adviser_name || normRecord.teacher_name || null,
+        cdc_name: unpacked.cdc_name || normRecord.cdc_name || null,
+        child_age: unpacked.child_age || (normRecord.level?.includes('2') ? '4-4.11' : '3-3.11'),
+        registration_code: unpacked.registration_code || null,
+        eccd_assessment: savedRecord,
+      });
+      await supabase
+        .from('learners')
+        .update({ parent_contact: updatedPackedContact })
+        .eq('id', row.id);
+    } else {
+      const packedContact = packLearnerContactMeta('', {
+        approval_status: 'approved',
+        teacher_id: normRecord.teacher_id || null,
+        adviser_name: normRecord.teacher_name || null,
+        cdc_name: normRecord.cdc_name || null,
+        child_age: normRecord.level?.includes('2') ? '4-4.11' : '3-3.11',
+        eccd_assessment: savedRecord,
+      });
+      const insertPayload = {
+        full_name: normRecord.child_name,
+        barangay: normRecord.barangay || null,
+        parent_contact: packedContact,
+      };
+      if (isValidUuid(normRecord.child_id)) {
+        insertPayload.id = normRecord.child_id;
+      }
+      await supabase.from('learners').upsert(insertPayload);
+    }
+  } catch {
+    // Ignore learners sync note
+  }
+
+  // 3. Cross-Device Sync Bridge via `public.materials` (`[ECCD_ASSESSMENT] <child_name>`)
+  try {
+    const syncTitle = `[ECCD_ASSESSMENT] ${normRecord.child_name}`;
+    const payloadJson = JSON.stringify({
+      __eccd_assessment: true,
+      ...savedRecord,
+    });
+
+    const { data: existingMat } = await supabase
+      .from('materials')
+      .select('id, title')
+      .ilike('title', syncTitle)
+      .limit(1);
+
+    if (Array.isArray(existingMat) && existingMat.length > 0 && existingMat[0]?.id) {
+      await supabase
+        .from('materials')
+        .update({
+          title: syncTitle,
+          content_text: payloadJson,
+          status: 'approved',
+        })
+        .eq('id', existingMat[0].id);
+      if (!savedToDedicatedTable) {
+        savedRecord.id = existingMat[0].id;
+      }
+    } else {
+      let catId = null;
+      const { data: cats } = await supabase.from('categories').select('id').limit(1);
+      if (Array.isArray(cats) && cats.length > 0) catId = cats[0].id;
+
+      const { data: insertedMat } = await supabase
+        .from('materials')
+        .insert({
+          category_id: catId,
+          type: 'story',
+          title: syncTitle,
+          age_range: normRecord.level?.includes('2') ? '4-5' : '3-4',
+          content_text: payloadJson,
+          created_by: isValidUuid(normRecord.teacher_id) ? normRecord.teacher_id : null,
+          status: 'approved',
+        })
+        .select('id')
+        .single();
+
+      if (insertedMat?.id && !savedToDedicatedTable) {
+        savedRecord.id = insertedMat.id;
+      }
+    }
+  } catch {
+    // Ignore fallback error
+  }
+
+  return savedRecord;
+}
+
+/**
+ * Fetches all accessible ECCD assessments from Supabase (`eccd_assessments` + `learners` + `materials` sync bridge),
+ * automatically migrating any unsynced browser `localStorage` assessments to Supabase.
+ */
+export async function fetchEccdAssessmentsFromSupabase({ migrateLocal = true } = {}) {
+  const fromDedicatedTable = [];
+  const fromLearnersMeta = [];
+  const fromMaterialsBridge = [];
+
+  // 1. Query `public.eccd_assessments`
+  try {
+    const { data, error } = await supabase
+      .from('eccd_assessments')
+      .select('*')
+      .order('updated_at', { ascending: false });
+
+    if (!error && Array.isArray(data)) {
+      data.forEach((row) => {
+        const norm = normalizeEccdAssessmentRecord({
+          ...row,
+          date: row.assessment_date || row.date,
+        });
+        if (norm) fromDedicatedTable.push(norm);
+      });
+    }
+  } catch {
+    // Table may not exist yet
+  }
+
+  // 2. Query `public.learners` for embedded `eccd_assessment` metadata
+  try {
+    const { data: learnerRows, error: lErr } = await supabase
+      .from('learners')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!lErr && Array.isArray(learnerRows)) {
+      learnerRows.forEach((row) => {
+        const unpacked = unpackLearnerRow(row);
+        if (unpacked?.eccd_assessment) {
+          const norm = normalizeEccdAssessmentRecord({
+            ...unpacked.eccd_assessment,
+            child_id: unpacked.eccd_assessment.child_id || unpacked.id,
+            child_name: unpacked.eccd_assessment.child_name || unpacked.full_name,
+            barangay: unpacked.eccd_assessment.barangay || unpacked.barangay,
+            cdc_name: unpacked.eccd_assessment.cdc_name || unpacked.cdc_name,
+          });
+          if (norm) fromLearnersMeta.push(norm);
+        }
+      });
+    }
+  } catch {
+    // Ignore
+  }
+
+  // 3. Query `public.materials` `[ECCD_ASSESSMENT]%` bridge
+  try {
+    const { data: matRows, error: matErr } = await supabase
+      .from('materials')
+      .select('id, title, content_text, created_by, created_at')
+      .ilike('title', '[ECCD_ASSESSMENT]%')
+      .order('created_at', { ascending: false });
+
+    if (!matErr && Array.isArray(matRows)) {
+      matRows.forEach((m) => {
+        if (!m.content_text || !m.content_text.trim().startsWith('{')) return;
+        try {
+          const parsed = JSON.parse(m.content_text);
+          if (parsed && (parsed.__eccd_assessment || parsed.child_name)) {
+            const norm = normalizeEccdAssessmentRecord({
+              ...parsed,
+              id: parsed.id || m.id,
+              teacher_id: parsed.teacher_id || m.created_by || null,
+              updated_at: parsed.updated_at || m.created_at,
+            });
+            if (norm) fromMaterialsBridge.push(norm);
+          }
+        } catch {
+          // ignore malformed JSON
+        }
+      });
+    }
+  } catch {
+    // Ignore
+  }
+
+  // 4. Read local cached assessments & migrate any unsynced records to Supabase
+  const localRecords = getLocalCachedEccdAssessments();
+  const remoteMerged = deduplicateEccdAssessments([
+    ...fromDedicatedTable,
+    ...fromLearnersMeta,
+    ...fromMaterialsBridge,
+  ]);
+
+  if (migrateLocal && localRecords.length > 0) {
+    const remoteKeys = new Set(
+      remoteMerged.flatMap((r) => [
+        r.child_name.toLowerCase(),
+        r.child_id ? `id:${r.child_id}` : '',
+      ])
+    );
+
+    const unsyncedLocal = localRecords.filter(
+      (loc) =>
+        !remoteKeys.has(loc.child_name.toLowerCase()) &&
+        (!loc.child_id || !remoteKeys.has(`id:${loc.child_id}`))
+    );
+
+    if (unsyncedLocal.length > 0) {
+      for (const loc of unsyncedLocal) {
+        try {
+          await upsertSingleAssessmentInSupabase(loc);
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }
+
+  const combined = deduplicateEccdAssessments([
+    ...fromDedicatedTable,
+    ...fromLearnersMeta,
+    ...fromMaterialsBridge,
+    ...localRecords,
+  ]);
+
+  try {
+    if (typeof localStorage !== 'undefined' && combined.length > 0) {
+      localStorage.setItem(ECCD_ASSESSMENTS_STORAGE_KEY, JSON.stringify(combined));
+    }
+  } catch {
+    // ignore
+  }
+
+  return combined;
+}
+
+/**
+ * Saves a teacher's ECCD developmental assessment to Supabase (primary storage) and updates local cache.
+ * Enforces that teachers can only manage assessments for their assigned learners.
+ */
+export async function saveEccdAssessmentToSupabase({
+  assessmentRecord,
+  teacherProfile,
+  assignedLearners = [],
+  teacherBarangay = '',
+  cdcName = '',
+}) {
+  // Check teacher authorization BEFORE overwriting record fields with teacher defaults
+  const isAuthorized = canTeacherManageLearnerAssessment(
+    assessmentRecord,
+    teacherProfile,
+    assignedLearners,
+    teacherBarangay,
+    cdcName
+  );
+
+  if (!isAuthorized) {
+    throw new Error('Unauthorized: You can only record or update assessments for your assigned learners.');
+  }
+
+  const normRecord = normalizeEccdAssessmentRecord({
+    ...assessmentRecord,
+    teacher_id: assessmentRecord?.teacher_id || teacherProfile?.id || null,
+    teacher_name:
+      assessmentRecord?.teacher_name ||
+      teacherProfile?.full_name ||
+      'Child Development Teacher',
+    barangay: assessmentRecord?.barangay || teacherBarangay || teacherProfile?.barangay || '',
+    cdc_name:
+      assessmentRecord?.cdc_name ||
+      cdcName ||
+      teacherProfile?.cdc_name ||
+      '',
+    updated_at: new Date().toISOString(),
+  });
+
+  if (!normRecord) {
+    throw new Error('Invalid learner name or assessment record.');
+  }
+
+  const savedRecord = await upsertSingleAssessmentInSupabase(normRecord);
+
+  // Update local cache and notify listeners
+  try {
+    const currentLocal = getLocalCachedEccdAssessments();
+    const updatedList = deduplicateEccdAssessments([savedRecord, ...currentLocal]);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(ECCD_ASSESSMENTS_STORAGE_KEY, JSON.stringify(updatedList));
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('earlylearn_assessments_updated', { detail: updatedList }));
+    }
+  } catch {
+    // ignore
+  }
+
+  return savedRecord;
+}
+
+/**
+ * Retrieves ECCD assessments strictly scoped to a teacher's assigned learners.
+ */
+export async function getAssessmentsForTeacher({
+  teacherProfile,
+  assignedLearners = [],
+  teacherBarangay = '',
+  cdcName = '',
+}) {
+  const allAssessments = await fetchEccdAssessmentsFromSupabase({ migrateLocal: true });
+  return allAssessments.filter((a) =>
+    canTeacherManageLearnerAssessment(a, teacherProfile, assignedLearners, teacherBarangay, cdcName)
+  );
+}
+
+/**
+ * Retrieves the latest ECCD assessment strictly belonging to a parent's own registered and approved child.
+ * Never returns assessments belonging to any other child.
+ */
+export async function getParentChildAssessment({
+  userId,
+  childName,
+  barangay = '',
+  cdcName = '',
+  approvalStatus = 'approved',
+}) {
+  // Parents can only access assessments belonging to their own registered and approved child
+  if (approvalStatus && String(approvalStatus).toLowerCase() !== 'approved') {
+    return null;
+  }
+
+  const cleanTargetName = cleanStudentName(childName || '').toLowerCase();
+  const strUserId = userId ? String(userId).trim() : '';
+  if (!strUserId && !cleanTargetName) return null;
+
+  const allAssessments = await fetchEccdAssessmentsFromSupabase({ migrateLocal: false });
+  const normBrgy = (barangay || '').trim().toLowerCase();
+  const normCdc = (cdcName || '').trim().toLowerCase();
+
+  for (const a of allAssessments) {
+    if (!a) continue;
+    const aChildId = a.child_id ? String(a.child_id).trim() : '';
+    const aChildName = cleanStudentName(a.child_name || '').toLowerCase();
+
+    // 1. Exact authenticated user/child ID match
+    if (strUserId && aChildId && strUserId === aChildId) {
+      return a;
+    }
+
+    // 2. Exact child name match (only if the record isn't bound to a different UUID user)
+    if (cleanTargetName && aChildName && cleanTargetName === aChildName) {
+      if (aChildId && isValidUuid(aChildId) && strUserId && aChildId !== strUserId) {
+        continue;
+      }
+      const aBrgy = (a.barangay || '').trim().toLowerCase();
+      const aCdc = (a.cdc_name || '').trim().toLowerCase();
+      const brgyMatch = !normBrgy || !aBrgy || normBrgy === aBrgy;
+      const cdcMatch = !normCdc || !aCdc || normCdc === aCdc || aCdc.includes(normBrgy);
+      if (brgyMatch || cdcMatch) {
+        return a;
+      }
+    }
+  }
+
+  return null;
 }

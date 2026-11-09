@@ -181,3 +181,153 @@ CREATE POLICY "Students and teachers can insert and update submissions"
     OR public.get_my_role() IN ('admin', 'superadmin', 'teacher')
   );
 
+DROP POLICY IF EXISTS "Announcements readable by authenticated users" ON public.announcements;
+CREATE POLICY "Announcements readable by authenticated users"
+  ON public.announcements FOR SELECT
+  TO authenticated
+  USING (true);
+
+DROP POLICY IF EXISTS "Teachers and admins can manage announcements" ON public.announcements;
+CREATE POLICY "Teachers and admins can manage announcements"
+  ON public.announcements FOR ALL
+  TO authenticated
+  USING (public.get_my_role() IN ('admin', 'superadmin', 'teacher'))
+  WITH CHECK (public.get_my_role() IN ('admin', 'superadmin', 'teacher'));
+
+-- =====================================================================
+-- 9. OBJECTIVE 6: CHILD DEVELOPMENT ASSESSMENT & PROGRESS TRACKING
+--    (`public.eccd_assessments` Table + Row Level Security Policies)
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS public.eccd_assessments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  child_id text,
+  child_name text NOT NULL,
+  age integer DEFAULT 3,
+  level text DEFAULT 'PRE-K 1',
+  barangay text,
+  cdc_name text,
+  teacher_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  teacher_name text,
+  assessment_date text DEFAULT (CURRENT_DATE)::text,
+  cognitive_status text NOT NULL DEFAULT 'Developing as Expected',
+  physical_status text NOT NULL DEFAULT 'Developing as Expected',
+  social_status text NOT NULL DEFAULT 'Developing as Expected',
+  language_status text NOT NULL DEFAULT 'Developing as Expected',
+  overall_status text NOT NULL DEFAULT 'Developing as Expected',
+  observations text DEFAULT '',
+  recommendation text DEFAULT '',
+  mswd_verified boolean DEFAULT false,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_eccd_assessments_child_id ON public.eccd_assessments(child_id);
+CREATE INDEX IF NOT EXISTS idx_eccd_assessments_child_name ON public.eccd_assessments(lower(child_name));
+CREATE INDEX IF NOT EXISTS idx_eccd_assessments_teacher_id ON public.eccd_assessments(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_eccd_assessments_barangay ON public.eccd_assessments(barangay);
+
+ALTER TABLE public.eccd_assessments ENABLE ROW LEVEL SECURITY;
+
+-- 9a. Admins & Superadmins can view and manage all ECCD assessments municipality-wide
+DROP POLICY IF EXISTS "Admins can manage all eccd_assessments" ON public.eccd_assessments;
+CREATE POLICY "Admins can manage all eccd_assessments"
+  ON public.eccd_assessments FOR ALL
+  TO authenticated
+  USING (public.get_my_role() IN ('admin', 'superadmin'))
+  WITH CHECK (public.get_my_role() IN ('admin', 'superadmin'));
+
+-- 9b. Teachers can SELECT, INSERT, and UPDATE assessments only for their assigned learners / jurisdiction
+DROP POLICY IF EXISTS "Teachers can view assigned learner assessments" ON public.eccd_assessments;
+CREATE POLICY "Teachers can view assigned learner assessments"
+  ON public.eccd_assessments FOR SELECT
+  TO authenticated
+  USING (
+    public.get_my_role() = 'teacher'
+    AND (
+      teacher_id = auth.uid()
+      OR EXISTS (
+        SELECT 1 FROM public.profiles p
+        WHERE p.id = auth.uid()
+          AND (
+            lower(coalesce(p.barangay, '')) = lower(coalesce(eccd_assessments.barangay, ''))
+            OR lower(coalesce(p.cdc_name, '')) = lower(coalesce(eccd_assessments.cdc_name, ''))
+          )
+      )
+    )
+  );
+
+DROP POLICY IF EXISTS "Teachers can insert assigned learner assessments" ON public.eccd_assessments;
+CREATE POLICY "Teachers can insert assigned learner assessments"
+  ON public.eccd_assessments FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    public.get_my_role() = 'teacher'
+    AND (
+      teacher_id = auth.uid()
+      OR EXISTS (
+        SELECT 1 FROM public.profiles p
+        WHERE p.id = auth.uid()
+          AND (
+            lower(coalesce(p.barangay, '')) = lower(coalesce(eccd_assessments.barangay, ''))
+            OR lower(coalesce(p.cdc_name, '')) = lower(coalesce(eccd_assessments.cdc_name, ''))
+          )
+      )
+    )
+  );
+
+DROP POLICY IF EXISTS "Teachers can update assigned learner assessments" ON public.eccd_assessments;
+CREATE POLICY "Teachers can update assigned learner assessments"
+  ON public.eccd_assessments FOR UPDATE
+  TO authenticated
+  USING (
+    public.get_my_role() = 'teacher'
+    AND (
+      teacher_id = auth.uid()
+      OR EXISTS (
+        SELECT 1 FROM public.profiles p
+        WHERE p.id = auth.uid()
+          AND (
+            lower(coalesce(p.barangay, '')) = lower(coalesce(eccd_assessments.barangay, ''))
+            OR lower(coalesce(p.cdc_name, '')) = lower(coalesce(eccd_assessments.cdc_name, ''))
+          )
+      )
+    )
+  )
+  WITH CHECK (
+    public.get_my_role() = 'teacher'
+    AND (
+      teacher_id = auth.uid()
+      OR EXISTS (
+        SELECT 1 FROM public.profiles p
+        WHERE p.id = auth.uid()
+          AND (
+            lower(coalesce(p.barangay, '')) = lower(coalesce(eccd_assessments.barangay, ''))
+            OR lower(coalesce(p.cdc_name, '')) = lower(coalesce(eccd_assessments.cdc_name, ''))
+          )
+      )
+    )
+  );
+
+-- 9c. Parents / Students have strictly READ-ONLY (SELECT) access ONLY to their own registered & approved child's assessment
+DROP POLICY IF EXISTS "Parents can view only their own child assessment" ON public.eccd_assessments;
+CREATE POLICY "Parents can view only their own child assessment"
+  ON public.eccd_assessments FOR SELECT
+  TO authenticated
+  USING (
+    public.get_my_role() = 'student'
+    AND (
+      child_id = (auth.uid())::text
+      OR EXISTS (
+        SELECT 1 FROM public.profiles p
+        WHERE p.id = auth.uid()
+          AND lower(trim(regexp_replace(coalesce(p.full_name, ''), '\s*\((Parent|Guardian):[^)]*\)', '', 'gi'))) = lower(trim(eccd_assessments.child_name))
+          AND (
+            p.barangay IS NULL
+            OR eccd_assessments.barangay IS NULL
+            OR lower(trim(p.barangay)) = lower(trim(eccd_assessments.barangay))
+          )
+      )
+    )
+  );
+
+

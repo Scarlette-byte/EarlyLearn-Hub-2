@@ -567,7 +567,8 @@ export function isAuthenticSupabaseMaterial(m) {
   if (
     m.title.startsWith('[MSWD_ASSIGNMENT]') ||
     m.title.startsWith('[MEDIA_CHUNK]') ||
-    m.title.startsWith('[TEACHER_ANNOUNCEMENT]')
+    m.title.startsWith('[TEACHER_ANNOUNCEMENT]') ||
+    m.title.startsWith('[ECCD_ASSESSMENT]')
   ) {
     return false;
   }
@@ -597,7 +598,8 @@ export function isAuthenticLocalTeacherModule(m) {
   if (/^mod-0[1-9]$|^mod-1[0-2]$/.test(String(m.id))) return false;
   if (
     m.title.startsWith('[MSWD_ASSIGNMENT]') ||
-    m.title.startsWith('[TEACHER_ANNOUNCEMENT]')
+    m.title.startsWith('[TEACHER_ANNOUNCEMENT]') ||
+    m.title.startsWith('[ECCD_ASSESSMENT]')
   ) {
     return false;
   }

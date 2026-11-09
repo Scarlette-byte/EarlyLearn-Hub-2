@@ -19,7 +19,11 @@ import {
   isDummyTeacherAccount,
   purgeDummyTeacherAccountsFromLocalStorage,
 } from '../lib/curriculumData.js';
-import { getStoredLearners } from '../lib/learnersService.js';
+import {
+  getStoredLearners,
+  getLocalCachedEccdAssessments,
+  fetchEccdAssessmentsFromSupabase,
+} from '../lib/learnersService.js';
 import {
   cardBox,
   cardBoxTitle,
@@ -66,14 +70,7 @@ export default function AdminDashboard({ profile }) {
     );
   });
   const [teachers, setTeachers] = useState(realTeachersList);
-  const [assessments, setAssessments] = useState(() => {
-    try {
-      const saved = localStorage.getItem('earlylearn_teacher_eccd_assessments');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [assessments, setAssessments] = useState(getLocalCachedEccdAssessments);
   const [activityReports, setActivityReports] = useState(baselineActivityReports);
 
   // Users tab
@@ -468,6 +465,15 @@ export default function AdminDashboard({ profile }) {
     );
   }
 
+  const loadAssessments = useCallback(async () => {
+    try {
+      const synced = await fetchEccdAssessmentsFromSupabase({ migrateLocal: true });
+      setAssessments(synced);
+    } catch {
+      setAssessments(getLocalCachedEccdAssessments());
+    }
+  }, []);
+
   // Live synchronization: auto-reload when learners register or teachers record assessments or profile updates
   useEffect(() => {
     function handleSync(e) {
@@ -481,12 +487,7 @@ export default function AdminDashboard({ profile }) {
         e.type === 'earlylearn_assessments_updated' ||
         (e.type === 'storage' && e.key === 'earlylearn_teacher_eccd_assessments')
       ) {
-        try {
-          const saved = localStorage.getItem('earlylearn_teacher_eccd_assessments');
-          if (saved) setAssessments(JSON.parse(saved));
-        } catch {
-          // ignore
-        }
+        loadAssessments();
       }
       if (
         e.type === 'earlylearn_teachers_updated' ||
@@ -508,12 +509,13 @@ export default function AdminDashboard({ profile }) {
       window.removeEventListener('earlylearn_teachers_updated', handleSync);
       window.removeEventListener('earlylearn_teacher_profile_saved', handleSync);
     };
-  }, [loadLearners, loadTeachers]);
+  }, [loadLearners, loadTeachers, loadAssessments]);
 
   useEffect(() => {
     loadCdcs();
     loadLearners();
     loadTeachers();
+    loadAssessments();
     loadUsers();
     loadCategories();
     loadMaterials();
@@ -522,6 +524,7 @@ export default function AdminDashboard({ profile }) {
     loadCdcs,
     loadLearners,
     loadTeachers,
+    loadAssessments,
     loadUsers,
     loadCategories,
     loadMaterials,

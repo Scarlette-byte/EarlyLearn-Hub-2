@@ -201,38 +201,34 @@ export default function ReportsGeneration({
     });
   }, [activeCdcs]);
 
-  // 7. Real ECCD Child Development Assessments
+  // 7. Real ECCD Child Development Assessments (Synced from Supabase via `assessments` prop + baseline)
   const activeAssessments = useMemo(() => {
-    let teacherSaved = [];
+    const merged = [];
+    const existingNames = new Set();
+
+    const addUnique = (item) => {
+      if (!item || !item.child_name) return;
+      const cleanName = (item.child_name || '').trim().toLowerCase();
+      if (!cleanName || cleanName === 'hannah mae tion') return;
+      if (!existingNames.has(cleanName)) {
+        merged.push(item);
+        existingNames.add(cleanName);
+      }
+    };
+
+    (assessments || []).forEach(addUnique);
+
     try {
       const raw = localStorage.getItem('earlylearn_teacher_eccd_assessments');
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          teacherSaved = parsed.filter(
-            (a) => (a.child_name || '').trim().toLowerCase() !== 'hannah mae tion'
-          );
-        }
+        if (Array.isArray(parsed)) parsed.forEach(addUnique);
       }
     } catch {
       // ignore
     }
 
-    const merged = [...teacherSaved];
-    const existingNames = new Set(
-      merged.map((m) => (m.child_name || '').trim().toLowerCase())
-    );
-
-    const baseList =
-      assessments.length > 0 ? assessments : baselineAssessments;
-
-    baseList.forEach((b) => {
-      const cleanName = (b.child_name || '').trim().toLowerCase();
-      if (!existingNames.has(cleanName) && cleanName !== 'hannah mae tion') {
-        merged.push(b);
-        existingNames.add(cleanName);
-      }
-    });
+    (baselineAssessments || []).forEach(addUnique);
 
     return merged;
   }, [assessments]);
