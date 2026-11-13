@@ -246,9 +246,9 @@ export async function verifyTeacherRegistrationCode(codeInput) {
 export function formatLearnerAgeLabel(ageVal) {
   const s = String(ageVal || '').toLowerCase();
   if (s.includes('4-4.11') || s.includes('5-6') || s.includes('pre-k2') || s.includes('5–6') || s === '4') {
-    return '4 to 4.11 months (Pre-K2)';
+    return '4 to 4.11 years (Pre-K2)';
   }
-  return '3 to 3.11 months (Pre-K1)';
+  return '3 to 3.11 years (Pre-K1)';
 }
 
 /**
@@ -919,13 +919,21 @@ export async function getLearnersForTeacher({ teacherId, teacherName, barangay, 
   const normCdcName = (cdcName || '').trim().toLowerCase();
   const strTeacherId = teacherId ? String(teacherId).trim() : '';
 
-  // 1. Gather from Supabase `learners` table (Primary cross-device source of truth)
+  // 1. Gather from Supabase `learners` table (Scoped to teacher's CDC / barangay)
   let dbLearners = [];
   try {
-    const { data: allLearners, error } = await supabase
+    let query = supabase
       .from('learners')
       .select('*')
       .order('created_at', { ascending: false });
+
+    if (cdcId && isValidUuid(cdcId)) {
+      query = query.eq('cdc_id', cdcId);
+    } else if (barangay && barangay.trim()) {
+      query = query.ilike('barangay', barangay.trim());
+    }
+
+    const { data: allLearners, error } = await query;
 
     if (!error && Array.isArray(allLearners)) {
       dbLearners = allLearners
@@ -951,13 +959,19 @@ export async function getLearnersForTeacher({ teacherId, teacherName, barangay, 
     // Ignore fetch error
   }
 
-  // 2. Also check Supabase `profiles` where role = 'student' in case a profile was created
+  // 2. Also check Supabase `profiles` where role = 'student' scoped to teacher's barangay
   let profileLearners = [];
   try {
-    const { data: studentProfiles } = await supabase
+    let profQuery = supabase
       .from('profiles')
       .select('*')
       .eq('role', 'student');
+
+    if (barangay && barangay.trim()) {
+      profQuery = profQuery.ilike('barangay', barangay.trim());
+    }
+
+    const { data: studentProfiles } = await profQuery;
 
     if (Array.isArray(studentProfiles)) {
       profileLearners = studentProfiles
@@ -977,18 +991,8 @@ export async function getLearnersForTeacher({ teacherId, teacherName, barangay, 
     // Ignore
   }
 
-  // 3. Gather from local cache & baseline learners
-  const stored = getStoredLearners();
-  const baseline = (baselineLearners || []).map((l) =>
-    unpackLearnerRow({
-      ...l,
-      cdc_name: l.cdc_name || `${l.barangay} Child Development Center`,
-      approval_status: 'approved',
-    })
-  );
-
-  // Prioritize Supabase `dbLearners` first, then `profileLearners`, then `stored`, then `baseline`
-  const combined = [...dbLearners, ...profileLearners, ...stored, ...baseline];
+  // Combine strictly from Supabase sources (never localStorage) for cross-device consistency
+  const combined = [...dbLearners, ...profileLearners];
 
   const seenKeys = new Set();
   const results = [];
@@ -1376,20 +1380,34 @@ async function upsertSingleAssessmentInSupabase(normRecord) {
 }
 
 /**
- * Fetches all accessible ECCD assessments from Supabase (`eccd_assessments` + `learners` + `materials` sync bridge),
- * automatically migrating any unsynced browser `localStorage` assessments to Supabase.
+ * Fetches accessible ECCD assessments from Supabase (`eccd_assessments` + `learners` + `materials` sync bridge),
+ * scoped when `barangay` / `teacherId` / `cdcName` is provided, and never relying on localStorage for display.
  */
-export async function fetchEccdAssessmentsFromSupabase({ migrateLocal = true } = {}) {
+export async function fetchEccdAssessmentsFromSupabase({
+  migrateLocal = false,
+  includeLocal = false,
+  teacherId = null,
+  barangay = null,
+  cdcName = null,
+} = {}) {
   const fromDedicatedTable = [];
   const fromLearnersMeta = [];
   const fromMaterialsBridge = [];
 
-  // 1. Query `public.eccd_assessments`
+  // 1. Query `public.eccd_assessments` (scoped by barangay/teacher when provided)
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('eccd_assessments')
       .select('*')
       .order('updated_at', { ascending: false });
+
+    if (barangay && barangay.trim()) {
+      query = query.ilike('barangay', barangay.trim());
+    } else if (teacherId && isValidUuid(teacherId)) {
+      query = query.eq('teacher_id', teacherId);
+    }
+
+    const { data, error } = await query;
 
     if (!error && Array.isArray(data)) {
       data.forEach((row) => {
@@ -1404,12 +1422,18 @@ export async function fetchEccdAssessmentsFromSupabase({ migrateLocal = true } =
     // Table may not exist yet
   }
 
-  // 2. Query `public.learners` for embedded `eccd_assessment` metadata
+  // 2. Query `public.learners` for embedded `eccd_assessment` metadata (scoped by barangay when provided)
   try {
-    const { data: learnerRows, error: lErr } = await supabase
+    let lQuery = supabase
       .from('learners')
       .select('*')
       .order('created_at', { ascending: false });
+
+    if (barangay && barangay.trim()) {
+      lQuery = lQuery.ilike('barangay', barangay.trim());
+    }
+
+    const { data: learnerRows, error: lErr } = await lQuery;
 
     if (!lErr && Array.isArray(learnerRows)) {
       learnerRows.forEach((row) => {
@@ -1432,11 +1456,17 @@ export async function fetchEccdAssessmentsFromSupabase({ migrateLocal = true } =
 
   // 3. Query `public.materials` `[ECCD_ASSESSMENT]%` bridge
   try {
-    const { data: matRows, error: matErr } = await supabase
+    let mQuery = supabase
       .from('materials')
       .select('id, title, content_text, created_by, created_at')
       .ilike('title', '[ECCD_ASSESSMENT]%')
       .order('created_at', { ascending: false });
+
+    if (teacherId && isValidUuid(teacherId) && !barangay) {
+      mQuery = mQuery.eq('created_by', teacherId);
+    }
+
+    const { data: matRows, error: matErr } = await mQuery;
 
     if (!matErr && Array.isArray(matRows)) {
       matRows.forEach((m) => {
@@ -1461,29 +1491,28 @@ export async function fetchEccdAssessmentsFromSupabase({ migrateLocal = true } =
     // Ignore
   }
 
-  // 4. Read local cached assessments & migrate any unsynced records to Supabase
-  const localRecords = getLocalCachedEccdAssessments();
   const remoteMerged = deduplicateEccdAssessments([
     ...fromDedicatedTable,
     ...fromLearnersMeta,
     ...fromMaterialsBridge,
   ]);
 
-  if (migrateLocal && localRecords.length > 0) {
-    const remoteKeys = new Set(
-      remoteMerged.flatMap((r) => [
-        r.child_name.toLowerCase(),
-        r.child_id ? `id:${r.child_id}` : '',
-      ])
-    );
+  if (migrateLocal) {
+    const localRecords = getLocalCachedEccdAssessments();
+    if (localRecords.length > 0) {
+      const remoteKeys = new Set(
+        remoteMerged.flatMap((r) => [
+          r.child_name.toLowerCase(),
+          r.child_id ? `id:${r.child_id}` : '',
+        ])
+      );
 
-    const unsyncedLocal = localRecords.filter(
-      (loc) =>
-        !remoteKeys.has(loc.child_name.toLowerCase()) &&
-        (!loc.child_id || !remoteKeys.has(`id:${loc.child_id}`))
-    );
+      const unsyncedLocal = localRecords.filter(
+        (loc) =>
+          !remoteKeys.has(loc.child_name.toLowerCase()) &&
+          (!loc.child_id || !remoteKeys.has(`id:${loc.child_id}`))
+      );
 
-    if (unsyncedLocal.length > 0) {
       for (const loc of unsyncedLocal) {
         try {
           await upsertSingleAssessmentInSupabase(loc);
@@ -1494,26 +1523,16 @@ export async function fetchEccdAssessmentsFromSupabase({ migrateLocal = true } =
     }
   }
 
-  const combined = deduplicateEccdAssessments([
-    ...fromDedicatedTable,
-    ...fromLearnersMeta,
-    ...fromMaterialsBridge,
-    ...localRecords,
-  ]);
-
-  try {
-    if (typeof localStorage !== 'undefined' && combined.length > 0) {
-      localStorage.setItem(ECCD_ASSESSMENTS_STORAGE_KEY, JSON.stringify(combined));
-    }
-  } catch {
-    // ignore
+  if (includeLocal) {
+    const localRecords = getLocalCachedEccdAssessments();
+    return deduplicateEccdAssessments([...remoteMerged, ...localRecords]);
   }
 
-  return combined;
+  return remoteMerged;
 }
 
 /**
- * Saves a teacher's ECCD developmental assessment to Supabase (primary storage) and updates local cache.
+ * Saves a teacher's ECCD developmental assessment to Supabase (primary storage).
  * Enforces that teachers can only manage assessments for their assigned learners.
  */
 export async function saveEccdAssessmentToSupabase({
@@ -1558,15 +1577,9 @@ export async function saveEccdAssessmentToSupabase({
 
   const savedRecord = await upsertSingleAssessmentInSupabase(normRecord);
 
-  // Update local cache and notify listeners
   try {
-    const currentLocal = getLocalCachedEccdAssessments();
-    const updatedList = deduplicateEccdAssessments([savedRecord, ...currentLocal]);
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(ECCD_ASSESSMENTS_STORAGE_KEY, JSON.stringify(updatedList));
-    }
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('earlylearn_assessments_updated', { detail: updatedList }));
+      window.dispatchEvent(new CustomEvent('earlylearn_assessments_updated', { detail: [savedRecord] }));
     }
   } catch {
     // ignore
@@ -1576,7 +1589,8 @@ export async function saveEccdAssessmentToSupabase({
 }
 
 /**
- * Retrieves ECCD assessments strictly scoped to a teacher's assigned learners.
+ * Retrieves ECCD assessments strictly from Supabase and scoped to a teacher's assigned learners.
+ * Never reads from localStorage or IndexedDB so data is identical across phones and computers.
  */
 export async function getAssessmentsForTeacher({
   teacherProfile,
@@ -1584,9 +1598,19 @@ export async function getAssessmentsForTeacher({
   teacherBarangay = '',
   cdcName = '',
 }) {
-  const allAssessments = await fetchEccdAssessmentsFromSupabase({ migrateLocal: true });
+  const effectiveBarangay = teacherBarangay || teacherProfile?.barangay || '';
+  const effectiveCdcName = cdcName || teacherProfile?.cdc_name || '';
+
+  const allAssessments = await fetchEccdAssessmentsFromSupabase({
+    migrateLocal: false,
+    includeLocal: false,
+    teacherId: teacherProfile?.id || null,
+    barangay: effectiveBarangay,
+    cdcName: effectiveCdcName,
+  });
+
   return allAssessments.filter((a) =>
-    canTeacherManageLearnerAssessment(a, teacherProfile, assignedLearners, teacherBarangay, cdcName)
+    canTeacherManageLearnerAssessment(a, teacherProfile, assignedLearners, effectiveBarangay, effectiveCdcName)
   );
 }
 

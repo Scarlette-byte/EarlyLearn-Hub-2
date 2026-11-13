@@ -3,11 +3,14 @@ import { supabase } from '../../lib/supabaseClient.js';
 import {
   cleanStudentName,
   isPlaceholderStudentName,
-  getLocalCachedEccdAssessments,
   getAssessmentsForTeacher,
   saveEccdAssessmentToSupabase,
   canTeacherManageLearnerAssessment,
 } from '../../lib/learnersService.js';
+import TeacherReportSheet, {
+  formatAgeInYears,
+  getRatingBadgeClass,
+} from './TeacherReportSheet.jsx';
 
 export default function TeacherChildDevelopment({
   teacherProfile,
@@ -19,64 +22,18 @@ export default function TeacherChildDevelopment({
   const teacherId = teacherProfile?.id;
   const teacherName = teacherProfile?.full_name || 'Child Development Teacher';
 
-  // Load initial assessments from local cache, then immediately synchronize from Supabase (primary storage)
-  const [assessments, setAssessments] = useState(() =>
-    getLocalCachedEccdAssessments().filter((a) =>
-      canTeacherManageLearnerAssessment(a, teacherProfile, learners, teacherBarangay, cdcName)
-    )
-  );
+  // Multi-device state: loaded strictly from Supabase (never localStorage or IndexedDB)
+  const [assessments, setAssessments] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  const loadAssessmentsFromSupabase = useCallback(async () => {
-    try {
-      const synced = await getAssessmentsForTeacher({
-        teacherProfile,
-        assignedLearners: learners,
-        teacherBarangay,
-        cdcName,
-      });
-      setAssessments(synced);
-    } catch (err) {
-      console.warn('Error loading ECCD assessments from Supabase:', err);
-    }
-  }, [teacherProfile, learners, teacherBarangay, cdcName]);
-
-  useEffect(() => {
-    loadAssessmentsFromSupabase();
-
-    const handleSync = () => {
-      loadAssessmentsFromSupabase();
-    };
-    window.addEventListener('earlylearn_assessments_updated', handleSync);
-    window.addEventListener('storage', handleSync);
-
-    const channel = supabase
-      .channel('teacher-eccd-assessments-sync')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'eccd_assessments' },
-        () => loadAssessmentsFromSupabase()
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'materials' },
-        () => loadAssessmentsFromSupabase()
-      )
-      .subscribe();
-
-    return () => {
-      window.removeEventListener('earlylearn_assessments_updated', handleSync);
-      window.removeEventListener('storage', handleSync);
-      supabase.removeChannel(channel);
-    };
-  }, [loadAssessmentsFromSupabase]);
-
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'evaluated' | 'pending' | 'Developing as Expected' | 'Needs Reinforcement' | 'Requires Follow-up'
+  const [filterStatus, setFilterStatus] = useState('all');
 
   // Modal states
   const [activeDossier, setActiveDossier] = useState(null);
   const [evaluatingLearner, setEvaluatingLearner] = useState(null);
+  const [reportModal, setReportModal] = useState(null); // { mode: 'learner' | 'class', learner?: object }
 
   // Evaluation Form state
   const [evalForm, setEvalForm] = useState({
@@ -84,7 +41,7 @@ export default function TeacherChildDevelopment({
     child_id: '',
     child_name: '',
     age: 3,
-    level: 'PRE-K 1',
+    level: 'Pre-K1',
     date: new Date().toISOString().split('T')[0],
     cognitive_status: 'Developing as Expected',
     physical_status: 'Developing as Expected',
@@ -97,44 +54,119 @@ export default function TeacherChildDevelopment({
 
   const [msg, setMsg] = useState({ text: '', type: '' });
 
+  const loadAssessmentsFromSupabase = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const synced = await getAssessmentsForTeacher({
+        teacherProfile,
+        assignedLearners: learners,
+        teacherBarangay,
+        cdcName,
+      });
+      setAssessments(synced);
+    } catch (err) {
+      console.warn('Error loading assessments from Supabase:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [teacherProfile, learners, teacherBarangay, cdcName]);
+
+  useEffect(() => {
+    loadAssessmentsFromSupabase();
+
+    const handleSync = () => {
+      loadAssessmentsFromSupabase();
+    };
+    window.addEventListener('earlylearn_assessments_updated', handleSync);
+
+    const channel = supabase
+      .channel('teacher-eccd-assessments-sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'eccd_assessments' },
+        () => loadAssessmentsFromSupabase()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'learners' },
+        () => loadAssessmentsFromSupabase()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'materials' },
+        () => loadAssessmentsFromSupabase()
+      )
+      .subscribe();
+
+    return () => {
+      window.removeEventListener('earlylearn_assessments_updated', handleSync);
+      supabase.removeChannel(channel);
+    };
+  }, [loadAssessmentsFromSupabase]);
+
   // Map assessments by child_id or child_name
   const assessmentMap = useMemo(() => {
     const map = new Map();
     assessments.forEach((a) => {
+      if (!a || isPlaceholderStudentName(a.child_name || '')) return;
       if (a.child_id) map.set(String(a.child_id), a);
       if (a.child_name) map.set(a.child_name.trim().toLowerCase(), a);
     });
     return map;
   }, [assessments]);
 
-  // Combine learners with their evaluation record (1 record per student, student name only)
+  // Combine teacher's scoped learners with their evaluation record, sorting unevaluated learners first
   const enrichedLearners = useMemo(() => {
     const seen = new Set();
     const list = [];
+
     learners.forEach((l) => {
       const cleaned = cleanStudentName(l.full_name || '');
       if (!cleaned || isPlaceholderStudentName(cleaned)) return;
+      if (
+        !canTeacherManageLearnerAssessment(
+          l,
+          teacherProfile,
+          learners,
+          teacherBarangay,
+          cdcName
+        )
+      ) {
+        return;
+      }
+
       const normName = cleaned.toLowerCase();
       if (seen.has(normName)) return;
       seen.add(normName);
 
-      const existing = (l.id && assessmentMap.get(String(l.id))) || assessmentMap.get(normName) || null;
+      const existing =
+        (l.id && assessmentMap.get(String(l.id))) || assessmentMap.get(normName) || null;
+
       list.push({
         ...l,
         full_name: cleaned,
         assessment: existing,
       });
     });
+
+    // Unevaluated learners first, then alphabetical by learner name
+    list.sort((a, b) => {
+      const aEvaluated = Boolean(a.assessment);
+      const bEvaluated = Boolean(b.assessment);
+      if (aEvaluated !== bEvaluated) {
+        return aEvaluated ? 1 : -1;
+      }
+      return (a.full_name || '').localeCompare(b.full_name || '');
+    });
+
     return list;
-  }, [learners, assessmentMap]);
+  }, [learners, assessmentMap, teacherProfile, teacherBarangay, cdcName]);
 
-  // Filter learners
+  // Filter learners by learner name and status
   const filteredLearners = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
     return enrichedLearners.filter((l) => {
-      const matchSearch =
-        !searchTerm ||
-        (l.full_name || '').toLowerCase().includes(searchTerm.toLowerCase());
-
+      const matchSearch = !query || (l.full_name || '').toLowerCase().includes(query);
       if (!matchSearch) return false;
 
       if (filterStatus === 'all') return true;
@@ -148,12 +180,8 @@ export default function TeacherChildDevelopment({
   const totalLearners = enrichedLearners.length;
   const evaluatedCount = enrichedLearners.filter((l) => Boolean(l.assessment)).length;
   const pendingCount = totalLearners - evaluatedCount;
-  const normalCount = enrichedLearners.filter(
-    (l) => l.assessment?.overall_status === 'Developing as Expected'
-  ).length;
-  const needsAttentionCount = evaluatedCount - normalCount;
 
-  // Auto-calculate suggested overall status based on domain ratings
+  // Auto-calculate overall status based on 4 domain ratings
   function calculateOverallStatus(cog, phys, soc, lang) {
     const ratings = [cog, phys, soc, lang];
     if (ratings.includes('Delay')) return 'Requires Follow-up';
@@ -164,7 +192,7 @@ export default function TeacherChildDevelopment({
   function handleOpenEvaluate(learner) {
     if (!canTeacherManageLearnerAssessment(learner, teacherProfile, learners, teacherBarangay, cdcName)) {
       setMsg({
-        text: '⚠️ You can only manage assessments for learners assigned to your class.',
+        text: 'You can only manage assessments for learners assigned to your class.',
         type: 'error',
       });
       return;
@@ -180,7 +208,7 @@ export default function TeacherChildDevelopment({
         child_id: learner.id,
         child_name: learner.full_name,
         age: learner.age || learner.child_age || 3,
-        level: learner.level || (learner.child_age === '5-6' ? 'PRE-K 2' : 'PRE-K 1'),
+        level: existing.level || (String(learner.child_age || '').includes('4') ? 'Pre-K2' : 'Pre-K1'),
         date: existing.date || new Date().toISOString().split('T')[0],
         cognitive_status: existing.cognitive_status || 'Developing as Expected',
         physical_status: existing.physical_status || 'Developing as Expected',
@@ -196,7 +224,7 @@ export default function TeacherChildDevelopment({
         child_id: learner.id,
         child_name: learner.full_name,
         age: learner.age || learner.child_age || 3,
-        level: learner.level || (learner.child_age === '5-6' ? 'PRE-K 2' : 'PRE-K 1'),
+        level: String(learner.child_age || '').includes('4') ? 'Pre-K2' : 'Pre-K1',
         date: new Date().toISOString().split('T')[0],
         cognitive_status: 'Developing as Expected',
         physical_status: 'Developing as Expected',
@@ -269,13 +297,13 @@ export default function TeacherChildDevelopment({
 
       setEvaluatingLearner(null);
       setMsg({
-        text: `✅ Developmental evaluation saved to Supabase for ${evaluatingLearner.full_name} and synced to Parent Dashboard!`,
+        text: `Saved evaluation for ${evaluatingLearner.full_name}.`,
         type: 'ok',
       });
-      setTimeout(() => setMsg({ text: '', type: '' }), 4500);
+      setTimeout(() => setMsg({ text: '', type: '' }), 4000);
     } catch (err) {
       setMsg({
-        text: `❌ ${err.message || 'Could not save assessment.'}`,
+        text: err.message || 'Could not save assessment.',
         type: 'error',
       });
     } finally {
@@ -283,57 +311,57 @@ export default function TeacherChildDevelopment({
     }
   }
 
-  function getStatusBadge(status) {
-    switch (status) {
-      case 'Developing as Expected':
-        return 'bg-[#DCEBDD] text-[#2E6B38] border border-[#BDE0C0]';
-      case 'Needs Reinforcement':
-        return 'bg-[#FFF3D6] text-[#8C6200] border border-[#F5DC9A]';
-      case 'Requires Follow-up':
-        return 'bg-[#FDE2E2] text-[#9E2A2B] border border-[#F8B4B4]';
-      default:
-        return 'bg-gray-100 text-gray-600 border border-gray-200';
-    }
-  }
-
   function getDomainPill(score, label) {
-    let color = 'bg-[#DCEBDD] text-[#2E6B38]';
-    if (score === 'Needs Support') color = 'bg-[#FFF3D6] text-[#8C6200]';
-    if (score === 'Delay') color = 'bg-[#FDE2E2] text-[#9E2A2B]';
-
     return (
-      <span className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold ${color}`}>
+      <span className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold ${getRatingBadgeClass(score)}`}>
         {label}: {score}
       </span>
     );
   }
 
+  const effectiveCenterName =
+    cdcName ||
+    (teacherBarangay
+      ? `${teacherBarangay} Child Development Center`
+      : 'Child Development Center');
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-[#FAF5EC] via-[#FFFDF8] to-[#FFF8EE] p-6 sm:p-7 rounded-3xl border border-card-border shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-gradient-to-r from-[#FAF5EC] via-[#FFFDF8] to-[#FFF8EE] p-5 sm:p-6 rounded-3xl border border-card-border shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1.5 max-w-2xl">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
             <span>🌱</span>
-            <span>ECCD 4-Domain Evaluations • Classroom Teacher Jurisdiction</span>
+            <span>Child Development Evaluation</span>
           </div>
           <h2 className="font-fraunces text-2xl sm:text-3xl font-bold text-dash-ink m-0">
-            Child Development Monitoring
+            Child Development
           </h2>
           <p className="text-xs sm:text-sm text-dash-ink-soft leading-relaxed m-0">
-            Conduct, record, and monitor early childhood developmental milestone assessments (DepEd ECCD 4-Domain standards) for your assigned students at{' '}
-            <strong className="text-dash-ink">{cdcName || (teacherBarangay ? `${teacherBarangay} Child Development Center` : 'Child Development Center')}</strong>.
+            Record and print child development evaluations for your class at{' '}
+            <strong className="text-dash-ink">{effectiveCenterName}</strong>.
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setReportModal({ mode: 'class' })}
+            className="px-4 py-2.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs cursor-pointer"
+          >
+            Class Report
+          </button>
+
           {onRefreshLearners && (
             <button
-              onClick={onRefreshLearners}
-              className="px-3.5 py-2 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-dash-ink font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Refresh student roster"
+              type="button"
+              onClick={() => {
+                onRefreshLearners();
+                loadAssessmentsFromSupabase();
+              }}
+              className="px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-dash-ink font-bold text-xs cursor-pointer"
             >
-              <span>🔄</span> Refresh Roster
+              Refresh
             </button>
           )}
         </div>
@@ -341,93 +369,51 @@ export default function TeacherChildDevelopment({
 
       {msg.text && (
         <div
-          className={`p-3.5 rounded-2xl text-xs font-bold ${msg.type === 'error'
+          className={`p-3.5 rounded-2xl text-xs font-bold ${
+            msg.type === 'error'
               ? 'bg-rose-50 text-rose-800 border border-rose-200'
               : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-            }`}
+          }`}
         >
           {msg.text}
         </div>
       )}
 
-      {/* KPI Stats Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-        <div className="bg-white p-4 rounded-2xl border border-card-border shadow-xs">
-          <div className="text-[11px] font-bold text-dash-ink-soft uppercase tracking-wider">
-            My Enrolled Learners
-          </div>
-          <div className="font-fraunces text-2xl font-bold text-dash-ink mt-1">
-            {totalLearners}
-          </div>
-          <div className="text-[11px] text-dash-ink-soft mt-0.5">
-            Assigned to {teacherName.split(' ')[0]}
-          </div>
+      {/* Single Summary Line + Search and Filter Bar */}
+      <div className="bg-white rounded-2xl p-4 border border-card-border shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="text-sm font-bold text-dash-ink">
+          {totalLearners} learners • {evaluatedCount} evaluated • {pendingCount} pending
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-card-border shadow-xs">
-          <div className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">
-            Evaluated Learners
+        <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full md:w-auto">
+          <div className="relative w-full sm:w-64">
+            <input
+              type="text"
+              placeholder="Search learner name"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-8 pr-3 py-2 rounded-xl border border-gray-300 bg-white text-xs font-semibold text-dash-ink outline-none focus:border-accent"
+            />
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+              🔍
+            </span>
           </div>
-          <div className="font-fraunces text-2xl font-bold text-emerald-700 mt-1">
-            {evaluatedCount}
-          </div>
-          <div className="text-[11px] text-dash-ink-soft mt-0.5">
-            {totalLearners > 0 ? Math.round((evaluatedCount / totalLearners) * 100) : 0}% of your class
-          </div>
-        </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-card-border shadow-xs">
-          <div className="text-[11px] font-bold text-[#2E6B38] uppercase tracking-wider">
-            Developing as Expected
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <label className="text-xs font-bold text-dash-ink-soft shrink-0">Filter:</label>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="w-full sm:w-auto px-3 py-2 rounded-xl border border-gray-300 bg-white text-xs font-bold text-dash-ink outline-none focus:border-accent"
+            >
+              <option value="all">All learners ({totalLearners})</option>
+              <option value="pending">Pending ({pendingCount})</option>
+              <option value="evaluated">Evaluated ({evaluatedCount})</option>
+              <option value="Developing as Expected">Developing as Expected</option>
+              <option value="Needs Reinforcement">Needs Reinforcement</option>
+              <option value="Requires Follow-up">Requires Follow-up</option>
+            </select>
           </div>
-          <div className="font-fraunces text-2xl font-bold text-[#2E6B38] mt-1">
-            {normalCount}
-          </div>
-          <div className="text-[11px] text-dash-ink-soft mt-0.5">On developmental track</div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-card-border shadow-xs">
-          <div className="text-[11px] font-bold text-[#8C6200] uppercase tracking-wider">
-            Pending / Reinforcement
-          </div>
-          <div className="font-fraunces text-2xl font-bold text-[#8C6200] mt-1">
-            {pendingCount + needsAttentionCount}
-          </div>
-          <div className="text-[11px] text-dash-ink-soft mt-0.5">
-            {pendingCount} unassessed • {needsAttentionCount} focus
-          </div>
-        </div>
-      </div>
-
-      {/* Filter and Search Bar */}
-      <div className="bg-white rounded-2xl p-4 border border-card-border shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="relative w-full sm:w-72">
-          <input
-            type="text"
-            placeholder="Search learner or parent name..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-8 pr-3 py-2 rounded-xl border border-gray-300 bg-white text-xs font-semibold text-dash-ink outline-none focus:border-accent"
-          />
-          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
-            🔍
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <label className="text-xs font-bold text-dash-ink-soft shrink-0">Filter Status:</label>
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="w-full sm:w-auto px-3 py-2 rounded-xl border border-gray-300 bg-white text-xs font-bold text-dash-ink outline-none focus:border-accent"
-          >
-            <option value="all">All Learners ({totalLearners})</option>
-            <option value="evaluated">Evaluated ({evaluatedCount})</option>
-            <option value="pending">Pending Evaluation ({pendingCount})</option>
-            <option value="Developing as Expected">Developing as Expected</option>
-            <option value="Needs Reinforcement">Needs Reinforcement</option>
-            <option value="Requires Follow-up">Requires Follow-up</option>
-          </select>
         </div>
       </div>
 
@@ -436,28 +422,37 @@ export default function TeacherChildDevelopment({
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left text-xs">
             <thead>
-              <tr className="bg-[#FAF5EC] border-b border-card-border text-[11px] font-bold text-[#8C7F63] uppercase tracking-wider">
-                <th className="px-4 py-3">Learner &amp; Age</th>
-                <th className="px-4 py-3">Contact &amp; Barangay</th>
-                <th className="px-4 py-3">ECCD 4-Domain Ratings</th>
-                <th className="px-4 py-3 text-center">Overall Evaluation</th>
-                <th className="px-4 py-3 text-right">Classroom Actions</th>
+              <tr className="bg-[#FAF5EC] border-b border-card-border text-xs font-bold text-[#8C7F63]">
+                <th className="px-4 py-3">Learner and age</th>
+                <th className="px-4 py-3">Contact and barangay</th>
+                <th className="px-4 py-3">Domain ratings</th>
+                <th className="px-4 py-3 text-center">Overall result</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F6F1E7] text-dash-ink">
-              {filteredLearners.length === 0 ? (
+              {isLoading && filteredLearners.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="p-8 text-center text-dash-ink-soft">
+                    Loading learners and evaluations...
+                  </td>
+                </tr>
+              ) : filteredLearners.length === 0 ? (
                 <tr>
                   <td colSpan="5" className="p-8 text-center text-dash-ink-soft">
                     {totalLearners === 0 ? (
-                      <div className="space-y-2 max-w-md mx-auto py-4">
-                        <div className="text-3xl">🧒</div>
-                        <div className="font-bold text-sm text-dash-ink">No Real Students Registered Yet</div>
-                        <p className="text-xs text-dash-ink-soft">
-                          When students sign up or are enrolled under <strong>{cdcName || teacherBarangay}</strong>, they will automatically appear here ready for your 4-Domain developmental assessments.
+                      <div className="space-y-1.5 max-w-md mx-auto py-3">
+                        <div className="text-2xl">🧒</div>
+                        <div className="font-bold text-sm text-dash-ink">
+                          No learners in your class yet
+                        </div>
+                        <p className="text-xs text-dash-ink-soft m-0">
+                          Learners enrolled under <strong>{effectiveCenterName}</strong> will appear
+                          here.
                         </p>
                       </div>
                     ) : (
-                      'No learners found matching your search and filter criteria.'
+                      'No learners found matching your search.'
                     )}
                   </td>
                 </tr>
@@ -466,34 +461,36 @@ export default function TeacherChildDevelopment({
                   const ass = l.assessment;
                   return (
                     <tr key={l.id || l.full_name} className="hover:bg-amber-50/30 transition-colors">
-                      {/* Child & Age */}
+                      {/* Learner and age */}
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-2">
                           <span className="text-base">🧒</span>
                           <div>
                             <div className="font-bold text-sm text-dash-ink">{l.full_name}</div>
                             <div className="text-[11px] text-dash-ink-soft">
-                              {l.birthdate || (l.child_age ? `Age ${l.child_age}` : 'Age 3')} • Brgy. {l.barangay || teacherBarangay}
+                              {formatAgeInYears(l)} • Brgy. {l.barangay || teacherBarangay || '—'}
                             </div>
                           </div>
                         </div>
                       </td>
 
-                      {/* Contact & Barangay */}
+                      {/* Contact and barangay */}
                       <td className="px-4 py-3.5">
                         <div className="font-semibold text-dash-ink">{l.parent_contact || '—'}</div>
-                        <div className="text-[11px] text-dash-ink-soft">Brgy. {l.barangay || teacherBarangay || '—'}</div>
+                        <div className="text-[11px] text-dash-ink-soft">
+                          Brgy. {l.barangay || teacherBarangay || '—'}
+                        </div>
                       </td>
 
-                      {/* 4-Domains ratings */}
+                      {/* 4 Domain ratings */}
                       <td className="px-4 py-3.5">
                         {ass ? (
                           <div className="space-y-1.5">
                             <div className="flex flex-wrap gap-1.5">
-                              {getDomainPill(ass.cognitive_status, 'Cog')}
-                              {getDomainPill(ass.physical_status, 'Phys')}
-                              {getDomainPill(ass.social_status, 'Soc')}
-                              {getDomainPill(ass.language_status, 'Lang')}
+                              {getDomainPill(ass.cognitive_status, 'Cognitive')}
+                              {getDomainPill(ass.physical_status, 'Physical')}
+                              {getDomainPill(ass.social_status, 'Social')}
+                              {getDomainPill(ass.language_status, 'Language')}
                             </div>
                             <div className="text-[10px] text-dash-ink-soft">
                               Evaluated on {ass.date}
@@ -501,52 +498,63 @@ export default function TeacherChildDevelopment({
                           </div>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gray-100 text-gray-600 font-semibold text-[11px]">
-                            <span>⏳</span> Pending Evaluation
+                            Not evaluated yet
                           </span>
                         )}
                       </td>
 
-                      {/* Overall Status */}
+                      {/* Overall result */}
                       <td className="px-4 py-3.5 text-center">
                         {ass ? (
                           <span
-                            className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${getStatusBadge(
+                            className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${getRatingBadgeClass(
                               ass.overall_status
                             )}`}
                           >
                             {ass.overall_status}
                           </span>
                         ) : (
-                          <span className="text-gray-400 text-xs italic">Not Assessed</span>
+                          <span className="text-gray-400 text-xs">Pending</span>
                         )}
                       </td>
 
                       {/* Actions */}
                       <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                        <div className="inline-flex items-center gap-2">
+                        <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
                           {ass ? (
                             <>
                               <button
-                                onClick={() => setActiveDossier(ass)}
-                                className="px-2.5 py-1 rounded-lg bg-[#FAF5EC] hover:bg-[#EFE8DC] text-dash-ink font-bold text-[11px] transition-colors cursor-pointer"
+                                type="button"
+                                onClick={() => setActiveDossier({ ...ass, learner: l })}
+                                className="px-2.5 py-1.5 rounded-lg bg-[#FAF5EC] hover:bg-[#EFE8DC] text-dash-ink font-bold text-xs cursor-pointer"
                               >
-                                View Dossier
+                                View
                               </button>
                               <button
+                                type="button"
                                 onClick={() => handleOpenEvaluate(l)}
-                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition-colors cursor-pointer"
+                                className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer"
                               >
-                                Update
+                                Edit
                               </button>
                             </>
                           ) : (
                             <button
+                              type="button"
                               onClick={() => handleOpenEvaluate(l)}
-                              className="px-3 py-1.5 rounded-lg bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1"
+                              className="px-3 py-1.5 rounded-lg bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs cursor-pointer"
                             >
-                              <span>+</span> Evaluate Child
+                              Evaluate Child
                             </button>
                           )}
+
+                          <button
+                            type="button"
+                            onClick={() => setReportModal({ mode: 'learner', learner: l })}
+                            className="px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-dash-ink font-bold text-xs cursor-pointer"
+                          >
+                            Print Report
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -558,20 +566,20 @@ export default function TeacherChildDevelopment({
         </div>
       </div>
 
-      {/* EVALUATION FORM MODAL */}
+      {/* Evaluation Form Modal */}
       {evaluatingLearner && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-xl border border-card-border space-y-4 animate-pop max-h-[92vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-xl border border-card-border space-y-4 max-h-[92vh] overflow-y-auto">
             <div className="flex items-start justify-between border-b border-card-border pb-3.5">
               <div>
-                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 tracking-wider">
-                  DepEd ECCD 4-Domain Evaluation (Teacher Form)
+                <span className="text-xs font-bold px-2.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                  Child Evaluation Form
                 </span>
                 <h3 className="font-fraunces text-xl font-bold text-dash-ink mt-1">
                   {evalForm.child_name}
                 </h3>
-                <p className="text-xs text-dash-ink-soft">
-                  Teacher: {teacherName} • {cdcName || teacherBarangay}
+                <p className="text-xs text-dash-ink-soft m-0">
+                  Teacher: {teacherName} • {effectiveCenterName}
                 </p>
               </div>
               <button
@@ -586,7 +594,7 @@ export default function TeacherChildDevelopment({
             <form onSubmit={handleSaveAssessment} className="space-y-4 text-xs text-dash-ink">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-dash-ink mb-1">Assessment Date *</label>
+                  <label className="block font-bold text-dash-ink mb-1">Assessment date</label>
                   <input
                     type="date"
                     required
@@ -596,138 +604,88 @@ export default function TeacherChildDevelopment({
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-dash-ink mb-1">Curriculum Level</label>
+                  <label className="block font-bold text-dash-ink mb-1">Class level</label>
                   <select
                     value={evalForm.level}
                     onChange={(e) => setEvalForm({ ...evalForm, level: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-gray-300 font-bold text-xs outline-none focus:border-accent"
                   >
-                    <option value="PRE-K 1">PRE-K 1 (3.11 y/o)</option>
-                    <option value="PRE-K 2">PRE-K 2 (4.11 y/o)</option>
+                    <option value="Pre-K1">3 to 3.11 years (Pre-K1)</option>
+                    <option value="Pre-K2">4 to 4.11 years (Pre-K2)</option>
                   </select>
                 </div>
               </div>
 
               {/* 4 Developmental Domains Selection */}
               <div className="space-y-3 pt-1">
-                <div className="font-bold text-sm text-dash-ink">
-                  Assess 4 Core ECCD Developmental Domains:
-                </div>
+                <div className="font-bold text-sm text-dash-ink">Select rating for each domain:</div>
 
-                {/* Domain 1: Cognitive */}
-                <div className="p-3.5 rounded-2xl bg-amber-50/40 border border-amber-200/60 space-y-2">
-                  <div className="flex items-center justify-between">
+                {[
+                  {
+                    key: 'cognitive_status',
+                    title: '1. Cognitive',
+                    desc: 'Color sorting, counting 1 to 5, basic shapes, and simple puzzles',
+                    boxClass: 'bg-amber-50/40 border-amber-200/60',
+                  },
+                  {
+                    key: 'physical_status',
+                    title: '2. Physical and Motor',
+                    desc: 'Balance, jumping, holding a crayon, line tracing, and playdough',
+                    boxClass: 'bg-blue-50/40 border-blue-200/60',
+                  },
+                  {
+                    key: 'social_status',
+                    title: '3. Social-Emotional',
+                    desc: 'Sharing toys, joining group activities, following rules, and kindness',
+                    boxClass: 'bg-orange-50/40 border-orange-200/60',
+                  },
+                  {
+                    key: 'language_status',
+                    title: '4. Language',
+                    desc: 'Speaking clearly, learning new words, rhymes, and listening to stories',
+                    boxClass: 'bg-purple-50/40 border-purple-200/60',
+                  },
+                ].map((dom) => (
+                  <div
+                    key={dom.key}
+                    className={`p-3.5 rounded-2xl border space-y-2 ${dom.boxClass}`}
+                  >
                     <div>
-                      <div className="font-bold text-dash-ink">1. Cognitive Development</div>
-                      <div className="text-[11px] text-dash-ink-soft">
-                        Color sorting, counting 1 to 5, basic shape identification, puzzle problem solving
-                      </div>
+                      <div className="font-bold text-dash-ink">{dom.title}</div>
+                      <div className="text-[11px] text-dash-ink-soft">{dom.desc}</div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {['Developing as Expected', 'Needs Support', 'Delay'].map((status) => {
+                        const isSelected = evalForm[dom.key] === status;
+                        let selectedStyle = 'bg-[#DCEBDD] text-[#2E6B38] border-[#2E6B38]';
+                        if (status === 'Needs Support') {
+                          selectedStyle = 'bg-[#FFF3D6] text-[#8C6200] border-[#8C6200]';
+                        } else if (status === 'Delay') {
+                          selectedStyle = 'bg-[#FDE2E2] text-[#9E2A2B] border-[#9E2A2B]';
+                        }
+                        return (
+                          <button
+                            type="button"
+                            key={status}
+                            onClick={() => handleDomainChange(dom.key, status)}
+                            className={`px-3 py-1.5 rounded-xl font-bold text-xs border transition-all cursor-pointer ${
+                              isSelected
+                                ? `${selectedStyle} ring-2 ring-offset-1 ring-gray-400`
+                                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            {status}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {['Developing as Expected', 'Needs Support', 'Delay'].map((status) => (
-                      <button
-                        type="button"
-                        key={status}
-                        onClick={() => handleDomainChange('cognitive_status', status)}
-                        className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${evalForm.cognitive_status === status
-                            ? 'bg-emerald-600 text-white shadow-xs'
-                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                          }`}
-                      >
-                        {status}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Domain 2: Physical & Motor */}
-                <div className="p-3.5 rounded-2xl bg-blue-50/40 border border-blue-200/60 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-bold text-dash-ink">2. Physical &amp; Motor Development</div>
-                      <div className="text-[11px] text-dash-ink-soft">
-                        Gross motor balance, jumping, fine motor pincer grasp, crayon tracing, playdough
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {['Developing as Expected', 'Needs Support', 'Delay'].map((status) => (
-                      <button
-                        type="button"
-                        key={status}
-                        onClick={() => handleDomainChange('physical_status', status)}
-                        className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${evalForm.physical_status === status
-                            ? 'bg-emerald-600 text-white shadow-xs'
-                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                          }`}
-                      >
-                        {status}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Domain 3: Social-Emotional */}
-                <div className="p-3.5 rounded-2xl bg-orange-50/40 border border-orange-200/60 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-bold text-dash-ink">3. Social-Emotional Development</div>
-                      <div className="text-[11px] text-dash-ink-soft">
-                        Sharing toys, participation in greeting circles, following routines, empathy
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {['Developing as Expected', 'Needs Support', 'Delay'].map((status) => (
-                      <button
-                        type="button"
-                        key={status}
-                        onClick={() => handleDomainChange('social_status', status)}
-                        className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${evalForm.social_status === status
-                            ? 'bg-emerald-600 text-white shadow-xs'
-                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                          }`}
-                      >
-                        {status}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Domain 4: Language & Communication */}
-                <div className="p-3.5 rounded-2xl bg-purple-50/40 border border-purple-200/60 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-bold text-dash-ink">4. Language &amp; Literacy</div>
-                      <div className="text-[11px] text-dash-ink-soft">
-                        Mother Tongue / English vocabulary, rhymes, expressive speech, listening to stories
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {['Developing as Expected', 'Needs Support', 'Delay'].map((status) => (
-                      <button
-                        type="button"
-                        key={status}
-                        onClick={() => handleDomainChange('language_status', status)}
-                        className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${evalForm.language_status === status
-                            ? 'bg-emerald-600 text-white shadow-xs'
-                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                          }`}
-                      >
-                        {status}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                ))}
               </div>
 
-              {/* Overall Evaluation Result */}
+              {/* Overall Result */}
               <div>
-                <label className="block font-bold text-dash-ink mb-1">
-                  Overall Developmental Assessment Result
-                </label>
+                <label className="block font-bold text-dash-ink mb-1">Overall result</label>
                 <select
                   value={evalForm.overall_status}
                   onChange={(e) => setEvalForm({ ...evalForm, overall_status: e.target.value })}
@@ -737,35 +695,28 @@ export default function TeacherChildDevelopment({
                   <option value="Needs Reinforcement">Needs Reinforcement</option>
                   <option value="Requires Follow-up">Requires Follow-up</option>
                 </select>
-                <div className="text-[11px] text-dash-ink-soft mt-1">
-                  Suggested automatically based on your 4-domain ratings above.
-                </div>
               </div>
 
-              {/* Qualitative Observations */}
+              {/* Observations */}
               <div>
-                <label className="block font-bold text-dash-ink mb-1">
-                  Teacher Qualitative Observations
-                </label>
+                <label className="block font-bold text-dash-ink mb-1">Teacher observations</label>
                 <textarea
                   rows="2"
                   value={evalForm.observations}
                   onChange={(e) => setEvalForm({ ...evalForm, observations: e.target.value })}
-                  placeholder="e.g. Active in morning circle greeting. Identifies colors easily and counts 1-5 with blocks."
+                  placeholder="Write short notes on how the child is doing in class..."
                   className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-medium outline-none focus:border-accent resize-none"
                 />
               </div>
 
-              {/* Recommendations */}
+              {/* Recommendation */}
               <div>
-                <label className="block font-bold text-dash-ink mb-1">
-                  Developmental Recommendations &amp; Home Interventions
-                </label>
+                <label className="block font-bold text-dash-ink mb-1">Recommendation</label>
                 <textarea
                   rows="2"
                   value={evalForm.recommendation}
                   onChange={(e) => setEvalForm({ ...evalForm, recommendation: e.target.value })}
-                  placeholder="e.g. Practice line tracing and guided sensory play with parent at home."
+                  placeholder="Write simple tips for parents to practice at home..."
                   className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-medium outline-none focus:border-accent resize-none"
                 />
               </div>
@@ -782,9 +733,9 @@ export default function TeacherChildDevelopment({
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-5 py-2 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs cursor-pointer disabled:opacity-50"
                 >
-                  {isSaving ? 'Saving to Supabase...' : 'Save Assessment'}
+                  {isSaving ? 'Saving...' : 'Save Evaluation'}
                 </button>
               </div>
             </form>
@@ -792,123 +743,157 @@ export default function TeacherChildDevelopment({
         </div>
       )}
 
-      {/* DOSSIER MODAL */}
+      {/* View Dossier Modal (Uses isolated @media print so only the dossier prints) */}
       {activeDossier && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-xl border border-card-border space-y-4 animate-pop max-h-[90vh] overflow-y-auto">
+          <style>{`
+            @media print {
+              body * {
+                visibility: hidden !important;
+              }
+              #teacher-printable-dossier,
+              #teacher-printable-dossier * {
+                visibility: visible !important;
+              }
+              #teacher-printable-dossier {
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 16px !important;
+                box-shadow: none !important;
+                border: none !important;
+                background: #ffffff !important;
+              }
+              .no-print {
+                display: none !important;
+              }
+            }
+          `}</style>
+
+          <div
+            id="teacher-printable-dossier"
+            className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-xl border border-card-border space-y-4 max-h-[90vh] overflow-y-auto"
+          >
             <div className="flex items-start justify-between border-b border-card-border pb-3.5">
               <div>
-                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-700 tracking-wider">
-                  Official DepEd ECCD Child Dossier
-                </span>
-                <h3 className="font-fraunces text-xl font-bold text-dash-ink mt-1">
+                <div className="text-xs font-bold text-dash-ink-soft">
+                  Municipality of Manolo Fortich, Bukidnon - MSWDO
+                </div>
+                <h3 className="font-fraunces text-xl font-bold text-dash-ink mt-0.5">
                   {activeDossier.child_name}
                 </h3>
-                <p className="text-xs text-dash-ink-soft">
-                  Assessed by {activeDossier.teacher_name} ({activeDossier.cdc_name || cdcName}) on {activeDossier.date}
+                <p className="text-xs text-dash-ink-soft m-0">
+                  {activeDossier.cdc_name || effectiveCenterName} • Evaluated on {activeDossier.date}
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => setActiveDossier(null)}
-                className="w-8 h-8 rounded-full bg-[#FAF5EC] text-dash-ink font-bold text-sm hover:bg-[#EFE8DC] cursor-pointer"
+                className="no-print w-8 h-8 rounded-full bg-[#FAF5EC] text-dash-ink font-bold text-sm hover:bg-[#EFE8DC] cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
             <div className="space-y-3 text-xs">
-              <div className="font-bold text-dash-ink">4 Core ECCD Developmental Domains:</div>
+              <div className="font-bold text-dash-ink">Domain ratings:</div>
 
-              <div className="p-3 rounded-xl bg-[#FAF5EC] border border-card-border flex items-center justify-between">
-                <div>
-                  <div className="font-bold text-dash-ink">1. Cognitive Development</div>
-                  <div className="text-[11px] text-dash-ink-soft">
-                    Color sorting, counting 1 to 5, pairing basic geometric shapes
-                  </div>
-                </div>
-                {getDomainPill(activeDossier.cognitive_status, 'Rating')}
-              </div>
-
-              <div className="p-3 rounded-xl bg-[#FAF5EC] border border-card-border flex items-center justify-between">
-                <div>
-                  <div className="font-bold text-dash-ink">2. Physical &amp; Motor Development</div>
-                  <div className="text-[11px] text-dash-ink-soft">
-                    Fine motor pincer grip, gross motor balance, outdoor play
-                  </div>
-                </div>
-                {getDomainPill(activeDossier.physical_status, 'Rating')}
-              </div>
-
-              <div className="p-3 rounded-xl bg-[#FAF5EC] border border-card-border flex items-center justify-between">
-                <div>
-                  <div className="font-bold text-dash-ink">3. Social-Emotional Development</div>
-                  <div className="text-[11px] text-dash-ink-soft">
-                    Group circle participation, sharing with peers, following routines
-                  </div>
-                </div>
-                {getDomainPill(activeDossier.social_status, 'Rating')}
-              </div>
-
-              <div className="p-3 rounded-xl bg-[#FAF5EC] border border-card-border flex items-center justify-between">
-                <div>
-                  <div className="font-bold text-dash-ink">4. Language &amp; Literacy</div>
-                  <div className="text-[11px] text-dash-ink-soft">
-                    Articulation in Mother Tongue and English, listening comprehension
-                  </div>
-                </div>
-                {getDomainPill(activeDossier.language_status, 'Rating')}
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-stone-50 border border-card-border space-y-1">
-                <div className="font-bold text-dash-ink">Overall Result:</div>
-                <div className="flex items-center gap-2">
+              {[
+                { label: '1. Cognitive', value: activeDossier.cognitive_status },
+                { label: '2. Physical and Motor', value: activeDossier.physical_status },
+                { label: '3. Social-Emotional', value: activeDossier.social_status },
+                { label: '4. Language', value: activeDossier.language_status },
+              ].map((dom) => (
+                <div
+                  key={dom.label}
+                  className="p-3 rounded-xl bg-[#FAF5EC] border border-card-border flex items-center justify-between"
+                >
+                  <div className="font-bold text-dash-ink">{dom.label}</div>
                   <span
-                    className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold ${getStatusBadge(
-                      activeDossier.overall_status
+                    className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${getRatingBadgeClass(
+                      dom.value
                     )}`}
                   >
-                    {activeDossier.overall_status}
+                    {dom.value}
                   </span>
                 </div>
+              ))}
+
+              <div className="p-3.5 rounded-xl bg-stone-50 border border-card-border flex items-center justify-between">
+                <div className="font-bold text-dash-ink">Overall result:</div>
+                <span
+                  className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold ${getRatingBadgeClass(
+                    activeDossier.overall_status
+                  )}`}
+                >
+                  {activeDossier.overall_status}
+                </span>
               </div>
 
-              {activeDossier.observations && (
-                <div className="p-3.5 rounded-xl bg-[#FFFDF8] border border-card-border space-y-1">
-                  <div className="font-bold text-dash-ink">Teacher Observations:</div>
-                  <p className="text-xs text-dash-ink-soft italic leading-relaxed m-0">
-                    "{activeDossier.observations}"
-                  </p>
-                </div>
-              )}
+              <div className="p-3.5 rounded-xl bg-[#FFFDF8] border border-card-border space-y-1">
+                <div className="font-bold text-dash-ink">Teacher observations:</div>
+                <p className="text-xs text-dash-ink-soft leading-relaxed m-0">
+                  {activeDossier.observations || 'No observations recorded.'}
+                </p>
+              </div>
 
-              {activeDossier.recommendation && (
-                <div className="p-3.5 rounded-xl bg-[#FFFDF8] border border-card-border space-y-1">
-                  <div className="font-bold text-dash-ink">Action Plan &amp; Home Interventions:</div>
-                  <p className="text-xs text-dash-ink-soft leading-relaxed m-0">
-                    {activeDossier.recommendation}
-                  </p>
+              <div className="p-3.5 rounded-xl bg-[#FFFDF8] border border-card-border space-y-1">
+                <div className="font-bold text-dash-ink">Recommendation:</div>
+                <p className="text-xs text-dash-ink-soft leading-relaxed m-0">
+                  {activeDossier.recommendation || 'No recommendation recorded.'}
+                </p>
+              </div>
+
+              <div className="pt-4 grid grid-cols-2 gap-6 border-t border-gray-200 text-xs">
+                <div>
+                  <div className="text-dash-ink-soft mb-4">Prepared by:</div>
+                  <div className="font-bold text-dash-ink border-b border-gray-400 pb-0.5">
+                    {activeDossier.teacher_name || teacherName}
+                  </div>
                 </div>
-              )}
+                <div>
+                  <div className="text-dash-ink-soft mb-4">Noted by:</div>
+                  <div className="font-bold text-dash-ink border-b border-gray-400 pb-0.5">
+                    MSWDO
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="pt-2 flex items-center justify-end gap-2 border-t border-card-border">
+            <div className="no-print pt-2 flex items-center justify-end gap-2.5 border-t border-card-border">
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="px-3.5 py-2 rounded-xl border border-gray-300 text-dash-ink font-bold text-xs hover:bg-gray-50 cursor-pointer"
+                className="px-5 py-2.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs cursor-pointer"
               >
-                🖨️ Print
+                Print or Save as PDF
               </button>
               <button
                 type="button"
                 onClick={() => setActiveDossier(null)}
-                className="px-4 py-2 rounded-xl bg-accent text-white font-bold text-xs hover:bg-[#B5673C] cursor-pointer"
+                className="px-4 py-2.5 rounded-xl border border-gray-300 text-dash-ink font-bold text-xs hover:bg-gray-50 cursor-pointer"
               >
                 Close
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Printable Report Sheet Modal (Individual Learner Report or Class Report) */}
+      {reportModal && (
+        <TeacherReportSheet
+          mode={reportModal.mode}
+          learner={reportModal.learner || null}
+          learners={enrichedLearners}
+          cdcName={effectiveCenterName}
+          teacherBarangay={teacherBarangay}
+          teacherName={teacherName}
+          onClose={() => setReportModal(null)}
+        />
       )}
     </div>
   );
