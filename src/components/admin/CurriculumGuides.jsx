@@ -12,6 +12,7 @@ import {
   cleanTeacherDisplayName,
   isDummyTeacherAccount,
   purgeDummyTeacherAccountsFromLocalStorage,
+  fetchSyncedTeachersList,
 } from '../../lib/curriculumData.js';
 import { supabase, barangays } from '../../lib/supabaseClient';
 import {
@@ -55,49 +56,8 @@ export default function CurriculumGuides({
 
     async function fetchSupabaseTeachers() {
       try {
-        const { data: teachersData } = await supabase
-          .from('teachers')
-          .select('id, full_name, barangay, contact_number, email, cdc_id, cdcs(name)');
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('role', 'teacher');
-
-        const list = [...(teachersData || [])].filter((t) => !isDummyTeacherAccount(t));
-        if (profilesData && profilesData.length > 0) {
-          profilesData.forEach((prof) => {
-            if (isDummyTeacherAccount(prof)) {
-              // Best-effort remove dummy teacher account from Supabase profiles
-              if (prof.id) {
-                supabase.from('profiles').delete().eq('id', prof.id).then(() => {}).catch(() => {});
-              }
-              return;
-            }
-            const cleanProfName = (prof.full_name || '').replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase();
-            const existing = list.find(
-              (t) =>
-                t.id === prof.id ||
-                (t.full_name && cleanProfName && t.full_name.toLowerCase().includes(cleanProfName)) ||
-                (cleanProfName && t.full_name && cleanProfName.includes(t.full_name.toLowerCase()))
-            );
-            if (existing) {
-              existing.full_name = prof.full_name || existing.full_name;
-              existing.barangay = prof.barangay || existing.barangay;
-              if (prof.contact_number) existing.contact_number = prof.contact_number;
-              if (prof.cdc_name) existing.cdc_name = prof.cdc_name;
-            } else {
-              list.push({
-                id: prof.id,
-                full_name: prof.full_name,
-                barangay: prof.barangay,
-                contact_number: prof.contact_number || null,
-                email: prof.email || null,
-                cdc_name: prof.cdc_name || null,
-              });
-            }
-          });
-        }
-        setDbTeachers(list.filter((t) => !isDummyTeacherAccount(t)));
+        const synced = await fetchSyncedTeachersList(supabase);
+        setDbTeachers(synced.filter((t) => !isDummyTeacherAccount(t)));
       } catch {
         // ignore
       }
@@ -168,55 +128,25 @@ export default function CurriculumGuides({
     };
     window.addEventListener('storage', handleSync);
     window.addEventListener('earlylearn_teachers_updated', handleSync);
+    window.addEventListener('earlylearn_teacher_profile_saved', handleSync);
     window.addEventListener('earlylearn_assignments_updated', handleSync);
     return () => {
       window.removeEventListener('storage', handleSync);
       window.removeEventListener('earlylearn_teachers_updated', handleSync);
+      window.removeEventListener('earlylearn_teacher_profile_saved', handleSync);
       window.removeEventListener('earlylearn_assignments_updated', handleSync);
     };
   }, []);
 
   // Real active teachers list merged with Supabase and local overrides
   const activeTeachersList = useMemo(() => {
-    let base = [...realTeachersList];
-    if (dbTeachers.length > 0) {
-      const cleanDb = dbTeachers.filter((t) => !isDummyTeacherAccount(t));
-      const existingNames = new Set(
-        cleanDb.map((t) => (t.full_name || '').replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase())
-      );
-      const nonDuplicateBaseline = base.filter((b) => {
-        const bName = (b.full_name || '').toLowerCase();
-        return !Array.from(existingNames).some((e) => e && (bName.includes(e) || e.includes(bName)));
-      });
-      base = [...cleanDb, ...nonDuplicateBaseline];
-    }
-
-    try {
-      const overrides = JSON.parse(localStorage.getItem('earlylearn_teacher_profiles_override') || '{}');
-      return base
-        .map((t) => {
-          const ov =
-            overrides[t.id] ||
-            (t.email && overrides[t.email.toLowerCase()]) ||
-            (t.full_name && overrides[t.full_name.toLowerCase()]);
-          if (ov && !isDummyTeacherAccount(ov)) {
-            return {
-              ...t,
-              full_name: cleanTeacherDisplayName(ov.full_name || t.full_name),
-              barangay: ov.barangay || t.barangay,
-              cdc_name: ov.cdc_name || t.cdc_name,
-              contact_number: ov.contact_number || t.contact_number,
-            };
-          }
-          return {
-            ...t,
-            full_name: cleanTeacherDisplayName(t.full_name) || t.full_name,
-          };
-        })
-        .filter((t) => !isDummyTeacherAccount(t));
-    } catch {
-      return base.filter((t) => !isDummyTeacherAccount(t));
-    }
+    const base = dbTeachers.length > 0 ? [...dbTeachers] : [...realTeachersList];
+    return base
+      .filter((t) => !isDummyTeacherAccount(t))
+      .map((t) => ({
+        ...t,
+        full_name: cleanTeacherDisplayName(t.full_name) || t.full_name,
+      }));
   }, [teacherUpdateTick, dbTeachers]);
 
   // Modal State for Assigning Curriculum

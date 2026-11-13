@@ -12,6 +12,9 @@ import {
   getCleanTeacherModulesList,
   doesAssignmentMatchTeacher,
   normalizeTeacherName,
+  cleanTeacherDisplayName,
+  findBaselineTeacherMatch,
+  saveTeacherProfileSyncToSupabase,
 } from '../lib/curriculumData.js';
 import {
   getLearnersForTeacher,
@@ -224,7 +227,7 @@ const [progressRows, setProgressRows] = useState([]);
 const [totalStudents, setTotalStudents] = useState(0);
 
 // Profile tab states (personal info, barangay, and specific CDC)
-const [myFullName, setMyFullName] = useState(profile?.full_name || '');
+const [myFullName, setMyFullName] = useState(() => cleanTeacherDisplayName(profile?.full_name || ''));
 const [myContact, setMyContact] = useState(profile?.contact_number || '');
 const [myEmail, setMyEmail] = useState(profile?.email || '');
 const [myBarangay, setMyBarangay] = useState(profile?.barangay || '');
@@ -235,6 +238,7 @@ const [customCdcInput, setCustomCdcInput] = useState('');
 const [myBio, setMyBio] = useState('');
 const [profileSaving, setProfileSaving] = useState(false);
 const [profileMsg, setProfileMsg] = useState({ text: '', type: '' });
+const baselineTeacherRef = useRef(null);
 
 // My Learners tab — auto-filtered by this teacher's assigned CDC
 const [myLearners, setMyLearners] = useState([]);
@@ -2352,32 +2356,16 @@ const handleFileSelected = async (file) => {
 
   // --- My Profile (Only Essential Volunteer Teacher Information) ---
   const loadMyProfile = useCallback(async () => {
-    let loadedName = '';
+    let rawLoadedName = '';
     let loadedBarangay = '';
     let loadedContact = '';
     let loadedEmail = '';
     let loadedCdcId = '';
     let loadedCdcName = '';
     let loadedBio = '';
+    let loadedBaselineId = '';
 
-    // 1. First fetch fresh Supabase Auth metadata (guaranteed cross-device sync)
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user?.user_metadata) {
-        const meta = user.user_metadata;
-        if (meta.full_name) loadedName = meta.full_name;
-        if (meta.barangay) loadedBarangay = meta.barangay;
-        if (meta.contact_number) loadedContact = meta.contact_number;
-        if (meta.email || user.email) loadedEmail = meta.email || user.email;
-        if (meta.cdc_name) loadedCdcName = meta.cdc_name;
-        if (meta.cdc_id) loadedCdcId = meta.cdc_id;
-        if (meta.bio) loadedBio = meta.bio;
-      }
-    } catch {
-      // ignore
-    }
-
-    // 2. Query Supabase profiles & teachers table
+    // 1. Query Supabase profiles & teachers table first as base
     try {
       const { data: profData } = await supabase
         .from('profiles')
@@ -2385,7 +2373,7 @@ const handleFileSelected = async (file) => {
         .eq('id', currentUserId)
         .single();
       if (profData) {
-        if (profData.full_name) loadedName = profData.full_name;
+        if (profData.full_name) rawLoadedName = profData.full_name;
         if (profData.barangay) loadedBarangay = profData.barangay;
         if (profData.contact_number) loadedContact = profData.contact_number;
         if (profData.cdc_name) loadedCdcName = profData.cdc_name;
@@ -2397,7 +2385,7 @@ const handleFileSelected = async (file) => {
         .eq('id', currentUserId)
         .single();
       if (teachData) {
-        if (teachData.full_name) loadedName = teachData.full_name;
+        if (teachData.full_name) rawLoadedName = teachData.full_name;
         if (teachData.barangay) loadedBarangay = teachData.barangay;
         if (teachData.contact_number) loadedContact = teachData.contact_number;
         if (teachData.email) loadedEmail = teachData.email;
@@ -2408,58 +2396,151 @@ const handleFileSelected = async (file) => {
       // ignore
     }
 
-    // 3. Fallback to passed profile props if still empty
-    if (!loadedName && profile?.full_name) loadedName = profile.full_name;
+    // 2. Overlay fresh Supabase Auth metadata (cross-device sync)
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.user_metadata) {
+        const meta = user.user_metadata;
+        if (meta.full_name) rawLoadedName = meta.full_name;
+        if (meta.barangay) loadedBarangay = meta.barangay;
+        if (meta.contact_number) loadedContact = meta.contact_number;
+        if (meta.email || user.email) loadedEmail = meta.email || user.email;
+        if (meta.cdc_name) loadedCdcName = meta.cdc_name;
+        if (meta.cdc_id) loadedCdcId = meta.cdc_id;
+        if (meta.bio) loadedBio = meta.bio;
+        if (meta.baseline_id) loadedBaselineId = meta.baseline_id;
+      }
+    } catch {
+      // ignore
+    }
+
+    // 3. Check local override if saved for this user ID
+    try {
+      const overrides = JSON.parse(localStorage.getItem('earlylearn_teacher_profiles_override') || '{}');
+      const localOv = overrides[currentUserId] || (loadedBaselineId && overrides[loadedBaselineId]);
+      if (localOv) {
+        if (localOv.full_name) rawLoadedName = localOv.full_name;
+        if (localOv.barangay) loadedBarangay = localOv.barangay;
+        if (localOv.contact_number) loadedContact = localOv.contact_number;
+        if (localOv.cdc_name) loadedCdcName = localOv.cdc_name;
+        if (localOv.cdc_id) loadedCdcId = localOv.cdc_id;
+        if (localOv.bio) loadedBio = localOv.bio;
+        if (localOv.baseline_id) loadedBaselineId = localOv.baseline_id;
+      }
+    } catch {
+      // ignore
+    }
+
+    // 4. Fallback to passed profile props if still empty
+    if (!rawLoadedName && profile?.full_name) rawLoadedName = profile.full_name;
     if (!loadedBarangay && profile?.barangay) loadedBarangay = profile.barangay;
     if (!loadedContact && profile?.contact_number) loadedContact = profile.contact_number;
     if (!loadedEmail && profile?.email) loadedEmail = profile.email;
     if (!loadedCdcName && profile?.cdc_name) loadedCdcName = profile.cdc_name;
 
-    // 4. Fallback matching with realTeachersList if still blank
-    if (!loadedBarangay || !loadedCdcName) {
-      const match = realTeachersList.find(
-        (t) =>
-          t.id === currentUserId ||
-          (t.email && loadedEmail && t.email.toLowerCase() === loadedEmail.toLowerCase()) ||
-          (t.full_name && loadedName && t.full_name.toLowerCase().includes(loadedName.toLowerCase()))
-      );
-      if (match) {
-        if (!loadedName) loadedName = match.full_name;
-        if (!loadedBarangay) loadedBarangay = match.barangay;
-        if (!loadedCdcName) loadedCdcName = match.cdc_name;
-        if (!loadedContact) loadedContact = match.contact_number;
-        if (!loadedEmail) loadedEmail = match.email;
+    // Extract any parenthetical CDC name e.g. "(DALIRIG CHILD DEVELOPMENT CENTER)" before cleaning
+    const parenMatch = String(rawLoadedName || '').match(/\(([^)]+)\)/);
+    if (parenMatch && parenMatch[1] && !loadedCdcName) {
+      const parenText = parenMatch[1].trim();
+      if (/center|cdc|play/i.test(parenText)) {
+        const matchedCdc = realCdcsList.find(
+          (c) => c.name.toLowerCase() === parenText.toLowerCase()
+        );
+        loadedCdcName = matchedCdc ? matchedCdc.name : parenText;
+        if (matchedCdc && !loadedBarangay) loadedBarangay = matchedCdc.barangay;
       }
     }
+
+    const cleanedLoadedName = cleanTeacherDisplayName(rawLoadedName);
+
+    // 5. Match with baseline teacher in `realTeachersList`
+    const baselineMatch = findBaselineTeacherMatch({
+      id: currentUserId,
+      baseline_id: loadedBaselineId,
+      full_name: cleanedLoadedName,
+      email: loadedEmail,
+      barangay: loadedBarangay,
+      cdc_name: loadedCdcName,
+    });
+
+    if (baselineMatch) {
+      baselineTeacherRef.current = baselineMatch;
+      if (!cleanedLoadedName) rawLoadedName = baselineMatch.full_name;
+      if (!loadedBarangay) loadedBarangay = baselineMatch.barangay;
+      if (!loadedCdcName) loadedCdcName = baselineMatch.cdc_name;
+      if (!loadedContact) loadedContact = baselineMatch.contact_number;
+      if (!loadedEmail) loadedEmail = baselineMatch.email;
+    }
+
+    const finalCleanName = cleanTeacherDisplayName(rawLoadedName);
 
     const { contactNumber: cleanLoadedContact, registrationCode: loadedRegCode } =
       parseTeacherContactAndCode(loadedContact);
     if (loadedRegCode) setTeacherRegCode(loadedRegCode);
 
-    setMyFullName(loadedName);
+    setMyFullName(finalCleanName);
     setMyBarangay(loadedBarangay);
     setMyContact(cleanLoadedContact);
     setMyEmail(loadedEmail);
     setMyCdcId(loadedCdcId);
     setMyCdcName(loadedCdcName);
     setMyBio(loadedBio);
-  }, [currentUserId, profile]);
 
-  // Handle Save & Sync Teacher Profile (updates Supabase Auth + Supabase DB + broadcasts to Admin)
+    if (profile && finalCleanName) {
+      profile.full_name = finalCleanName;
+      if (loadedBarangay) profile.barangay = loadedBarangay;
+      if (loadedCdcName) profile.cdc_name = loadedCdcName;
+    }
+
+    // Auto-heal stored profile if rawLoadedName had duplicate "Teacher " or parenthetical "(CDC)"
+    if (rawLoadedName && finalCleanName && rawLoadedName.trim() !== finalCleanName) {
+      try {
+        await supabase.auth.updateUser({
+          data: {
+            full_name: finalCleanName,
+            barangay: loadedBarangay || undefined,
+            cdc_name: loadedCdcName || undefined,
+            baseline_id: baselineMatch?.id || loadedBaselineId || undefined,
+          },
+        });
+      } catch {
+        // ignore
+      }
+      saveTeacherProfileSyncToSupabase(supabase, {
+        id: currentUserId,
+        baseline_id: baselineMatch?.id || loadedBaselineId || null,
+        baseline_name: baselineMatch?.full_name || finalCleanName,
+         baseline_email: baselineMatch?.email || '',
+        previous_name: finalCleanName,
+        full_name: finalCleanName,
+        email: loadedEmail,
+        barangay: loadedBarangay,
+        cdc_id: loadedCdcId || null,
+        cdc_name: loadedCdcName,
+        contact_number: cleanLoadedContact,
+        packed_contact: packTeacherContactAndCode(cleanLoadedContact, loadedRegCode || teacherRegCode),
+        registration_code: loadedRegCode || teacherRegCode,
+        bio: loadedBio,
+      });
+    }
+  }, [currentUserId, profile, teacherRegCode]);
+
+  // Handle Save & Sync Teacher Profile (updates Supabase Auth + Supabase DB + broadcasts to MSWD Admin)
   async function handleSaveTeacherProfile(e) {
     if (e) e.preventDefault();
-    if (!myFullName.trim()) {
-      setProfileMsg({ text: '⚠️ Palihug isulat ang imong kompleto nga Pangalan (Full Name).', type: 'error' });
+    const cleanedName = cleanTeacherDisplayName(myFullName.trim());
+    if (!cleanedName) {
+      setProfileMsg({ text: 'Please enter your full name.', type: 'error' });
       return;
     }
     if (!myBarangay) {
-      setProfileMsg({ text: '⚠️ Palihug pilia ang imong Barangay nga gisilbihan.', type: 'error' });
+      setProfileMsg({ text: 'Please select your assigned barangay.', type: 'error' });
       return;
     }
 
     const finalCdc = customCdcMode && customCdcInput.trim() ? customCdcInput.trim() : myCdcName;
     if (!finalCdc) {
-      setProfileMsg({ text: '⚠️ Palihug pilia o isulat ang ngalan sa imong Child Development Center (CDC).', type: 'error' });
+      setProfileMsg({ text: 'Please select or enter your Child Development Center (CDC).', type: 'error' });
       return;
     }
 
@@ -2469,28 +2550,32 @@ const handleFileSelected = async (file) => {
     const cleanContact = parseTeacherContactAndCode(myContact).contactNumber;
     const packedContact = packTeacherContactAndCode(cleanContact, teacherRegCode);
 
-    const updatedTeacher = {
-      id: currentUserId,
-      full_name: myFullName.trim(),
-      email: myEmail.trim() || profile?.email || '',
-      barangay: myBarangay,
-      cdc_id: myCdcId || null,
-      cdc_name: finalCdc,
-      contact_number: cleanContact || null,
-      bio: myBio.trim() || null,
-      updated_at: new Date().toISOString(),
-    };
+    const matchedBaseline =
+      baselineTeacherRef.current ||
+      findBaselineTeacherMatch({
+        id: currentUserId,
+        full_name: cleanedName,
+        previous_name: profile?.full_name,
+        email: myEmail.trim() || profile?.email || '',
+        barangay: myBarangay,
+        cdc_name: finalCdc,
+      });
+
+    if (matchedBaseline) {
+      baselineTeacherRef.current = matchedBaseline;
+    }
 
     let supabaseSaved = false;
 
     try {
       const { error: authErr } = await supabase.auth.updateUser({
         data: {
-          full_name: updatedTeacher.full_name,
-          barangay: updatedTeacher.barangay,
-          cdc_name: updatedTeacher.cdc_name,
-          contact_number: updatedTeacher.contact_number,
-          bio: updatedTeacher.bio,
+          full_name: cleanedName,
+          barangay: myBarangay,
+          cdc_name: finalCdc,
+          contact_number: cleanContact || null,
+          bio: myBio.trim() || null,
+          baseline_id: matchedBaseline?.id || null,
         },
       });
       if (!authErr) supabaseSaved = true;
@@ -2498,74 +2583,65 @@ const handleFileSelected = async (file) => {
       console.warn('Note on Supabase auth.updateUser:', err);
     }
 
+    // Save & sync across `profiles`, `teachers`, `cdcs`, `[TEACHER_PROFILE_SYNC]` in `materials`, and `localStorage`
+    const syncedTeacher = await saveTeacherProfileSyncToSupabase(supabase, {
+      id: currentUserId,
+      baseline_id: matchedBaseline?.id || null,
+      baseline_name: matchedBaseline?.full_name || cleanTeacherDisplayName(profile?.full_name || '') || cleanedName,
+      baseline_email: matchedBaseline?.email || '',
+      previous_name: cleanTeacherDisplayName(profile?.full_name || '') || cleanedName,
+      full_name: cleanedName,
+      email: myEmail.trim() || profile?.email || '',
+      barangay: myBarangay,
+      cdc_id: myCdcId || null,
+      cdc_name: finalCdc,
+      contact_number: cleanContact || null,
+      packed_contact: packedContact,
+      registration_code: teacherRegCode,
+      bio: myBio.trim() || null,
+    });
+
+    if (syncedTeacher) supabaseSaved = true;
+
+    // Also update teacher name, barangay, and CDC on this teacher's uploaded activities so MSWD Activity Monitoring stays in sync
     try {
-      const { error: profError } = await supabase
-        .from('profiles')
-        .update({
-          full_name: updatedTeacher.full_name,
-          barangay: updatedTeacher.barangay,
-        })
-        .eq('id', currentUserId);
-      if (!profError) supabaseSaved = true;
-
-      try {
-        await supabase
-          .from('profiles')
-          .update({
-            cdc_name: updatedTeacher.cdc_name,
-            contact_number: updatedTeacher.contact_number,
-          })
-          .eq('id', currentUserId);
-      } catch { }
-    } catch (err) {
-      console.warn('Note on Supabase profiles update:', err);
-    }
-
-    try {
-      const teacherPayload = {
-        id: currentUserId,
-        full_name: updatedTeacher.full_name,
-        email: updatedTeacher.email,
-        barangay: updatedTeacher.barangay,
-        contact_number: packedContact,
-      };
-      if (updatedTeacher.cdc_id) teacherPayload.cdc_id = updatedTeacher.cdc_id;
-
-      const { error: tchError } = await supabase.from('teachers').upsert(teacherPayload);
-      if (!tchError) supabaseSaved = true;
-    } catch (err) {
-      console.warn('Note on Supabase teachers upsert:', err);
-    }
-
-    try {
-      const overrides = JSON.parse(localStorage.getItem('earlylearn_teacher_profiles_override') || '{}');
-      overrides[currentUserId] = updatedTeacher;
-      if (updatedTeacher.email) overrides[updatedTeacher.email.toLowerCase()] = updatedTeacher;
-      if (updatedTeacher.full_name) overrides[updatedTeacher.full_name.toLowerCase()] = updatedTeacher;
-      localStorage.setItem('earlylearn_teacher_profiles_override', JSON.stringify(overrides));
-      localStorage.setItem('earlylearn_active_teacher_profile', JSON.stringify(updatedTeacher));
-    } catch (err) {
-      console.warn('Failed saving local overrides:', err);
+      const updatedMods = (localTeacherModules || []).map((m) => {
+        if (m.teacher_id === currentUserId || normalizeTeacherName(m.teacher_name) === normalizeTeacherName(profile?.full_name || cleanedName)) {
+          return {
+            ...m,
+            teacher_name: cleanedName,
+            barangay: myBarangay,
+            cdc_name: finalCdc,
+          };
+        }
+        return m;
+      });
+      setLocalTeacherModules(updatedMods);
+      localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(updatedMods));
+      window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updatedMods }));
+    } catch {
+      // ignore
     }
 
     if (profile) {
-      profile.full_name = updatedTeacher.full_name;
-      profile.barangay = updatedTeacher.barangay;
-      profile.cdc_name = updatedTeacher.cdc_name;
-      profile.contact_number = updatedTeacher.contact_number;
+      profile.full_name = cleanedName;
+      profile.barangay = myBarangay;
+      profile.cdc_name = finalCdc;
+      profile.contact_number = cleanContact;
     }
+    setMyFullName(cleanedName);
     setMyCdcName(finalCdc);
-
-    window.dispatchEvent(new CustomEvent('earlylearn_teachers_updated', { detail: updatedTeacher }));
-    window.dispatchEvent(new CustomEvent('earlylearn_teacher_profile_saved', { detail: updatedTeacher }));
+    if (syncedTeacher?.cdc_id) {
+      setMyCdcId(syncedTeacher.cdc_id);
+    }
 
     loadMyLearners();
 
     setProfileSaving(false);
     setProfileMsg({
       text: supabaseSaved
-        ? `✅ Malampusong na-save ang imong profile sa Supabase! Na-update na: ${finalCdc}, Brgy. ${myBarangay}.`
-        : `✅ Na-save ang imong profile! Na-update na: ${finalCdc}, Brgy. ${myBarangay}.`,
+        ? `Profile saved and synced to MSWD! Updated: Teacher ${cleanedName} (${finalCdc}, Brgy. ${myBarangay}).`
+        : `Profile saved! Updated: Teacher ${cleanedName} (${finalCdc}, Brgy. ${myBarangay}).`,
       type: 'ok',
     });
   }
@@ -2957,7 +3033,9 @@ const handleFileSelected = async (file) => {
       {activeTab === 'overview' && (
         <div className="space-y-5">
           <div className={cardBox}>
-            <h3 className={cardBoxTitle}>Welcome, Teacher {myFullName || profile?.full_name || ''}!</h3>
+            <h3 className={cardBoxTitle}>
+              Welcome, Teacher {cleanTeacherDisplayName(myFullName || profile?.full_name || '')}!
+            </h3>
             <p className="text-sm text-[#5c5342]">
               Comply with the topics assigned by MSWD, wait for MSWD approval, and then post approved activities directly to your Student Dashboard.
             </p>
@@ -4908,7 +4986,7 @@ const handleFileSelected = async (file) => {
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-xl font-bold text-slate-900 m-0">
-                    {myFullName || profile?.full_name || 'Volunteer Teacher / Day Care Worker'}
+                    Teacher {cleanTeacherDisplayName(myFullName || profile?.full_name || '') || 'Child Development Worker'}
                   </h3>
                   <span className="text-[10.5px] px-2.5 py-0.5 rounded-full font-bold bg-[#DCEBDD] text-[#2E6B38] border border-emerald-300">
                     Child Development Worker (CDW)
@@ -4933,9 +5011,9 @@ const handleFileSelected = async (file) => {
             <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 max-w-sm">
               <span className="font-bold flex items-center gap-1.5 text-amber-900 mb-1">
                 <span>🌸</span>
-                <span>Pahinumdom para sa Magtutudlo</span>
+                <span>Teacher Profile &amp; MSWD Sync</span>
               </span>
-              Kini nga profile dali ug yano ra gamiton. Siguroa lang nga insakto ang imong pangalan, numero sa selpon, ug ang sentro nga imong gisilbihan aron dali ka makontak sa MSWDO ug sa mga ginikanan.
+              Keep your full name, phone number, and assigned Day Care Center accurate. Saving your profile automatically updates the MSWDO Admin Dashboard.
             </div>
           </div>
 
@@ -4966,24 +5044,24 @@ const handleFileSelected = async (file) => {
                 <div className="border-b border-slate-100 pb-3">
                   <h4 className="font-fraunces text-base font-bold text-slate-900 m-0 flex items-center gap-2">
                     <span>👤</span>
-                    <span>1. Imong Impormasyon (Personal Details)</span>
+                    <span>1. Personal Details</span>
                   </h4>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    Kompleto nga pangalan ug contact number para sa komunikasyon.
+                    Your full name and contact number for MSWDO and parent communication.
                   </p>
                 </div>
 
                 <div className="space-y-3.5 text-xs">
                   <div>
                     <label className="font-bold text-slate-800 block mb-1">
-                      Kompleto nga Pangalan (Full Legal Name) <span className="text-red-500">*</span>
+                      Full Legal Name <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       required
                       value={myFullName}
                       onChange={(e) => setMyFullName(e.target.value)}
-                      placeholder="e.g. Miche Tamayon Ladao"
+                      placeholder="e.g. Juliet Paduhilag Pastrano"
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-[#FFFDF8] font-bold text-slate-800 outline-none focus:border-accent text-sm"
                     />
                   </div>
@@ -4991,7 +5069,7 @@ const handleFileSelected = async (file) => {
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="font-bold text-slate-800">
-                        Numero sa Selpon (Mobile / Phone Number) <span className="text-red-500">*</span>
+                        Mobile / Phone Number <span className="text-red-500">*</span>
                       </label>
                       {myContact && (
                         <button
@@ -4999,7 +5077,7 @@ const handleFileSelected = async (file) => {
                           onClick={() => setMyContact('')}
                           className="text-[10.5px] text-rose-600 hover:underline cursor-pointer"
                         >
-                          ✕ Hawani
+                          ✕ Clear
                         </button>
                       )}
                     </div>
@@ -5032,17 +5110,17 @@ const handleFileSelected = async (file) => {
                 <div className="border-b border-slate-100 pb-3">
                   <h4 className="font-fraunces text-base font-bold text-slate-900 m-0 flex items-center gap-2">
                     <span>🏫</span>
-                    <span>2. Sentro ug Barangay (Assigned Day Care)</span>
+                    <span>2. Assigned Day Care Center &amp; Barangay</span>
                   </h4>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    Ang barangay ug Child Development Center diin ikaw nagtudlo.
+                    The barangay and Child Development Center where you teach.
                   </p>
                 </div>
 
                 <div className="space-y-3.5 text-xs">
                   <div>
                     <label className="font-bold text-slate-800 block mb-1">
-                      Barangay nga Gisilbihan (Assigned Barangay) <span className="text-red-500">*</span>
+                      Assigned Barangay <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={myBarangay}
@@ -5064,7 +5142,7 @@ const handleFileSelected = async (file) => {
                       required
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-[#FFFDF8] font-bold text-slate-800 outline-none focus:border-accent cursor-pointer text-sm"
                     >
-                      <option value="">-- Pilia ang Imong Barangay (22 Barangays) --</option>
+                      <option value="">-- Select Barangay (22 Barangays) --</option>
                       {barangays.map((b) => (
                         <option key={b} value={b}>
                           Barangay {b}
@@ -5076,14 +5154,14 @@ const handleFileSelected = async (file) => {
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="font-bold text-slate-800">
-                        Ngalan sa Sentro / CDC (Day Care Center) <span className="text-red-500">*</span>
+                        Child Development Center (CDC) <span className="text-red-500">*</span>
                       </label>
                       <button
                         type="button"
                         onClick={() => setCustomCdcMode(!customCdcMode)}
                         className="text-[10.5px] text-accent font-bold hover:underline cursor-pointer"
                       >
-                        {customCdcMode ? '← Pilia sa Listahan' : '➕ Isulat ang Sentro'}
+                        {customCdcMode ? '← Select from List' : '➕ Enter Custom Center'}
                       </button>
                     </div>
 
@@ -5099,7 +5177,7 @@ const handleFileSelected = async (file) => {
                         required
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-[#FFFDF8] font-bold text-slate-800 outline-none focus:border-accent cursor-pointer text-sm"
                       >
-                        <option value="">-- Pilia ang Child Development Center --</option>
+                        <option value="">-- Select Child Development Center --</option>
                         {realCdcsList
                           .filter(
                             (c) => !myBarangay || c.barangay?.toLowerCase() === myBarangay?.toLowerCase()
@@ -5110,7 +5188,7 @@ const handleFileSelected = async (file) => {
                             </option>
                           ))}
                         {myBarangay && (
-                          <optgroup label="Ubang Sentro sa Manolo Fortich">
+                          <optgroup label="Other Centers in Manolo Fortich">
                             {realCdcsList
                               .filter(
                                 (c) => c.barangay?.toLowerCase() !== myBarangay?.toLowerCase()
@@ -5137,13 +5215,13 @@ const handleFileSelected = async (file) => {
 
                   <div>
                     <label className="font-bold text-slate-800 block mb-1">
-                      Iskedyul sa Klase o Pahinumdom (Schedule / Short Note)
+                      Class Schedule / Short Note
                     </label>
                     <textarea
                       rows={2}
                       value={myBio}
                       onChange={(e) => setMyBio(e.target.value)}
-                      placeholder="e.g. Lunes hangtod Biyernes: Morning Session 8:00 AM - 10:30 AM"
+                      placeholder="e.g. Monday to Friday: Morning Session 8:00 AM - 10:30 AM"
                       className="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-[#FFFDF8] font-medium text-slate-800 outline-none focus:border-accent resize-none text-xs leading-relaxed"
                     />
                   </div>
@@ -5158,7 +5236,7 @@ const handleFileSelected = async (file) => {
                 className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <IconRefresh className="w-3.5 h-3.5" />
-                <span>I-balik sa Na-save (Reset)</span>
+                <span>Reset</span>
               </button>
 
               <button
@@ -5168,7 +5246,7 @@ const handleFileSelected = async (file) => {
               >
                 <span>💾</span>
                 <span>
-                  {profileSaving ? 'Ginasave pa ang impormasyon...' : 'I-save ang Akong Impormasyon (Save Profile)'}
+                  {profileSaving ? 'Saving Profile...' : 'Save Profile'}
                 </span>
               </button>
             </div>

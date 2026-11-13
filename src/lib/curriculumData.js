@@ -568,7 +568,8 @@ export function isAuthenticSupabaseMaterial(m) {
     m.title.startsWith('[MSWD_ASSIGNMENT]') ||
     m.title.startsWith('[MEDIA_CHUNK]') ||
     m.title.startsWith('[TEACHER_ANNOUNCEMENT]') ||
-    m.title.startsWith('[ECCD_ASSESSMENT]')
+    m.title.startsWith('[ECCD_ASSESSMENT]') ||
+    m.title.startsWith('[TEACHER_PROFILE_SYNC]')
   ) {
     return false;
   }
@@ -599,7 +600,8 @@ export function isAuthenticLocalTeacherModule(m) {
   if (
     m.title.startsWith('[MSWD_ASSIGNMENT]') ||
     m.title.startsWith('[TEACHER_ANNOUNCEMENT]') ||
-    m.title.startsWith('[ECCD_ASSESSMENT]')
+    m.title.startsWith('[ECCD_ASSESSMENT]') ||
+    m.title.startsWith('[TEACHER_PROFILE_SYNC]')
   ) {
     return false;
   }
@@ -619,14 +621,16 @@ export function isAuthenticLocalTeacherModule(m) {
 }
 
 /**
- * Strips any parenthetical CDC / center suffix from a teacher's display name
+ * Strips any parenthetical CDC / center suffix and any leading "Teacher " prefix
+ * from a teacher's display name so "Teacher" is never doubled.
  * e.g., "Teacher Juliet Paduhilag Pastrano (DALIRIG CHILD DEVELOPMENT CENTER)"
- *    -> "Teacher Juliet Paduhilag Pastrano"
+ *    -> "Juliet Paduhilag Pastrano"
  */
 export function cleanTeacherDisplayName(rawName) {
   if (!rawName) return '';
   return String(rawName)
     .replace(/\s*\([^)]*\)\s*/g, ' ')
+    .replace(/^(?:teacher\s+)+/i, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -638,11 +642,478 @@ export function normalizeTeacherName(name) {
   if (!name) return '';
   return String(name)
     .toLowerCase()
-    .replace(/\s*\(.*?\)\s*/g, ' ')
-    .replace(/^teacher\s+/i, '')
-    .replace(/\b(teacher|cdw|day\s*care\s*worker|volunteer|mswdo|manolo\s*fortich|admin)\b/gi, '')
+    .replace(/\s*\([^)]*\)\s*/g, ' ')
+    .replace(/^(?:teacher\s+)+/i, '')
+    .replace(/\b(teacher|cdw|cdt|aide|day\s*care\s*worker|volunteer|mswdo|manolo\s*fortich|admin)\b/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * Finds the matching baseline teacher in `realTeachersList` (`tch-01`..`tch-84`)
+ * using baseline_id, id, previous/baseline name, current name, or non-generic email.
+ */
+export function findBaselineTeacherMatch(info = {}) {
+  if (!info) return null;
+  const candidateIds = [info.baseline_id, info.id].filter(Boolean).map((v) => String(v).trim());
+  for (const cid of candidateIds) {
+    const byId = realTeachersList.find((t) => t.id === cid);
+    if (byId) return byId;
+  }
+
+  const candidateNames = [info.baseline_name, info.previous_name, info.full_name]
+    .map((n) => normalizeTeacherName(n))
+    .filter((n) => n.length >= 3);
+
+  for (const normName of candidateNames) {
+    const exactMatch = realTeachersList.find((t) => normalizeTeacherName(t.full_name) === normName);
+    if (exactMatch) return exactMatch;
+
+    const partialMatch = realTeachersList.find((t) => {
+      const btNorm = normalizeTeacherName(t.full_name);
+      return btNorm.length >= 3 && (btNorm.includes(normName) || normName.includes(btNorm));
+    });
+    if (partialMatch) return partialMatch;
+  }
+
+  const candidateEmails = [info.baseline_email, info.email]
+    .map((e) => String(e || '').trim().toLowerCase())
+    .filter((e) => e && !e.startsWith('admin@'));
+
+  for (const em of candidateEmails) {
+    const byEmail = realTeachersList.find((t) => (t.email || '').trim().toLowerCase() === em);
+    if (byEmail) return byEmail;
+  }
+
+  return null;
+}
+
+/**
+ * Saves a teacher's updated profile to localStorage overrides AND syncs it to Supabase
+ * (`auth.updateUser`, `profiles`, `teachers`, `cdcs`, and `[TEACHER_PROFILE_SYNC]` in `materials`)
+ * so that MSWD Admin Dashboard immediately receives the update across tabs and devices.
+ */
+export async function saveTeacherProfileSyncToSupabase(supabaseClient, profileInput = {}) {
+  const cleanName = cleanTeacherDisplayName(profileInput.full_name || '');
+  const baselineMatch = findBaselineTeacherMatch(profileInput);
+
+  const baselineId = profileInput.baseline_id || baselineMatch?.id || null;
+  const baselineName =
+    cleanTeacherDisplayName(profileInput.baseline_name || profileInput.previous_name || baselineMatch?.full_name || '') ||
+    cleanName;
+  const baselineEmail = profileInput.baseline_email || baselineMatch?.email || '';
+
+  const effectiveBarangay =
+    profileInput.barangay || baselineMatch?.barangay || 'Manolo Fortich';
+  const effectiveCdcName =
+    profileInput.cdc_name ||
+    baselineMatch?.cdc_name ||
+    `${effectiveBarangay} Child Development Center`;
+
+  // Resolve real PostgreSQL UUID for cdc_id from `public.cdcs`
+  let resolvedCdcUuid = null;
+  const isUuid = (val) =>
+    Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(val).trim()));
+
+  if (isUuid(profileInput.cdc_id)) {
+    resolvedCdcUuid = String(profileInput.cdc_id).trim();
+  }
+
+  if (supabaseClient) {
+    try {
+      const { data: cdcRows } = await supabaseClient
+        .from('cdcs')
+        .select('id, name, barangay');
+      if (Array.isArray(cdcRows) && cdcRows.length > 0) {
+        const targetCdcNorm = effectiveCdcName.trim().toLowerCase();
+        const targetBrgyNorm = effectiveBarangay.trim().toLowerCase();
+        const exactCdc =
+          cdcRows.find((c) => (c.name || '').trim().toLowerCase() === targetCdcNorm) ||
+          cdcRows.find(
+            (c) =>
+              (c.barangay || '').trim().toLowerCase() === targetBrgyNorm &&
+              ((c.name || '').toLowerCase().includes(targetCdcNorm.replace(/\s*child development center$/i, '')) ||
+                targetCdcNorm.includes((c.name || '').toLowerCase().replace(/\s*child development center$/i, '')))
+          ) ||
+          cdcRows.find((c) => (c.barangay || '').trim().toLowerCase() === targetBrgyNorm);
+
+        if (exactCdc?.id && isUuid(exactCdc.id)) {
+          resolvedCdcUuid = exactCdc.id;
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const syncRecord = {
+    __teacher_profile_sync: true,
+    id: profileInput.id || baselineId || `tch-custom-${Date.now()}`,
+    auth_id: isUuid(profileInput.id) ? profileInput.id : null,
+    baseline_id: baselineId,
+    baseline_name: baselineName,
+    baseline_email: baselineEmail,
+    previous_name: cleanTeacherDisplayName(profileInput.previous_name || '') || baselineName,
+    full_name: cleanName,
+    barangay: effectiveBarangay,
+    cdc_id: resolvedCdcUuid,
+    cdc_name: effectiveCdcName,
+    contact_number: profileInput.contact_number || '',
+    packed_contact: profileInput.packed_contact || profileInput.contact_number || '',
+    registration_code: profileInput.registration_code || '',
+    email: profileInput.email || baselineEmail || '',
+    bio: profileInput.bio || '',
+    designation: profileInput.designation || baselineMatch?.designation || 'Child Development Teacher (CDT)',
+    updated_at: new Date().toISOString(),
+  };
+
+  // 1. Save to localStorage override map under all lookup keys
+  try {
+    const overrides = JSON.parse(localStorage.getItem('earlylearn_teacher_profiles_override') || '{}');
+    if (syncRecord.id) overrides[syncRecord.id] = syncRecord;
+    if (syncRecord.auth_id) overrides[syncRecord.auth_id] = syncRecord;
+    if (baselineId) overrides[baselineId] = syncRecord;
+    if (cleanName) overrides[cleanName.toLowerCase()] = syncRecord;
+    if (baselineName) overrides[baselineName.toLowerCase()] = syncRecord;
+    if (syncRecord.previous_name) overrides[syncRecord.previous_name.toLowerCase()] = syncRecord;
+    if (syncRecord.email && !syncRecord.email.toLowerCase().startsWith('admin@')) {
+      overrides[syncRecord.email.toLowerCase()] = syncRecord;
+    }
+    if (baselineEmail) {
+      overrides[baselineEmail.toLowerCase()] = syncRecord;
+    }
+    localStorage.setItem('earlylearn_teacher_profiles_override', JSON.stringify(overrides));
+    localStorage.setItem('earlylearn_active_teacher_profile', JSON.stringify(syncRecord));
+  } catch {
+    // ignore
+  }
+
+  if (supabaseClient) {
+    // 2. Update Supabase `profiles` table if `auth_id` is a valid UUID
+    if (syncRecord.auth_id) {
+      try {
+        await supabaseClient
+          .from('profiles')
+          .update({
+            full_name: cleanName,
+            barangay: effectiveBarangay,
+          })
+          .eq('id', syncRecord.auth_id);
+      } catch {
+        // ignore
+      }
+    }
+
+    // 3. Upsert Supabase `teachers` table if `auth_id` is a valid UUID
+    if (syncRecord.auth_id) {
+      try {
+        const teacherRow = {
+          id: syncRecord.auth_id,
+          full_name: cleanName,
+          email: syncRecord.email || null,
+          barangay: effectiveBarangay,
+          contact_number: syncRecord.packed_contact || syncRecord.contact_number || null,
+        };
+        if (resolvedCdcUuid) {
+          teacherRow.cdc_id = resolvedCdcUuid;
+        }
+        await supabaseClient.from('teachers').upsert(teacherRow);
+      } catch {
+        // ignore
+      }
+    }
+
+    // 4. Update `official_teacher_name` on the matched `cdcs` row if we have a UUID
+    if (resolvedCdcUuid && cleanName) {
+      try {
+        await supabaseClient
+          .from('cdcs')
+          .update({ official_teacher_name: cleanName })
+          .eq('id', resolvedCdcUuid);
+      } catch {
+        // ignore
+      }
+    }
+
+    // 5. Upsert `[TEACHER_PROFILE_SYNC]` record in `public.materials` for guaranteed cross-device MSWD sync
+    try {
+      const syncKey = baselineId || syncRecord.auth_id || normalizeTeacherName(cleanName);
+      const syncTitle = `[TEACHER_PROFILE_SYNC] ${syncKey}`;
+
+      const { data: existingRows } = await supabaseClient
+        .from('materials')
+        .select('id, title, content_text')
+        .ilike('title', '[TEACHER_PROFILE_SYNC]%');
+
+      let matchingMatId = null;
+      if (Array.isArray(existingRows)) {
+        for (const r of existingRows) {
+          if (r.title === syncTitle) {
+            matchingMatId = r.id;
+            break;
+          }
+          try {
+            const p = JSON.parse(r.content_text || '{}');
+            if (
+              p?.__teacher_profile_sync &&
+              ((baselineId && p.baseline_id === baselineId) ||
+                (syncRecord.auth_id && p.auth_id === syncRecord.auth_id) ||
+                (normalizeTeacherName(p.full_name) &&
+                  normalizeTeacherName(p.full_name) === normalizeTeacherName(cleanName)))
+            ) {
+              matchingMatId = r.id;
+              break;
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      if (matchingMatId) {
+        await supabaseClient
+          .from('materials')
+          .update({
+            title: syncTitle,
+            content_text: JSON.stringify(syncRecord),
+            status: 'approved',
+          })
+          .eq('id', matchingMatId);
+      } else {
+        let catId = null;
+        const { data: cats } = await supabaseClient.from('categories').select('id').limit(1);
+        catId = cats?.[0]?.id || null;
+        await supabaseClient.from('materials').insert({
+          category_id: catId,
+          type: 'story',
+          title: syncTitle,
+          age_range: '3-5',
+          status: 'approved',
+          content_text: JSON.stringify(syncRecord),
+        });
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  try {
+    window.dispatchEvent(new CustomEvent('earlylearn_teachers_updated', { detail: syncRecord }));
+    window.dispatchEvent(new CustomEvent('earlylearn_teacher_profile_saved', { detail: syncRecord }));
+  } catch {
+    // ignore
+  }
+
+  return syncRecord;
+}
+
+/**
+ * Fetches and merges the authoritative list of teachers across:
+ * 1. `realTeachersList` (84 official MSWDO teachers)
+ * 2. Supabase `public.teachers`
+ * 3. Supabase `public.profiles` (role = 'teacher')
+ * 4. Supabase `public.materials` (`[TEACHER_PROFILE_SYNC]` cross-device profile updates)
+ * 5. `localStorage` (`earlylearn_teacher_profiles_override`)
+ *
+ * Updates matching baseline teachers in place so there are never duplicate rows or stale names.
+ */
+export async function fetchSyncedTeachersList(supabaseClient) {
+  purgeDummyTeacherAccountsFromLocalStorage();
+
+  // Start with a fresh clone of the 84 baseline teachers
+  const roster = realTeachersList
+    .filter((t) => !isDummyTeacherAccount(t))
+    .map((t) => ({
+      ...t,
+      baseline_id: t.id,
+      full_name: cleanTeacherDisplayName(t.full_name) || t.full_name,
+      cdcs: { name: t.cdc_name, barangay: t.barangay },
+    }));
+
+  const applyUpdateToRoster = (incoming) => {
+    if (!incoming || isDummyTeacherAccount(incoming)) return;
+    const cleanIncName = cleanTeacherDisplayName(incoming.full_name || '');
+    if (!cleanIncName) return;
+
+    const incNormName = normalizeTeacherName(cleanIncName);
+    const prevNormName = normalizeTeacherName(incoming.previous_name || incoming.baseline_name || '');
+    const incEmail = String(incoming.email || '').trim().toLowerCase();
+    const baseEmail = String(incoming.baseline_email || '').trim().toLowerCase();
+
+    // Find matching entry in roster
+    let idx = -1;
+    if (incoming.baseline_id) {
+      idx = roster.findIndex((r) => r.id === incoming.baseline_id || r.baseline_id === incoming.baseline_id);
+    }
+    if (idx === -1 && incoming.id) {
+      idx = roster.findIndex((r) => r.id === incoming.id || r.auth_id === incoming.id);
+    }
+    if (idx === -1 && prevNormName.length >= 3) {
+      idx = roster.findIndex((r) => normalizeTeacherName(r.full_name) === prevNormName);
+    }
+    if (idx === -1 && incNormName.length >= 3) {
+      idx = roster.findIndex((r) => {
+        const rNorm = normalizeTeacherName(r.full_name);
+        return rNorm === incNormName || (rNorm.length >= 5 && (rNorm.includes(incNormName) || incNormName.includes(rNorm)));
+      });
+    }
+    if (idx === -1 && baseEmail && !baseEmail.startsWith('admin@')) {
+      idx = roster.findIndex((r) => (r.email || '').trim().toLowerCase() === baseEmail);
+    }
+    if (idx === -1 && incEmail && !incEmail.startsWith('admin@')) {
+      idx = roster.findIndex((r) => (r.email || '').trim().toLowerCase() === incEmail);
+    }
+
+    const resolvedCdcName =
+      incoming.cdc_name ||
+      incoming.cdcs?.name ||
+      (idx >= 0 ? roster[idx].cdc_name : null) ||
+      (incoming.barangay ? `${incoming.barangay} Child Development Center` : null);
+
+    const resolvedBrgy =
+      incoming.barangay ||
+      incoming.cdcs?.barangay ||
+      (idx >= 0 ? roster[idx].barangay : null) ||
+      'Manolo Fortich';
+
+    if (idx >= 0) {
+      const existing = roster[idx];
+      roster[idx] = {
+        ...existing,
+        auth_id: incoming.auth_id || (incoming.id !== existing.id ? incoming.id : existing.auth_id) || null,
+        full_name: cleanIncName || existing.full_name,
+        barangay: resolvedBrgy || existing.barangay,
+        cdc_id: incoming.cdc_id || existing.cdc_id || null,
+        cdc_name: resolvedCdcName || existing.cdc_name,
+        cdcs: {
+          name: resolvedCdcName || existing.cdc_name,
+          barangay: resolvedBrgy || existing.barangay,
+        },
+        contact_number: incoming.contact_number || existing.contact_number || null,
+        email:
+          incEmail && !incEmail.startsWith('admin@')
+            ? incoming.email
+            : existing.email || incoming.email || null,
+        bio: incoming.bio !== undefined ? incoming.bio : existing.bio,
+        registration_code: incoming.registration_code || existing.registration_code || null,
+        updated_at: incoming.updated_at || existing.updated_at || null,
+      };
+    } else {
+      roster.unshift({
+        id: incoming.id || `tch-${Date.now()}`,
+        auth_id: incoming.auth_id || incoming.id || null,
+        baseline_id: incoming.baseline_id || null,
+        full_name: cleanIncName,
+        designation: incoming.designation || 'Child Development Teacher (CDT)',
+        barangay: resolvedBrgy,
+        cdc_id: incoming.cdc_id || null,
+        cdc_name: resolvedCdcName,
+        cdcs: {
+          name: resolvedCdcName,
+          barangay: resolvedBrgy,
+        },
+        contact_number: incoming.contact_number || null,
+        email: incoming.email || null,
+        bio: incoming.bio || null,
+        registration_code: incoming.registration_code || null,
+        updated_at: incoming.updated_at || null,
+      });
+    }
+  };
+
+  if (supabaseClient) {
+    // 1. Load from Supabase `teachers` table
+    try {
+      const { data: teachersData } = await supabaseClient
+        .from('teachers')
+        .select('id, full_name, barangay, contact_number, email, cdc_id, cdcs(id, name, barangay)')
+        .order('full_name');
+      if (Array.isArray(teachersData)) {
+        teachersData.forEach((t) => {
+          if (isDummyTeacherAccount(t)) {
+            if (t.id) {
+              supabaseClient.from('teachers').delete().eq('id', t.id).then(() => {}).catch(() => {});
+            }
+            return;
+          }
+          applyUpdateToRoster({
+            ...t,
+            cdc_name: t.cdcs?.name || t.cdc_name || null,
+          });
+        });
+      }
+    } catch {
+      // ignore
+    }
+
+    // 2. Load from Supabase `profiles` table
+    try {
+      const { data: profilesData } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .eq('role', 'teacher')
+        .order('full_name');
+      if (Array.isArray(profilesData)) {
+        profilesData.forEach((prof) => {
+          if (isDummyTeacherAccount(prof)) {
+            if (prof.id) {
+              supabaseClient.from('profiles').delete().eq('id', prof.id).then(() => {}).catch(() => {});
+            }
+            return;
+          }
+          applyUpdateToRoster(prof);
+        });
+      }
+    } catch {
+      // ignore
+    }
+
+    // 3. Load `[TEACHER_PROFILE_SYNC]` records from Supabase `materials`
+    try {
+      const { data: syncMats } = await supabaseClient
+        .from('materials')
+        .select('id, title, content_text, created_at')
+        .ilike('title', '[TEACHER_PROFILE_SYNC]%')
+        .order('created_at', { ascending: true });
+      if (Array.isArray(syncMats)) {
+        syncMats.forEach((row) => {
+          try {
+            const parsed = JSON.parse(row.content_text || '{}');
+            if (parsed && parsed.__teacher_profile_sync && !isDummyTeacherAccount(parsed)) {
+              applyUpdateToRoster(parsed);
+            }
+          } catch {
+            // ignore
+          }
+        });
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // 4. Apply localStorage overrides (most recent local edits)
+  try {
+    const overrides = JSON.parse(localStorage.getItem('earlylearn_teacher_profiles_override') || '{}');
+    const uniqueOverrides = new Map();
+    Object.values(overrides).forEach((ov) => {
+      if (!ov || typeof ov !== 'object' || isDummyTeacherAccount(ov)) return;
+      const key = ov.baseline_id || ov.id || normalizeTeacherName(ov.full_name);
+      if (!key) return;
+      const existing = uniqueOverrides.get(key);
+      if (
+        !existing ||
+        new Date(ov.updated_at || 0).getTime() >= new Date(existing.updated_at || 0).getTime()
+      ) {
+        uniqueOverrides.set(key, ov);
+      }
+    });
+    uniqueOverrides.forEach((ov) => applyUpdateToRoster(ov));
+  } catch {
+    // ignore
+  }
+
+  return roster.filter((t) => !isDummyTeacherAccount(t));
 }
 
 /**

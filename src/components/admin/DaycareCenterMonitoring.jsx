@@ -129,11 +129,21 @@ export default function DaycareCenterMonitoring({
         ...t,
         full_name: cleanTeacherDisplayName(t.full_name) || t.full_name,
       }));
-    const seenNames = new Set(combined.map((t) => cleanTeacherDisplayName(t.full_name).toLowerCase()));
+    const seenIds = new Set();
+    const seenNames = new Set();
+    combined.forEach((t) => {
+      if (t.id) seenIds.add(String(t.id));
+      if (t.baseline_id) seenIds.add(String(t.baseline_id));
+      const cName = cleanTeacherDisplayName(t.full_name).toLowerCase();
+      if (cName) seenNames.add(cName);
+      if (t.baseline_name) {
+        seenNames.add(cleanTeacherDisplayName(t.baseline_name).toLowerCase());
+      }
+    });
     realTeachersList.forEach((bt) => {
       if (isDummyTeacherAccount(bt)) return;
       const cleanBtName = cleanTeacherDisplayName(bt.full_name);
-      if (!seenNames.has(cleanBtName.toLowerCase())) {
+      if (!seenIds.has(String(bt.id)) && !seenNames.has(cleanBtName.toLowerCase())) {
         combined.push({
           ...bt,
           full_name: cleanBtName || bt.full_name,
