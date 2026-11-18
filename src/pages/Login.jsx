@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { supabase, normalizeAuthIdentifier } from '../lib/supabaseClient';
+import { supabase, supabaseSecondaryAuth, normalizeAuthIdentifier } from '../lib/supabaseClient';
 import { getEffectiveRole } from '../lib/roles.js';
 import { syncStudentLogin, getStudentApprovalStatus } from '../lib/learnersService.js';
+import { resolveTeacherForLogin, getTeacherSyncedCredential } from '../lib/teacherAuthService.js';
 import PineappleLogo from '../components/PineappleLogo.jsx';
 
 export default function Login() {
@@ -16,8 +17,9 @@ export default function Login() {
     e.preventDefault();
     setMsg({ text: '', type: '' });
 
-    const { authEmail } = normalizeAuthIdentifier(identifier);
-    if (!authEmail) {
+    const trimmedInput = (identifier || '').trim();
+    const { authEmail } = normalizeAuthIdentifier(trimmedInput);
+    if (!authEmail && !trimmedInput) {
       setMsg({
         text: '⚠️ Please enter your Teacher ID, mobile phone number, or email address.',
         type: 'error',
@@ -27,18 +29,104 @@ export default function Login() {
 
     setLoading(true);
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: authEmail,
-      password,
-    });
+    // Resolve teacher candidate emails (e.g. TCH-81, ANDRESA.ALLOSO, 0939-430-5411 -> andresa.alloso@earlylearn.ph)
+    const teacherMatch = await resolveTeacherForLogin(trimmedInput);
+    const candidateEmails = Array.from(
+      new Set(
+        [
+          teacherMatch?.email,
+          authEmail,
+          trimmedInput.includes('@') ? trimmedInput.toLowerCase() : null,
+        ].filter(Boolean)
+      )
+    );
 
-    if (error) {
-      setMsg({ text: '❌ ' + error.message, type: 'error' });
+    let authSuccessData = null;
+    let lastError = null;
+
+    // Try signing in with each candidate email
+    for (const email of candidateEmails) {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (!error && data?.user) {
+        authSuccessData = data;
+        break;
+      }
+      lastError = error;
+    }
+
+    // Auto-heal with admin-set temporary password if sign in failed
+    if (!authSuccessData) {
+      const syncedCred =
+        (await getTeacherSyncedCredential(trimmedInput)) ||
+        (teacherMatch?.email ? await getTeacherSyncedCredential(teacherMatch.email) : null) ||
+        (await getTeacherSyncedCredential(authEmail));
+
+      if (syncedCred && syncedCred.temporary_password === password) {
+        // Teacher entered the exact temporary password set by Admin!
+        // Auto-register/heal their Supabase Auth user:
+        const primaryEmail = syncedCred.email || teacherMatch?.email || authEmail;
+        const teacherName = syncedCred.full_name || teacherMatch?.full_name || 'Teacher';
+
+        await supabaseSecondaryAuth.auth.signUp({
+          email: primaryEmail,
+          password: password,
+          options: {
+            data: {
+              role: 'teacher',
+              full_name: teacherName,
+              teacher_id: syncedCred.teacher_id || teacherMatch?.id,
+              barangay: syncedCred.barangay || teacherMatch?.barangay,
+              cdc_name: syncedCred.cdc_name || teacherMatch?.cdc_name,
+              contact_number: syncedCred.contact_number || teacherMatch?.contact_number,
+              must_change_password: true,
+            },
+          },
+        });
+
+        // Now sign in with the freshly initialized auth user
+        const { data: retryData, error: retryErr } = await supabase.auth.signInWithPassword({
+          email: primaryEmail,
+          password,
+        });
+
+        if (!retryErr && retryData?.user) {
+          authSuccessData = retryData;
+        } else {
+          // If the user already existed in auth.users with an earlier password, sign in with previous password and auto-update
+          const candidateOldPasswords = Array.isArray(syncedCred.previous_passwords)
+            ? syncedCred.previous_passwords
+            : [];
+          for (const oldPass of candidateOldPasswords) {
+            const { data: oldData, error: oldErr } = await supabase.auth.signInWithPassword({
+              email: primaryEmail,
+              password: oldPass,
+            });
+            if (!oldErr && oldData?.user) {
+              // Successfully signed in with previous password! Auto-update to the new active password:
+              try {
+                await supabase.auth.updateUser({ password });
+              } catch {}
+              authSuccessData = oldData;
+              break;
+            }
+          }
+          if (!authSuccessData) {
+            lastError = retryErr || lastError;
+          }
+        }
+      }
+    }
+
+    if (!authSuccessData) {
+      setMsg({ text: '❌ ' + (lastError?.message || 'Invalid login credentials. Please check your username/ID and password.'), type: 'error' });
       setLoading(false);
       return;
     }
 
-    const user = data.user;
+    const user = authSuccessData.user;
     let { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')

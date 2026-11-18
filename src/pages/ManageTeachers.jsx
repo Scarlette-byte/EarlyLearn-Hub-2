@@ -21,6 +21,10 @@ import {
   isValidUuid,
 } from '../lib/learnersService.js';
 import {
+  adminSetTeacherPassword,
+  formatDisplayTeacherId,
+} from '../lib/teacherAuthService.js';
+import {
   cardBox,
   table,
   th,
@@ -89,16 +93,6 @@ export default function ManageTeachers() {
       : '2026';
     const num = Math.floor(100 + Math.random() * 900);
     return `TCH-${prefix}-${num}`;
-  }
-
-  function formatDisplayTeacherId(t) {
-    if (t.teacher_id) return t.teacher_id.toUpperCase();
-    if (t.email && t.email.endsWith('@earlylearn.ph')) {
-      const prefix = t.email.split('@')[0];
-      if (/[a-zA-Z]/.test(prefix)) return prefix.toUpperCase();
-    }
-    if (t.id && String(t.id).startsWith('tch-')) return String(t.id).toUpperCase();
-    return t.id ? `TCH-${String(t.id).slice(0, 6).toUpperCase()}` : '-';
   }
 
   // Load teachers and CDCs
@@ -434,25 +428,28 @@ export default function ManageTeachers() {
     }
 
     setPasswordSaving(true);
-    const teacherEmail = passwordModalTeacher.email;
 
-    if (teacherEmail) {
-      try {
-        await supabase.auth.resetPasswordForEmail(teacherEmail);
-      } catch {
-        // Ignored
-      }
+    try {
+      const result = await adminSetTeacherPassword(passwordModalTeacher, newPassword);
+
+      setPasswordSuccessData({
+        teacher: passwordModalTeacher,
+        password: newPassword,
+        email: result.email,
+        teacherId: result.teacherId,
+        fullName: result.fullName,
+      });
+
+      setMsg({
+        text: `Temporary password activated for "${result.fullName}". They can now use it to log in.`,
+        type: 'ok',
+      });
+      loadTeachers();
+    } catch (err) {
+      alert('Failed to set teacher password: ' + (err.message || 'Unknown error'));
+    } finally {
+      setPasswordSaving(false);
     }
-
-    setPasswordSaving(false);
-    setPasswordSuccessData({
-      teacher: passwordModalTeacher,
-      password: newPassword,
-    });
-    setMsg({
-      text: `Temporary password prepared for "${passwordModalTeacher.full_name}".`,
-      type: 'ok',
-    });
   }
 
   // --- Delete Teacher ---
@@ -682,7 +679,7 @@ export default function ManageTeachers() {
 
         {/* Teachers Table */}
         <div className="overflow-x-auto">
-          <table className={table}>
+          <table className={`${table} min-w-[920px]`}>
             <thead>
               <tr>
                 <th className={th}>Teacher Name &amp; ID</th>
@@ -708,10 +705,10 @@ export default function ManageTeachers() {
                           <div className="font-bold text-sm text-dash-ink">
                             {cleanTeacherDisplayName(t.full_name) || '(No name set)'}
                           </div>
-                          <div className="text-[11px] text-dash-ink-soft font-mono flex items-center gap-2">
-                            <span>ID: {displayTeacherId}</span>
+                          <div className="text-[11px] text-dash-ink-soft font-mono flex items-center gap-2 flex-wrap">
+                            <span className="whitespace-nowrap">ID: {displayTeacherId}</span>
                             {t.registration_code && (
-                              <span className="px-1.5 py-0.2 rounded bg-amber-50 border border-amber-200 text-amber-900 text-[10px]">
+                              <span className="px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-900 text-[10px] whitespace-nowrap inline-block font-sans font-semibold">
                                 Parent Code: {t.registration_code}
                               </span>
                             )}
@@ -721,7 +718,7 @@ export default function ManageTeachers() {
                     </td>
 
                     {/* Barangay */}
-                    <td className={td}>
+                    <td className={`${td} whitespace-nowrap`}>
                       {t.barangay ? (
                         <span className="text-xs font-semibold text-dash-ink">{t.barangay}</span>
                       ) : (
@@ -732,22 +729,22 @@ export default function ManageTeachers() {
                     {/* Assigned Center (CDC) */}
                     <td className={td}>
                       {t.cdcs?.name || t.cdc_name ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#EDF6EE] border border-[#D1E5D3] text-[#22572C] text-xs font-semibold">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#EDF6EE] border border-[#D1E5D3] text-[#22572C] text-xs font-semibold whitespace-nowrap">
                           <IconBuilding className="w-3.5 h-3.5" />
                           <span>{t.cdcs?.name || t.cdc_name}</span>
                         </span>
                       ) : (
-                        <span className="text-xs text-dash-ink-soft italic">No center assigned</span>
+                        <span className="text-xs text-dash-ink-soft italic whitespace-nowrap">No center assigned</span>
                       )}
                     </td>
 
                     {/* Contact Number */}
-                    <td className={td}>
+                    <td className={`${td} whitespace-nowrap`}>
                       <span className="text-xs text-dash-ink font-mono">{t.contact_number || '-'}</span>
                     </td>
 
                     {/* Teacher ID / Login */}
-                    <td className={td}>
+                    <td className={`${td} whitespace-nowrap`}>
                       <div className="text-xs font-mono font-bold text-dash-ink">
                         {displayTeacherId}
                       </div>
@@ -1108,17 +1105,17 @@ export default function ManageTeachers() {
             {!passwordSuccessData ? (
               <form onSubmit={handleUpdatePassword} className="space-y-4 text-left">
                 <div>
-                  <div className="flex justify-between items-center mb-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-1.5">
                     <label className="text-xs font-bold text-dash-ink">
-                      New Temporary Password (Minimum 6 characters)
+                      New Temporary Password <span className="text-dash-ink-soft font-normal">(Min. 6 chars)</span>
                     </label>
                     <button
                       type="button"
                       onClick={() => setNewPassword(generatePassword())}
-                      className="text-[11px] text-accent font-semibold hover:underline bg-transparent border-none cursor-pointer flex items-center gap-1"
+                      className="text-xs text-accent font-semibold hover:underline bg-transparent border-none cursor-pointer flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
                     >
-                      <IconDice className="w-3.5 h-3.5" />
-                      <span>Generate Password</span>
+                      <IconDice className="w-3.5 h-3.5 text-accent shrink-0" />
+                      <span className="whitespace-nowrap">Generate Password</span>
                     </button>
                   </div>
                   <input
@@ -1130,7 +1127,7 @@ export default function ManageTeachers() {
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl border border-[#E5DCC9] font-mono text-sm text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent"
                   />
-                  <p className="text-[11px] text-dash-ink-soft mt-1">
+                  <p className="text-[11px] text-dash-ink-soft mt-1.5 leading-relaxed">
                     Provide this temporary password to the teacher so they can access their portal.
                   </p>
                 </div>
@@ -1159,24 +1156,34 @@ export default function ManageTeachers() {
                 </div>
                 <div>
                   <h4 className="font-fraunces text-base font-bold text-dash-ink m-0">
-                    Password Ready for {passwordSuccessData.teacher.full_name}
+                    Password Active for {passwordSuccessData.fullName || passwordSuccessData.teacher.full_name}
                   </h4>
                   <p className="text-xs text-dash-ink-soft mt-1">
-                    Copy and share this temporary password with the teacher.
+                    The teacher can now log in immediately using these credentials.
                   </p>
                 </div>
 
                 <div className="bg-[#FAF8F5] rounded-xl p-4 text-left text-xs font-mono space-y-2 border border-[#EFE7D8]">
                   <div>
-                    <span className="text-dash-ink-soft block text-[10px] uppercase font-bold">
-                      Teacher ID:
+                    <span className="text-dash-ink-soft block text-[10px] uppercase font-bold font-sans">
+                      Teacher ID (Login Username):
                     </span>
-                    <span className="font-bold text-sm text-dash-ink">
-                      {formatDisplayTeacherId(passwordSuccessData.teacher)}
+                    <span className="font-bold text-sm text-dash-ink select-all">
+                      {passwordSuccessData.teacherId || formatDisplayTeacherId(passwordSuccessData.teacher)}
                     </span>
                   </div>
+                  {passwordSuccessData.email && (
+                    <div>
+                      <span className="text-dash-ink-soft block text-[10px] uppercase font-bold font-sans">
+                        Login Email Address:
+                      </span>
+                      <span className="font-bold text-sm text-dash-ink select-all">
+                        {passwordSuccessData.email}
+                      </span>
+                    </div>
+                  )}
                   <div>
-                    <span className="text-dash-ink-soft block text-[10px] uppercase font-bold">
+                    <span className="text-dash-ink-soft block text-[10px] uppercase font-bold font-sans">
                       Temporary Password:
                     </span>
                     <span className="font-bold text-sm text-coral select-all">
@@ -1188,13 +1195,14 @@ export default function ManageTeachers() {
                 <button
                   type="button"
                   onClick={() => {
-                    navigator.clipboard?.writeText(passwordSuccessData.password);
-                    alert('Password copied to clipboard');
+                    const text = `EarlyLearn Hub Teacher Credentials:\nTeacher: ${passwordSuccessData.fullName || passwordSuccessData.teacher.full_name}\nTeacher ID: ${passwordSuccessData.teacherId || formatDisplayTeacherId(passwordSuccessData.teacher)}\nLogin Email: ${passwordSuccessData.email || ''}\nPassword: ${passwordSuccessData.password}`;
+                    navigator.clipboard?.writeText(text);
+                    alert('Login credentials copied to clipboard');
                   }}
                   className="w-full py-2.5 rounded-xl bg-[#FAF5EC] hover:bg-[#F2E8D5] text-dash-ink font-semibold text-xs cursor-pointer border border-[#E5DAC4] flex items-center justify-center gap-1.5"
                 >
                   <IconCopy className="w-4 h-4" />
-                  <span>Copy Password to Clipboard</span>
+                  <span>Copy Credentials to Clipboard</span>
                 </button>
 
                 <button

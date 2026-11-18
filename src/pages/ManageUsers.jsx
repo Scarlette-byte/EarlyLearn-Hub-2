@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase, barangays, normalizeAuthIdentifier } from '../lib/supabaseClient';
+import { adminSetTeacherPassword, formatDisplayTeacherId } from '../lib/teacherAuthService.js';
 import {
   cardBox,
   table,
@@ -227,26 +228,32 @@ export default function ManageUsers({ currentUser }) {
       return;
     }
 
-    const userEmail =
-      teachersMap[passwordModalUser.id]?.email ||
-      `${passwordModalUser.id.replace(/-/g, '').slice(0, 10)}@earlylearn.ph`;
-
     try {
-      await supabase.auth.resetPasswordForEmail(userEmail);
-    } catch {
-      // Ignored
-    }
+      const teacherObj = {
+        ...passwordModalUser,
+        email: teachersMap[passwordModalUser.id]?.email || passwordModalUser.email,
+        contact_number: teachersMap[passwordModalUser.id]?.contact_number || passwordModalUser.contact_number,
+      };
 
-    setPasswordSaving(false);
-    setPasswordSuccessData({
-      user: passwordModalUser,
-      password: newPassword,
-      method: 'manual',
-    });
-    setMsg({
-      text: `Password credentials prepared for "${passwordModalUser.full_name}".`,
-      type: 'ok',
-    });
+      const result = await adminSetTeacherPassword(teacherObj, newPassword);
+
+      setPasswordSuccessData({
+        user: passwordModalUser,
+        password: newPassword,
+        email: result.email,
+        teacherId: result.teacherId,
+        method: 'manual',
+      });
+      setMsg({
+        text: `Password credentials activated for "${passwordModalUser.full_name}".`,
+        type: 'ok',
+      });
+      loadData();
+    } catch (err) {
+      alert('Failed to update password: ' + (err.message || 'Unknown error'));
+    } finally {
+      setPasswordSaving(false);
+    }
   }
 
   // --- Delete User ---
@@ -547,7 +554,7 @@ export default function ManageUsers({ currentUser }) {
 
         {/* Users Table */}
         <div className="overflow-x-auto">
-          <table className={table}>
+          <table className={`${table} min-w-[850px]`}>
             <thead>
               <tr>
                 <th className={th}>User / Account Name</th>
@@ -787,17 +794,17 @@ export default function ManageUsers({ currentUser }) {
             {!passwordSuccessData ? (
               <form onSubmit={handleUpdatePassword} className="space-y-4 text-left">
                 <div>
-                  <div className="flex justify-between items-center mb-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-1.5">
                     <label className="text-xs font-bold text-dash-ink">
-                      New Password (Minimum 6 characters)
+                      New Password <span className="text-dash-ink-soft font-normal">(Min. 6 chars)</span>
                     </label>
                     <button
                       type="button"
                       onClick={generateRandomPassword}
-                      className="text-[11px] text-accent font-semibold hover:underline bg-transparent border-none cursor-pointer flex items-center gap-1"
+                      className="text-xs text-accent font-semibold hover:underline bg-transparent border-none cursor-pointer flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
                     >
-                      <IconDice className="w-3.5 h-3.5" />
-                      <span>Generate Password</span>
+                      <IconDice className="w-3.5 h-3.5 text-accent shrink-0" />
+                      <span className="whitespace-nowrap">Generate Password</span>
                     </button>
                   </div>
                   <input
