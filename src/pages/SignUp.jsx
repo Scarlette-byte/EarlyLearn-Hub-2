@@ -193,8 +193,8 @@ export default function SignUp() {
         full_name: cleanChild,
         birthdate:
           childAge === '4-4.11'
-            ? '4 to 4.11 months (Pre-K2)'
-            : '3 to 3.11 months (Pre-K1)',
+            ? '4 to 4.11 years (Pre-K2)'
+            : '3 to 3.11 years (Pre-K1)',
         child_age: childAge,
         barangay: assignedBarangay,
         parent_name: cleanParent,
@@ -488,8 +488,8 @@ export default function SignUp() {
                               onChange={(e) => setChildAge(e.target.value)}
                               className="w-full px-2.5 py-2.5 rounded-2xl border-2 border-[#E6E6E6] font-nunito text-sm bg-white outline-none transition-colors focus:border-sky-deep"
                             >
-                              <option value="3-3.11">3 to 3.11 months (Pre-K1)</option>
-                              <option value="4-4.11">4 to 4.11 months (Pre-K2)</option>
+                              <option value="3-3.11">3 to 3.11 years (Pre-K1)</option>
+                              <option value="4-4.11">4 to 4.11 years (Pre-K2)</option>
                             </select>
                           </div>
                         </div>

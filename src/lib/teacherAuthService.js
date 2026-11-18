@@ -305,3 +305,184 @@ export async function getTeacherSyncedCredential(identifier) {
 
   return null;
 }
+
+const LOCAL_PARENT_CREDS_KEY = 'earlylearn_parent_credentials';
+
+/**
+ * Saves and cloud-synchronizes credentials for a parent account created by a teacher.
+ */
+export async function saveParentSyncedCredential(cred) {
+  if (!cred || !cred.authEmail) return;
+  const payload = {
+    __parent_credential_sync: true,
+    email: cred.authEmail.toLowerCase().trim(),
+    identifier: cred.identifier || '',
+    child_name: cred.childName || '',
+    parent_name: cred.parentName || '',
+    barangay: cred.barangay || '',
+    cdc_name: cred.cdcName || '',
+    temporary_password: cred.password,
+    approval_status: 'approved',
+    updated_at: new Date().toISOString(),
+  };
+
+  // Local storage cache
+  try {
+    const raw = localStorage.getItem(LOCAL_PARENT_CREDS_KEY);
+    const map = raw ? JSON.parse(raw) : {};
+    map[payload.email] = payload;
+    if (payload.identifier) map[payload.identifier.toLowerCase()] = payload;
+    if (payload.child_name) map[payload.child_name.toLowerCase()] = payload;
+    localStorage.setItem(LOCAL_PARENT_CREDS_KEY, JSON.stringify(map));
+    window.dispatchEvent(new Event('earlylearn_parent_credentials_updated'));
+  } catch {}
+
+  // Cloud sync in materials table
+  try {
+    const syncTitle = `[PARENT_CREDENTIAL_SYNC] ${payload.email}`;
+    const { data: existing } = await supabase
+      .from('materials')
+      .select('id')
+      .ilike('title', `${syncTitle}%`)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      await supabase
+        .from('materials')
+        .update({
+          content_text: JSON.stringify(payload),
+          status: 'approved',
+        })
+        .eq('id', existing[0].id);
+    } else {
+      const { data: cat } = await supabase.from('categories').select('id').limit(1);
+      await supabase.from('materials').insert({
+        category_id: cat?.[0]?.id || null,
+        type: 'story',
+        title: syncTitle,
+        age_range: '3-5',
+        status: 'approved',
+        content_text: JSON.stringify(payload),
+      });
+    }
+  } catch (e) {
+    console.warn('Could not sync parent credential to materials:', e);
+  }
+}
+
+/**
+ * Retrieves a synced parent credential by phone, email, or child name.
+ */
+export async function getParentSyncedCredential(identifier) {
+  if (!identifier) return null;
+  const rawLower = String(identifier).trim().toLowerCase();
+  const rawDigits = rawLower.replace(/\D/g, '');
+
+  // Check localStorage first
+  try {
+    const raw = localStorage.getItem(LOCAL_PARENT_CREDS_KEY);
+    if (raw) {
+      const map = JSON.parse(raw);
+      if (map[rawLower]) return map[rawLower];
+      if (rawDigits.length >= 7) {
+        for (const k of Object.keys(map)) {
+          if (k.replace(/\D/g, '').endsWith(rawDigits) || rawDigits.endsWith(k.replace(/\D/g, ''))) {
+            return map[k];
+          }
+        }
+      }
+    }
+  } catch {}
+
+  // Check Supabase materials table
+  try {
+    const { data: syncRows } = await supabase
+      .from('materials')
+      .select('content_text')
+      .ilike('title', '[PARENT_CREDENTIAL_SYNC]%')
+      .limit(50);
+
+    if (Array.isArray(syncRows)) {
+      for (const row of syncRows) {
+        try {
+          const parsed = JSON.parse(row.content_text || '{}');
+          if (parsed && parsed.__parent_credential_sync) {
+            const pEmail = String(parsed.email || '').toLowerCase();
+            const pIdent = String(parsed.identifier || '').toLowerCase();
+            const pChild = String(parsed.child_name || '').toLowerCase();
+            const pDigits = pIdent.replace(/\D/g, '');
+
+            if (pEmail === rawLower || pIdent === rawLower || pChild === rawLower) {
+              return parsed;
+            }
+            if (rawDigits.length >= 7 && pDigits.length >= 7) {
+              if (pDigits.endsWith(rawDigits) || rawDigits.endsWith(pDigits)) {
+                return parsed;
+              }
+            }
+          }
+        } catch {}
+      }
+    }
+  } catch {}
+
+  return null;
+}
+
+/**
+ * Resolves a parent/learner identifier (mobile number, email, or child name) to an official authEmail.
+ */
+export async function resolveParentForLogin(identifier) {
+  if (!identifier) return null;
+  const raw = String(identifier).trim();
+  if (!raw) return null;
+
+  const rawLower = raw.toLowerCase();
+  const rawDigits = raw.replace(/\D/g, '');
+
+  // 1. Check synced credentials
+  const cred = await getParentSyncedCredential(raw);
+  if (cred?.email) {
+    return {
+      authEmail: cred.email,
+      childName: cred.child_name,
+      parentName: cred.parent_name,
+      approval_status: 'approved',
+    };
+  }
+
+  // 2. Check Supabase learners table
+  try {
+    const { data: learners } = await supabase
+      .from('learners')
+      .select('*')
+      .limit(100);
+
+    if (Array.isArray(learners)) {
+      const match = learners.find((l) => {
+        const lName = String(l.full_name || '').toLowerCase();
+        const pName = String(l.parent_name || '').toLowerCase();
+        const pContact = String(l.parent_contact || '').replace(/\D/g, '');
+
+        if (lName === rawLower || (rawLower.length >= 4 && lName.includes(rawLower))) return true;
+        if (pName === rawLower || (rawLower.length >= 4 && pName.includes(rawLower))) return true;
+        if (rawDigits.length >= 7 && pContact.length >= 7) {
+          if (pContact.endsWith(rawDigits) || rawDigits.endsWith(pContact)) return true;
+        }
+        return false;
+      });
+
+      if (match) {
+        const { authEmail } = normalizeAuthIdentifier(match.parent_contact || match.id);
+        return {
+          authEmail,
+          childName: match.full_name,
+          parentName: match.parent_name,
+          approval_status: 'approved',
+        };
+      }
+    }
+  } catch {}
+
+  return null;
+}

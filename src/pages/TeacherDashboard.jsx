@@ -4009,8 +4009,8 @@ const handleFileSelected = async (file) => {
                       onChange={(e) => setNewChildAge(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white outline-none focus:border-slate-800"
                     >
-                      <option value="3-3.11">3 to 3.11 months (Pre-K1)</option>
-                      <option value="4-4.11">4 to 4.11 months (Pre-K2)</option>
+                      <option value="3-3.11">3 to 3.11 years (Pre-K1)</option>
+                      <option value="4-4.11">4 to 4.11 years (Pre-K2)</option>
                     </select>
                   </div>
 

@@ -1,6 +1,7 @@
 import { supabase, supabaseSecondaryAuth, normalizeAuthIdentifier } from './supabaseClient.js';
 import { realTeachersList, realCdcsList } from './curriculumData.js';
 import { baselineLearners } from './mswdData.js';
+import { saveParentSyncedCredential } from './teacherAuthService.js';
 
 const REGISTERED_LEARNERS_STORAGE_KEY = 'earlylearn_registered_learners';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -760,7 +761,7 @@ export async function createParentAccountByTeacher({
     },
   });
 
-  if (authErr) {
+  if (authErr && !/already registered/i.test(authErr.message)) {
     throw new Error(authErr.message);
   }
 
@@ -805,19 +806,25 @@ export async function createParentAccountByTeacher({
     approval_status: 'approved',
   });
 
+  const credentials = {
+    parentName: cleanParent,
+    childName: cleanChild,
+    identifier: display,
+    authEmail,
+    password,
+    barangay,
+    cdcName: effectiveCdcName,
+    teacherName,
+  };
+
+  try {
+    await saveParentSyncedCredential(credentials);
+  } catch {}
+
   return {
     user: authData?.user,
     learner: learnerRecord,
-    credentials: {
-      parentName: cleanParent,
-      childName: cleanChild,
-      identifier: display,
-      authEmail,
-      password,
-      barangay,
-      cdcName: effectiveCdcName,
-      teacherName,
-    },
+    credentials,
   };
 }
 

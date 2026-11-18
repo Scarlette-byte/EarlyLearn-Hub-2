@@ -3,7 +3,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase, supabaseSecondaryAuth, normalizeAuthIdentifier } from '../lib/supabaseClient';
 import { getEffectiveRole } from '../lib/roles.js';
 import { syncStudentLogin, getStudentApprovalStatus } from '../lib/learnersService.js';
-import { resolveTeacherForLogin, getTeacherSyncedCredential } from '../lib/teacherAuthService.js';
+import {
+  resolveTeacherForLogin,
+  getTeacherSyncedCredential,
+  resolveParentForLogin,
+  getParentSyncedCredential,
+} from '../lib/teacherAuthService.js';
 import PineappleLogo from '../components/PineappleLogo.jsx';
 
 export default function Login() {
@@ -29,12 +34,15 @@ export default function Login() {
 
     setLoading(true);
 
-    // Resolve teacher candidate emails (e.g. TCH-81, ANDRESA.ALLOSO, 0939-430-5411 -> andresa.alloso@earlylearn.ph)
+    // Resolve candidate emails for teachers and parents
     const teacherMatch = await resolveTeacherForLogin(trimmedInput);
+    const parentMatch = !teacherMatch ? await resolveParentForLogin(trimmedInput) : null;
+
     const candidateEmails = Array.from(
       new Set(
         [
           teacherMatch?.email,
+          parentMatch?.authEmail,
           authEmail,
           trimmedInput.includes('@') ? trimmedInput.toLowerCase() : null,
         ].filter(Boolean)
@@ -57,18 +65,17 @@ export default function Login() {
       lastError = error;
     }
 
-    // Auto-heal with admin-set temporary password if sign in failed
+    // Auto-heal with admin-set or teacher-created temporary password if sign in failed
     if (!authSuccessData) {
-      const syncedCred =
+      const syncedTeacherCred =
         (await getTeacherSyncedCredential(trimmedInput)) ||
         (teacherMatch?.email ? await getTeacherSyncedCredential(teacherMatch.email) : null) ||
         (await getTeacherSyncedCredential(authEmail));
 
-      if (syncedCred && syncedCred.temporary_password === password) {
+      if (syncedTeacherCred && syncedTeacherCred.temporary_password === password) {
         // Teacher entered the exact temporary password set by Admin!
-        // Auto-register/heal their Supabase Auth user:
-        const primaryEmail = syncedCred.email || teacherMatch?.email || authEmail;
-        const teacherName = syncedCred.full_name || teacherMatch?.full_name || 'Teacher';
+        const primaryEmail = syncedTeacherCred.email || teacherMatch?.email || authEmail;
+        const teacherName = syncedTeacherCred.full_name || teacherMatch?.full_name || 'Teacher';
 
         await supabaseSecondaryAuth.auth.signUp({
           email: primaryEmail,
@@ -77,16 +84,15 @@ export default function Login() {
             data: {
               role: 'teacher',
               full_name: teacherName,
-              teacher_id: syncedCred.teacher_id || teacherMatch?.id,
-              barangay: syncedCred.barangay || teacherMatch?.barangay,
-              cdc_name: syncedCred.cdc_name || teacherMatch?.cdc_name,
-              contact_number: syncedCred.contact_number || teacherMatch?.contact_number,
+              teacher_id: syncedTeacherCred.teacher_id || teacherMatch?.id,
+              barangay: syncedTeacherCred.barangay || teacherMatch?.barangay,
+              cdc_name: syncedTeacherCred.cdc_name || teacherMatch?.cdc_name,
+              contact_number: syncedTeacherCred.contact_number || teacherMatch?.contact_number,
               must_change_password: true,
             },
           },
         });
 
-        // Now sign in with the freshly initialized auth user
         const { data: retryData, error: retryErr } = await supabase.auth.signInWithPassword({
           email: primaryEmail,
           password,
@@ -95,9 +101,8 @@ export default function Login() {
         if (!retryErr && retryData?.user) {
           authSuccessData = retryData;
         } else {
-          // If the user already existed in auth.users with an earlier password, sign in with previous password and auto-update
-          const candidateOldPasswords = Array.isArray(syncedCred.previous_passwords)
-            ? syncedCred.previous_passwords
+          const candidateOldPasswords = Array.isArray(syncedTeacherCred.previous_passwords)
+            ? syncedTeacherCred.previous_passwords
             : [];
           for (const oldPass of candidateOldPasswords) {
             const { data: oldData, error: oldErr } = await supabase.auth.signInWithPassword({
@@ -105,7 +110,6 @@ export default function Login() {
               password: oldPass,
             });
             if (!oldErr && oldData?.user) {
-              // Successfully signed in with previous password! Auto-update to the new active password:
               try {
                 await supabase.auth.updateUser({ password });
               } catch {}
@@ -115,6 +119,47 @@ export default function Login() {
           }
           if (!authSuccessData) {
             lastError = retryErr || lastError;
+          }
+        }
+      }
+
+      // Check parent credentials created/approved by Teacher
+      if (!authSuccessData) {
+        const syncedParentCred =
+          (await getParentSyncedCredential(trimmedInput)) ||
+          (parentMatch?.authEmail ? await getParentSyncedCredential(parentMatch.authEmail) : null) ||
+          (await getParentSyncedCredential(authEmail));
+
+        if (syncedParentCred && syncedParentCred.temporary_password === password) {
+          const parentEmail = syncedParentCred.email || parentMatch?.authEmail || authEmail;
+          const childName = syncedParentCred.child_name || parentMatch?.childName || 'Child Learner';
+
+          await supabaseSecondaryAuth.auth.signUp({
+            email: parentEmail,
+            password: password,
+            options: {
+              data: {
+                role: 'student',
+                full_name: childName,
+                child_name: childName,
+                parent_name: syncedParentCred.parent_name || '',
+                barangay: syncedParentCred.barangay || '',
+                cdc_name: syncedParentCred.cdc_name || '',
+                contact_number: syncedParentCred.identifier || '',
+                approval_status: 'approved',
+              },
+            },
+          });
+
+          const { data: pRetryData, error: pRetryErr } = await supabase.auth.signInWithPassword({
+            email: parentEmail,
+            password,
+          });
+
+          if (!pRetryErr && pRetryData?.user) {
+            authSuccessData = pRetryData;
+          } else {
+            lastError = pRetryErr || lastError;
           }
         }
       }

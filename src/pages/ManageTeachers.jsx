@@ -1107,7 +1107,7 @@ export default function ManageTeachers() {
                 <div>
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-1.5">
                     <label className="text-xs font-bold text-dash-ink">
-                      New Temporary Password <span className="text-dash-ink-soft font-normal">(Min. 6 chars)</span>
+                      Password <span className="text-dash-ink-soft font-normal">(Min. 6 chars)</span>
                     </label>
                     <button
                       type="button"
@@ -1128,7 +1128,7 @@ export default function ManageTeachers() {
                     className="w-full px-3 py-2.5 rounded-xl border border-[#E5DCC9] font-mono text-sm text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent"
                   />
                   <p className="text-[11px] text-dash-ink-soft mt-1.5 leading-relaxed">
-                    Provide this temporary password to the teacher so they can access their portal.
+                    Save this password to activate the teacher&apos;s account. When you give the Teacher ID and password to the teacher, she can log in and access her dashboard immediately.
                   </p>
                 </div>
 
@@ -1145,7 +1145,7 @@ export default function ManageTeachers() {
                     disabled={passwordSaving}
                     className="px-5 py-2 rounded-xl bg-accent hover:opacity-90 text-white text-sm font-bold cursor-pointer shadow-xs disabled:opacity-50"
                   >
-                    {passwordSaving ? 'Updating...' : 'Set Temporary Password'}
+                    {passwordSaving ? 'Saving Password...' : 'Save Password'}
                   </button>
                 </div>
               </form>
@@ -1184,7 +1184,7 @@ export default function ManageTeachers() {
                   )}
                   <div>
                     <span className="text-dash-ink-soft block text-[10px] uppercase font-bold font-sans">
-                      Temporary Password:
+                      Saved Password:
                     </span>
                     <span className="font-bold text-sm text-coral select-all">
                       {passwordSuccessData.password}

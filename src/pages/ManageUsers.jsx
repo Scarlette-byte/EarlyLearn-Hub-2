@@ -840,7 +840,7 @@ export default function ManageUsers({ currentUser }) {
                     disabled={passwordSaving}
                     className="px-5 py-2 rounded-xl bg-accent hover:opacity-90 text-white text-sm font-bold cursor-pointer shadow-xs disabled:opacity-50"
                   >
-                    {passwordSaving ? 'Updating...' : 'Update Password'}
+                    {passwordSaving ? 'Saving Password...' : 'Save Password'}
                   </button>
                 </div>
               </form>
