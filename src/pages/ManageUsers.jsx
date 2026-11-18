@@ -674,7 +674,7 @@ export default function ManageUsers({ currentUser }) {
       {/* ---------------------------------------------------- */}
       {editModalUser && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 sm:p-7 max-w-md w-full shadow-xl border border-card-border animate-pop">
+          <div className="bg-white rounded-2xl p-6 sm:p-7 max-w-md w-full shadow-xl border border-card-border animate-pop max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-[#F5EDE0] mb-4">
               <div>
                 <h3 className="font-fraunces text-lg font-bold text-dash-ink m-0">
@@ -766,7 +766,7 @@ export default function ManageUsers({ currentUser }) {
       {/* ---------------------------------------------------- */}
       {passwordModalUser && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 sm:p-7 max-w-md w-full shadow-xl border border-card-border animate-pop">
+          <div className="bg-white rounded-2xl p-6 sm:p-7 max-w-md w-full shadow-xl border border-card-border animate-pop max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-[#F5EDE0] mb-4">
               <div>
                 <h3 className="font-fraunces text-lg font-bold text-dash-ink m-0">

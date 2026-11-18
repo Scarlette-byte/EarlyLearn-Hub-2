@@ -77,7 +77,16 @@ export default function TeacherChildDevelopment({
     const handleSync = () => {
       loadAssessmentsFromSupabase();
     };
+    const handleStorageChange = (e) => {
+      if (
+        e.key === 'earlylearn_teacher_eccd_assessments' ||
+        e.key === 'earlylearn_registered_learners'
+      ) {
+        loadAssessmentsFromSupabase();
+      }
+    };
     window.addEventListener('earlylearn_assessments_updated', handleSync);
+    window.addEventListener('storage', handleStorageChange);
 
     const channel = supabase
       .channel('teacher-eccd-assessments-sync')
@@ -100,6 +109,7 @@ export default function TeacherChildDevelopment({
 
     return () => {
       window.removeEventListener('earlylearn_assessments_updated', handleSync);
+      window.removeEventListener('storage', handleStorageChange);
       supabase.removeChannel(channel);
     };
   }, [loadAssessmentsFromSupabase]);
@@ -429,7 +439,7 @@ export default function TeacherChildDevelopment({
       {/* Learners & Assessments Table */}
       <div className="bg-white rounded-2xl border border-card-border shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left text-xs">
+          <table className="w-full border-collapse text-left text-xs min-w-[700px]">
             <thead>
               <tr className="bg-[#FAF5EC] border-b border-card-border text-xs font-bold text-[#8C7F63]">
                 <th className="px-4 py-3">Learner and age</th>
@@ -601,7 +611,7 @@ export default function TeacherChildDevelopment({
             </div>
 
             <form onSubmit={handleSaveAssessment} className="space-y-4 text-xs text-dash-ink">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-dash-ink mb-1">Assessment date</label>
                   <input

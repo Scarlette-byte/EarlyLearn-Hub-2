@@ -741,7 +741,7 @@ export default function EnrolleePopulation({
       {/* ==================================================================== */}
       {viewingLearner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-xs">
-          <div className="bg-white w-full max-w-md rounded-2xl p-6 border border-card-border shadow-xl space-y-4">
+          <div className="bg-white w-full max-w-md rounded-2xl p-6 border border-card-border shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-gray-200 pb-3">
               <div className="font-fraunces text-lg font-bold text-dash-ink">
                 Student Profile Information

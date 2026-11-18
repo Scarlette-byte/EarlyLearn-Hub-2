@@ -598,26 +598,28 @@ export default function AdminDashboard({ profile }) {
               {catContentsMsg ? (
                 <p className="text-[13px] text-dash-ink-soft">{catContentsMsg}</p>
               ) : (
-                <table className={table}>
-                  <thead>
-                    <tr>
-                      <th className={th}>Title</th>
-                      <th className={th}>Type</th>
-                      <th className={th}>Age</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {catContents.map((m, idx) => (
-                      <tr key={idx}>
-                        <td className={td}>{m.title}</td>
-                        <td className={td}>{m.type}</td>
-                        <td className={td}>
-                          <span className={ageTag}>{m.age_range || '-'}</span>
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className={table}>
+                    <thead>
+                      <tr>
+                        <th className={th}>Title</th>
+                        <th className={th}>Type</th>
+                        <th className={th}>Age</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {catContents.map((m, idx) => (
+                        <tr key={idx}>
+                          <td className={td}>{m.title}</td>
+                          <td className={td}>{m.type}</td>
+                          <td className={td}>
+                            <span className={ageTag}>{m.age_range || '-'}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )}

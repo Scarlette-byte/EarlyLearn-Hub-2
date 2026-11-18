@@ -1148,7 +1148,7 @@ const handleFileSelected = async (file) => {
       // Ignored
     }
 
-    // 3. If fulfilling an admin assigned topic, mark it as Completed!
+    // 3. If fulfilling an admin assigned topic, mark it as Completed across devices!
     if (activeAssignmentId) {
       const updatedAssignments = assignments.map((a) =>
         a.id === activeAssignmentId
@@ -1165,6 +1165,47 @@ const handleFileSelected = async (file) => {
         window.dispatchEvent(new CustomEvent('earlylearn_assignments_updated', { detail: updatedAssignments }));
       } catch (err) {
         console.warn('Failed saving assignment status:', err);
+      }
+
+      // Synchronize completed status to Supabase so it reflects across all teacher & admin devices
+      const targetAsg = updatedAssignments.find((a) => a.id === activeAssignmentId);
+      if (targetAsg) {
+        try {
+          if (targetAsg._sbMaterialId) {
+            await supabase
+              .from('materials')
+              .update({
+                content_text: JSON.stringify({
+                  __mswd_assignment: true,
+                  assignment: targetAsg,
+                }),
+              })
+              .eq('id', targetAsg._sbMaterialId);
+          } else {
+            const { data: rows } = await supabase
+              .from('materials')
+              .select('id, content_text')
+              .ilike('title', '[MSWD_ASSIGNMENT]%');
+            if (Array.isArray(rows)) {
+              for (const r of rows) {
+                try {
+                  const p = JSON.parse(r.content_text || '{}');
+                  if (p?.assignment?.id === activeAssignmentId) {
+                    await supabase
+                      .from('materials')
+                      .update({
+                        content_text: JSON.stringify({
+                          __mswd_assignment: true,
+                          assignment: targetAsg,
+                        }),
+                      })
+                      .eq('id', r.id);
+                  }
+                } catch { }
+              }
+            }
+          }
+        } catch { }
       }
     }
 
@@ -3041,7 +3082,7 @@ const handleFileSelected = async (file) => {
             </p>
 
             {/* Quick Workflow Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
               <div
                 onClick={() => setActiveTab('assigned_topics')}
                 className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 cursor-pointer hover:bg-amber-50 transition-colors"
@@ -3925,7 +3966,7 @@ const handleFileSelected = async (file) => {
           {/* Modal: Teacher Directly Creates a Parent & Child Account */}
           {createParentModalOpen && (
             <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl border border-slate-200 space-y-4">
+              <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                   <div>
                     <h4 className="font-fraunces text-lg font-bold text-slate-900 m-0">
@@ -5257,7 +5298,7 @@ const handleFileSelected = async (file) => {
       {/* POST APPROVED ACTIVITY TO SPECIFIC STUDENT DASHBOARD MODAL */}
       {postingMaterial && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-5 space-y-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-5 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
                 <span className="text-[10.5px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">

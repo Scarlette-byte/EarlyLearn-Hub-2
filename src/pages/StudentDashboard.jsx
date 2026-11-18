@@ -1479,26 +1479,14 @@ export default function StudentDashboard({ profile }) {
       {/* -------------------------------------------------------- */}
       <aside className="hidden md:flex md:w-56 lg:w-60 xl:w-64 shrink-0 bg-white border-r border-[#ECE7F4] flex-col justify-between p-5 min-h-screen sticky top-0 z-30 shadow-xs">
         <div>
-          {/* Logo: EarlyLearn Hub */}
           {/* Logo: EarlyLearn Hub Official Pineapple Brand Identity */}
           <div
             onClick={() => {
               setNavTab('home');
               if (view !== 'home') setView('home');
             }}
-            className="flex items-center gap-3 px-2 py-1.5 cursor-pointer hover:opacity-90 transition-opacity"
             className="flex flex-col items-center justify-center p-2 cursor-pointer hover:opacity-90 transition-opacity"
           >
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#4EA8DE] to-[#3B82F6] flex items-center justify-center text-white shadow-sm relative shrink-0">
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
-              </svg>
-              <span className="absolute -top-1 -right-1 text-xs">⭐</span>
-            </div>
-            <div className="text-left leading-tight">
-              <span className="font-baloo font-black text-lg text-[#1E1B4B] block tracking-tight">EarlyLearn</span>
-              <span className="font-baloo font-black text-xs text-[#7C3AED] tracking-wider uppercase block -mt-0.5">Hub</span>
-            </div>
             <PineappleLogo variant="vertical" size={54} />
           </div>
 
@@ -1558,15 +1546,8 @@ export default function StudentDashboard({ profile }) {
             if (view !== 'home') setView('home');
           }}
           className="flex items-center gap-2 cursor-pointer"
-          className="flex items-center gap-1.5 cursor-pointer"
         >
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#4EA8DE] to-[#3B82F6] flex items-center justify-center text-white text-sm font-black shadow-xs">
-            ⭐
-          </div>
-          <span className="font-baloo font-black text-base text-[#1E1B4B]">
-            EarlyLearn <span className="text-[#7C3AED]">Hub</span>
-          </span>
-          <PineappleLogo variant="horizontal" size={28} />
+          <PineappleLogo variant="horizontal" size={30} />
         </div>
 
         <div className="flex items-center gap-2">
@@ -1679,6 +1660,12 @@ export default function StudentDashboard({ profile }) {
                           <span className="text-sm shrink-0">🏫</span>
                           <span className="truncate">{adviserInfo.cdcName || 'EarlyLearn Child Development Center'}</span>
                         </p>
+                        {adviserInfo.adviserName && (
+                          <p className="text-xs sm:text-[12px] font-bold text-[#7A748A] m-0 flex items-center gap-1.5 truncate mt-0.5">
+                            <span className="text-sm shrink-0">👩‍🏫</span>
+                            <span className="truncate">Teacher Adviser: {adviserInfo.adviserName}</span>
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -4031,7 +4018,7 @@ export default function StudentDashboard({ profile }) {
               onClick={() => setActiveFlashcardIndex(null)}
             >
               <div
-                className="bg-cream w-full max-w-md rounded-[32px] p-6 shadow-2xl border-4 border-white text-center relative animate-pop space-y-4"
+                className="bg-cream w-full max-w-md rounded-[32px] p-6 shadow-2xl border-4 border-white text-center relative animate-pop space-y-4 max-h-[90vh] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Modal Top Bar */}

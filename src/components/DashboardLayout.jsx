@@ -95,7 +95,7 @@ export default function DashboardLayout({
           </div>
 
           {/* Main */}
-          <div className="flex-1 p-5 sm:p-7 md:p-8 overflow-y-auto">
+          <div className="flex-1 min-w-0 p-4 sm:p-6 md:p-8 overflow-y-auto">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 mb-6 border-b border-slate-200 gap-4">
               <div>
                 <div className="flex items-center gap-2.5 flex-wrap">

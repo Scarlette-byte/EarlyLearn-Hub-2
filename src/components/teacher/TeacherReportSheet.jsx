@@ -366,7 +366,7 @@ export default function TeacherReportSheet({
 
                 {/* Class Table */}
                 <div className="overflow-x-auto border border-gray-300 rounded-xl">
-                  <table className="w-full border-collapse text-left text-xs">
+                  <table className="w-full border-collapse text-left text-xs min-w-[620px]">
                     <thead>
                       <tr className="bg-[#FAF5EC] border-b border-gray-300 font-bold text-dash-ink">
                         <th className="p-2.5">Learner name</th>

@@ -398,7 +398,7 @@ export default function ChildRecordsManagement({
       {/* VIEW PROFILE MODAL */}
       {viewingLearner && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-xl border border-card-border space-y-5 animate-pop">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-xl border border-card-border space-y-5 animate-pop max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between border-b border-card-border pb-3.5">
               <div>
                 <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-700 tracking-wider">
