@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase, normalizeAuthIdentifier } from '../lib/supabaseClient';
 import { getEffectiveRole } from '../lib/roles.js';
 import { syncStudentLogin, getStudentApprovalStatus } from '../lib/learnersService.js';
+import PineappleLogo from '../components/PineappleLogo.jsx';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -132,109 +133,129 @@ export default function Login() {
     }, 700);
   }
 
+  const [showPassword, setShowPassword] = useState(false);
+
   return (
-    <div className="min-h-screen min-h-[100dvh] flex items-center justify-center overflow-x-hidden relative bg-gradient-to-b from-sky-deep via-sky to-[#BEE7FF] font-nunito">
-      {/* Signature illustration: sun rising over Bukidnon hills */}
-      <div className="fixed inset-0 z-0 pointer-events-none">
-        <div className="cloud cloud-1" />
-        <div className="cloud cloud-2" />
-        <div
-          className="animate-rise absolute top-[8%] left-1/2 -translate-x-1/2 w-40 h-40 sm:w-[120px] sm:h-[120px] rounded-full shadow-[0_0_60px_20px_rgba(255,217,61,0.5)]"
-          style={{
-            background:
-              'radial-gradient(circle at 35% 35%, #FFF3B0, #FFD93D 60%, #FFC93D 100%)',
-          }}
-        />
-        <div className="absolute bottom-0 left-0 w-full h-[42%] max-[560px]:hidden">
-          <div className="absolute -bottom-2.5 w-[130%] -left-[15%] h-full bg-[#5BB86A] opacity-55 rounded-t-[50%]" />
-          <div className="absolute -bottom-5 w-[140%] -left-[20%] h-[80%] bg-leaf rounded-t-[50%]" />
-        </div>
-      </div>
-
-      <div className="animate-pop safe-x relative z-10 bg-cream w-full max-w-[390px] my-6 p-8 sm:p-10 rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.18)] text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 sm:w-14 sm:h-14 rounded-[20px] bg-gradient-to-br from-sun to-coral text-3xl mb-3.5">
-          🌻
-        </div>
-        <h1 className="font-baloo text-2xl sm:text-[21px] text-ink m-0 mb-0.5">
-          EarlyLearn Hub
-        </h1>
-        <p className="text-[13px] sm:text-xs text-ink-soft m-0 mb-6 sm:mb-5">
-          Manolo Fortich, Bukidnon
-        </p>
-
-        <form onSubmit={handleSubmit} className="text-left">
-          <label
-            htmlFor="identifier"
-            className="block font-bold text-[13px] sm:text-xs text-ink mt-3.5 mb-1.5"
-          >
-            Teacher ID, Mobile Number, or Email
-          </label>
-          <div className="relative">
-            <input
-              id="identifier"
-              type="text"
-              required
-              placeholder="TCH-2026-001, 09123456789, or email"
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              className="w-full px-3.5 py-3 rounded-2xl border-2 border-[#E6E6E6] font-nunito text-base outline-none transition-colors focus:border-sky-deep pr-10"
-            />
-            <div className="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-ink-soft text-sm">
-              🔑
-            </div>
+        <div className="min-h-screen min-h-[100dvh] flex items-center justify-center overflow-x-hidden relative bg-[#FFFBEA]/60 font-nunito">
+          {/* Soft pastel ambient background shapes matching brand reference */}
+          <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+            {/* Soft yellow pastel curve top-left */}
+            <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-[#FFD34E]/25 blur-3xl" />
+            {/* Soft green pastel curve bottom-right */}
+            <div className="absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-[#78BD58]/20 blur-3xl" />
+            {/* Little decorative stars & shapes */}
+            <span className="absolute top-[12%] left-[10%] text-amber-300 text-3xl select-none opacity-70">⭐</span>
+            <span className="absolute top-[24%] right-[12%] text-amber-300 text-2xl select-none opacity-60">✨</span>
+            <span className="absolute bottom-[16%] left-[8%] text-emerald-400 text-3xl select-none opacity-50">🌱</span>
+            <span className="absolute bottom-[20%] right-[10%] text-rose-300 text-2xl select-none opacity-50">🎈</span>
           </div>
-          <p className="text-[11px] text-ink-soft mt-1">
-            💡 Teachers: use your Teacher ID &amp; temporary password. Parents: use your registered mobile number or email.
-          </p>
 
-          <label
-            htmlFor="password"
-            className="block font-bold text-[13px] sm:text-xs text-ink mt-3.5 mb-1.5"
-          >
-            Password
-          </label>
-          <input
-            id="password"
-            type="password"
-            required
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-3.5 py-3 rounded-2xl border-2 border-[#E6E6E6] font-nunito text-base outline-none transition-colors focus:border-sky-deep"
-          />
+              <div className="animate-pop safe-x relative z-10 bg-white w-full max-w-[400px] my-6 p-7 sm:p-9 rounded-[32px] shadow-[0_16px_50px_rgba(43,36,28,0.08)] border border-[#F4EEDF] text-center">
+                {/* Official Pineapple Logo */}
+                <div className="mb-3 flex justify-center">
+                  <PineappleLogo variant="vertical" size="lg" />
+                </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full mt-6 py-[13px] min-h-12 border-none rounded-2xl bg-coral text-white font-baloo text-[17px] sm:text-base font-bold cursor-pointer transition-all hover:bg-coral-deep active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Logging in...' : 'Log In'}
-          </button>
+                  <h1 className="font-baloo font-extrabold text-2xl sm:text-[22px] text-[#2B241C] m-0 mb-1">
+                    Welcome Back!
+                  </h1>
+                    <p className="text-xs text-[#7A6B52] m-0 mb-6 font-semibold">
+                      Sign in to continue your learning journey
+                    </p>
 
-          {msg.text && (
-            <p
-              className={`mt-3.5 text-[13px] font-semibold text-center min-h-[18px] leading-snug ${
-                msg.type === 'error' ? 'text-coral-deep' : 'text-[#2f9e44]'
-              }`}
-            >
-              {msg.text}
-            </p>
-          )}
-        </form>
+                          <form onSubmit={handleSubmit} className="text-left space-y-3.5">
+                            <div>
+                              <label
+                                htmlFor="identifier"
+                                className="block font-bold text-xs text-[#3D3327] mb-1.5"
+                              >
+                                Teacher ID, Mobile Number, or Email
+                              </label>
+                              <div className="relative">
+                                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 text-sm">
+                                  👤
+                                </span>
+                                <input
+                                  id="identifier"
+                                  type="text"
+                                  required
+                                  placeholder="Teacher ID, Mobile Number, or Email"
+                                  value={identifier}
+                                  onChange={(e) => setIdentifier(e.target.value)}
+                                  className="w-full pl-10 pr-4 py-2.5 rounded-2xl border-2 border-[#EBE7DF] bg-[#FFFDF9] font-nunito text-sm outline-none transition-colors focus:border-[#78BD58] focus:bg-white text-slate-800"
+                                />
+                              </div>
+                              <p className="text-[11px] text-[#7A6B52] mt-1 m-0">
+                                💡 Teachers: use Teacher ID. Parents: use registered mobile or email.
+                              </p>
+                            </div>
 
-        <Link
-          to="/signup"
-          className="block mt-4.5 text-[13px] text-sky-deep no-underline font-bold hover:underline"
-        >
-          Parent with a Teacher Code? Sign Up here
-        </Link>
-        <Link
-          to="/"
-          className="block mt-2.5 text-[12px] text-ink-soft no-underline font-semibold hover:text-ink hover:underline"
-        >
-          ← Back to EarlyLearn Hub
-        </Link>
-      </div>
-    </div>
-  );
+                            <div>
+                              <label
+                                htmlFor="password"
+                                className="block font-bold text-xs text-[#3D3327] mb-1.5"
+                              >
+                                Password
+                              </label>
+                              <div className="relative">
+                                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 text-sm">
+                                  🔒
+                                </span>
+                                <input
+                                  id="password"
+                                  type={showPassword ? 'text' : 'password'}
+                                  required
+                                  placeholder="Password"
+                                  value={password}
+                                  onChange={(e) => setPassword(e.target.value)}
+                                  className="w-full pl-10 pr-10 py-2.5 rounded-2xl border-2 border-[#EBE7DF] bg-[#FFFDF9] font-nunito text-sm outline-none transition-colors focus:border-[#78BD58] focus:bg-white text-slate-800"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowPassword((v) => !v)}
+                                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 text-xs cursor-pointer bg-transparent border-none"
+                                  aria-label="Toggle password visibility"
+                                >
+                                  {showPassword ? '🙈' : '👁️'}
+                                </button>
+                              </div>
+                            </div>
+
+                            <button
+                              type="submit"
+                              disabled={loading}
+                              className="w-full mt-4 py-3 min-h-12 border-none rounded-2xl bg-[#F46D70] hover:bg-[#E65A5D] text-white font-baloo text-base font-extrabold cursor-pointer transition-all active:scale-[0.98] shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              {loading ? 'Logging in...' : 'Log In'}
+                            </button>
+
+                            {msg.text && (
+                              <p
+              className={`mt-3 text-xs font-bold text-center min-h-[18px] leading-snug p-2.5 rounded-xl ${msg.type === 'error'
+                                    ? 'bg-rose-50 text-[#F46D70] border border-rose-200'
+                                    : 'bg-emerald-50 text-[#78BD58] border border-emerald-200'
+                                  }`}
+                              >
+                                {msg.text}
+                              </p>
+                            )}
+                          </form>
+
+                          <div className="mt-5 pt-4 border-t border-[#F0EBE0] space-y-2">
+                            <Link
+                              to="/signup"
+                              className="block text-xs text-[#F46D70] no-underline font-extrabold hover:underline"
+                            >
+                              Don't have an account? Sign Up here
+                            </Link>
+                            <Link
+                              to="/"
+                              className="block text-[11.5px] text-[#7A6B52] no-underline font-bold hover:text-[#2B241C] hover:underline"
+                            >
+                              ← Back to EarlyLearn Hub
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                      );
 }

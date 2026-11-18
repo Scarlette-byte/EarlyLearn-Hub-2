@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { barangays } from '../lib/supabaseClient';
+import PineappleLogo from '../components/PineappleLogo.jsx';
 
 // Gentle micro-interaction sound generator using Web Audio API
 function playChime(type = 'success') {
@@ -394,26 +395,15 @@ export default function LandingPage() {
       {/* ACCESSIBLE TOP HEADER / NAVIGATION                   */}
       {/* ---------------------------------------------------- */}
       <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          navScrolled
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${navScrolled
             ? 'bg-[#FFFDF8]/95 backdrop-blur-md shadow-sm border-b border-[#EFE7D8] py-3'
             : 'bg-transparent py-4 sm:py-5'
-        }`}
+          }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
           {/* Logo Brand */}
           <Link to="/" className="flex items-center gap-3 no-underline group">
-            <div className="w-10 h-10 rounded-xl bg-[#FF6B6B] text-white flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
-              <IconSprout className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="font-baloo text-xl sm:text-2xl font-extrabold text-[#2B241C] tracking-tight leading-none">
-                EarlyLearn Hub
-              </div>
-              <div className="text-[11px] font-bold text-[#8C7A65] tracking-wide mt-0.5">
-                Manolo Fortich • Ages 3–4 (Nursery & Day Care)
-              </div>
-            </div>
+            <PineappleLogo variant="horizontal" size={42} subtitle="Manolo Fortich • Ages 3–4 (Nursery & Day Care)" />
           </Link>
 
           {/* Desktop Navigation */}
@@ -780,11 +770,10 @@ export default function LandingPage() {
                 setDemoTab('words');
                 playChime('tap');
               }}
-              className={`px-5 py-2.5 rounded-xl font-baloo text-sm sm:text-base font-bold transition-all ${
-                demoTab === 'words'
+              className={`px-5 py-2.5 rounded-xl font-baloo text-sm sm:text-base font-bold transition-all ${demoTab === 'words'
                   ? 'bg-[#FF6B6B] text-white shadow-sm'
                   : 'bg-white text-[#5A4C3C] hover:bg-[#F2ECE0] border border-[#E8DFC9]'
-              }`}
+                }`}
             >
               First Words & Sounds
             </button>
@@ -794,11 +783,10 @@ export default function LandingPage() {
                 setDemoTab('shapes');
                 playChime('tap');
               }}
-              className={`px-5 py-2.5 rounded-xl font-baloo text-sm sm:text-base font-bold transition-all ${
-                demoTab === 'shapes'
+              className={`px-5 py-2.5 rounded-xl font-baloo text-sm sm:text-base font-bold transition-all ${demoTab === 'shapes'
                   ? 'bg-[#FF6B6B] text-white shadow-sm'
                   : 'bg-white text-[#5A4C3C] hover:bg-[#F2ECE0] border border-[#E8DFC9]'
-              }`}
+                }`}
             >
               Shapes & Colors
             </button>
@@ -808,11 +796,10 @@ export default function LandingPage() {
                 setDemoTab('count');
                 playChime('tap');
               }}
-              className={`px-5 py-2.5 rounded-xl font-baloo text-sm sm:text-base font-bold transition-all ${
-                demoTab === 'count'
+              className={`px-5 py-2.5 rounded-xl font-baloo text-sm sm:text-base font-bold transition-all ${demoTab === 'count'
                   ? 'bg-[#FF6B6B] text-white shadow-sm'
                   : 'bg-white text-[#5A4C3C] hover:bg-[#F2ECE0] border border-[#E8DFC9]'
-              }`}
+                }`}
             >
               Count With Me (1 to 5)
             </button>
@@ -847,11 +834,10 @@ export default function LandingPage() {
                         key={key}
                         type="button"
                         onClick={() => handleWordSelect(key)}
-                        className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl font-baloo text-2xl font-extrabold flex items-center justify-center transition-all ${
-                          isSelected
+                        className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl font-baloo text-2xl font-extrabold flex items-center justify-center transition-all ${isSelected
                             ? `${item.color} text-white shadow-md scale-105 ring-4 ring-[#FF6B6B]/20`
                             : 'bg-[#F9F5EC] text-[#2B241C] hover:bg-[#F2ECE0] border border-[#E8DFC9]'
-                        }`}
+                          }`}
                       >
                         {key}
                       </button>
@@ -927,11 +913,10 @@ export default function LandingPage() {
                         key={shape.id}
                         type="button"
                         onClick={() => handleShapeSelect(shape)}
-                        className={`p-4 rounded-2xl border-2 text-center transition-all flex flex-col items-center justify-center gap-2 ${
-                          isSelected
+                        className={`p-4 rounded-2xl border-2 text-center transition-all flex flex-col items-center justify-center gap-2 ${isSelected
                             ? 'bg-[#FFF9EE] border-[#FF6B6B] shadow-sm scale-102'
                             : 'bg-[#FFFDF9] border-[#EAE0CF] hover:bg-[#F8F2E4]'
-                        }`}
+                          }`}
                       >
                         <div className="w-16 h-16 flex items-center justify-center">
                           {shape.iconPath}
@@ -999,11 +984,10 @@ export default function LandingPage() {
                       key={num}
                       type="button"
                       onClick={() => handleCountChange(num)}
-                      className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl font-baloo text-xl sm:text-2xl font-extrabold flex items-center justify-center transition-all ${
-                        currentCount === num
+                      className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl font-baloo text-xl sm:text-2xl font-extrabold flex items-center justify-center transition-all ${currentCount === num
                           ? 'bg-[#3FA9F5] text-white shadow-sm scale-110'
                           : 'bg-[#F9F5EC] text-[#2B241C] hover:bg-[#F2ECE0] border border-[#E8DFC9]'
-                      }`}
+                        }`}
                     >
                       {num}
                     </button>
@@ -1162,11 +1146,10 @@ export default function LandingPage() {
                   setActiveRole(role.id);
                   playChime('tap');
                 }}
-                className={`px-5 py-2.5 rounded-xl font-baloo text-sm sm:text-base font-bold transition-all ${
-                  activeRole === role.id
+                className={`px-5 py-2.5 rounded-xl font-baloo text-sm sm:text-base font-bold transition-all ${activeRole === role.id
                     ? 'bg-[#2B241C] text-white shadow-sm'
                     : 'bg-white text-[#5A4C3C] hover:bg-[#F2ECE0] border border-[#E8DFC9]'
-                }`}
+                  }`}
               >
                 {role.label}
               </button>
@@ -1378,11 +1361,10 @@ export default function LandingPage() {
                   setActiveBarangay(b);
                   playChime('tap');
                 }}
-                className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-                  activeBarangay === b
+                className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeBarangay === b
                     ? 'bg-[#FF6B6B] text-white shadow-xs scale-103'
                     : 'bg-[#F9F5EC] text-[#4A3B2C] hover:bg-[#F2ECE0] border border-[#EAE0CF]'
-                }`}
+                  }`}
               >
                 <span>📍 {b}</span>
               </button>
@@ -1522,12 +1504,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             {/* Brand */}
             <div className="space-y-2.5 md:col-span-1">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-[#FF6B6B] text-white flex items-center justify-center">
-                  <IconSprout className="w-5 h-5" />
-                </div>
-                <span className="font-baloo text-xl font-bold text-white">EarlyLearn Hub</span>
-              </div>
+              <PineappleLogo variant="horizontal" theme="dark" size={34} />
               <p className="text-xs text-[#A89882] leading-relaxed">
                 Early childhood care and education platform specifically tailored for 3 to 4-year-old learners across the 22 barangays of Manolo Fortich, Bukidnon.
               </p>

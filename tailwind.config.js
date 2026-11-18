@@ -9,6 +9,13 @@ export default {
         fraunces: ['Fraunces', 'serif'],
       },
       colors: {
+        // Official EarlyLearn Hub Brand Palette
+        'brand-leaf': '#78BD58',
+        'brand-yellow': '#FFD34E',
+        'brand-coral': '#F46D70',
+        'brand-coral-hover': '#E65A5D',
+        'brand-cream': '#FFFBEA',
+
         // Auth (login / sign up) palette
         sky: '#6EC6FF',
         'sky-deep': '#3FA9F5',
