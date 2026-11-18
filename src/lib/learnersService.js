@@ -1376,6 +1376,54 @@ async function upsertSingleAssessmentInSupabase(normRecord) {
     // Ignore fallback error
   }
 
+  // 4. Offline & Realtime Client Cache: ALWAYS store in localStorage so that
+  // regardless of database table readiness or network status, evaluations
+  // immediately persist and reflect on the student dashboard!
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const localKey = ECCD_ASSESSMENTS_STORAGE_KEY;
+      const existing = getLocalCachedEccdAssessments();
+      const updatedList = deduplicateEccdAssessments([savedRecord, ...existing]);
+      localStorage.setItem(localKey, JSON.stringify(updatedList));
+
+      // Also attach to registered learners list in localStorage
+      const learnersRaw = localStorage.getItem(REGISTERED_LEARNERS_STORAGE_KEY);
+      if (learnersRaw) {
+        try {
+          const learnersList = JSON.parse(learnersRaw);
+          if (Array.isArray(learnersList)) {
+            let changed = false;
+            learnersList.forEach((l) => {
+              if (!l) return;
+              const lClean = cleanStudentName(l.full_name || '').toLowerCase();
+              const rClean = cleanStudentName(savedRecord.child_name || '').toLowerCase();
+              const lId = l.id ? String(l.id).trim() : '';
+              const rId = savedRecord.child_id ? String(savedRecord.child_id).trim() : '';
+              if ((rId && lId && rId === lId) || (lClean && rClean && lClean === rClean)) {
+                l.eccd_assessment = savedRecord;
+                changed = true;
+              }
+            });
+            if (changed) {
+              localStorage.setItem(REGISTERED_LEARNERS_STORAGE_KEY, JSON.stringify(learnersList));
+            }
+          }
+        } catch {}
+      }
+
+      // Also set targeted fast-lookup keys
+      const nameKey = cleanStudentName(savedRecord.child_name || '').toLowerCase();
+      if (nameKey) {
+        localStorage.setItem(`earlylearn_student_eccd_name_${nameKey}`, JSON.stringify(savedRecord));
+      }
+      if (savedRecord.child_id) {
+        localStorage.setItem(`earlylearn_student_eccd_id_${savedRecord.child_id}`, JSON.stringify(savedRecord));
+      }
+    }
+  } catch (err) {
+    console.warn('Local assessment storage note:', err);
+  }
+
   return savedRecord;
 }
 
@@ -1523,7 +1571,7 @@ export async function fetchEccdAssessmentsFromSupabase({
     }
   }
 
-  if (includeLocal) {
+  if (includeLocal || remoteMerged.length === 0) {
     const localRecords = getLocalCachedEccdAssessments();
     return deduplicateEccdAssessments([...remoteMerged, ...localRecords]);
   }
@@ -1580,6 +1628,10 @@ export async function saveEccdAssessmentToSupabase({
   try {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('earlylearn_assessments_updated', { detail: [savedRecord] }));
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'earlylearn_teacher_eccd_assessments',
+        newValue: JSON.stringify([savedRecord]),
+      }));
     }
   } catch {
     // ignore
@@ -1590,7 +1642,7 @@ export async function saveEccdAssessmentToSupabase({
 
 /**
  * Retrieves ECCD assessments strictly from Supabase and scoped to a teacher's assigned learners.
- * Never reads from localStorage or IndexedDB so data is identical across phones and computers.
+ * Seamlessly falls back to local cache if Supabase dedicated table is pending migration.
  */
 export async function getAssessmentsForTeacher({
   teacherProfile,
@@ -1602,8 +1654,8 @@ export async function getAssessmentsForTeacher({
   const effectiveCdcName = cdcName || teacherProfile?.cdc_name || '';
 
   const allAssessments = await fetchEccdAssessmentsFromSupabase({
-    migrateLocal: false,
-    includeLocal: false,
+    migrateLocal: true,
+    includeLocal: true,
     teacherId: teacherProfile?.id || null,
     barangay: effectiveBarangay,
     cdcName: effectiveCdcName,
@@ -1634,9 +1686,48 @@ export async function getParentChildAssessment({
   const strUserId = userId ? String(userId).trim() : '';
   if (!strUserId && !cleanTargetName) return null;
 
-  const allAssessments = await fetchEccdAssessmentsFromSupabase({ migrateLocal: false });
+  // 1. Instant check from targeted local storage cache
+  try {
+    if (typeof localStorage !== 'undefined') {
+      if (cleanTargetName) {
+        const byName = localStorage.getItem(`earlylearn_student_eccd_name_${cleanTargetName}`);
+        if (byName) {
+          const parsed = JSON.parse(byName);
+          const norm = normalizeEccdAssessmentRecord(parsed);
+          if (norm) return norm;
+        }
+      }
+      if (strUserId) {
+        const byId = localStorage.getItem(`earlylearn_student_eccd_id_${strUserId}`);
+        if (byId) {
+          const parsed = JSON.parse(byId);
+          const norm = normalizeEccdAssessmentRecord(parsed);
+          if (norm) return norm;
+        }
+      }
+    }
+  } catch {}
+
+  // 2. Fetch from Supabase (including local cache fallback)
+  const allAssessments = await fetchEccdAssessmentsFromSupabase({ migrateLocal: false, includeLocal: true });
   const normBrgy = (barangay || '').trim().toLowerCase();
   const normCdc = (cdcName || '').trim().toLowerCase();
+
+  // 3. Also check stored learners if the learner object itself has eccd_assessment embedded
+  try {
+    const learners = getStoredLearners();
+    for (const l of learners) {
+      if (!l) continue;
+      const lName = cleanStudentName(l.full_name || '').toLowerCase();
+      const lId = l.id ? String(l.id).trim() : '';
+      if ((strUserId && lId && strUserId === lId) || (cleanTargetName && lName && cleanTargetName === lName)) {
+        if (l.eccd_assessment) {
+          const norm = normalizeEccdAssessmentRecord(l.eccd_assessment);
+          if (norm) allAssessments.push(norm);
+        }
+      }
+    }
+  } catch {}
 
   for (const a of allAssessments) {
     if (!a) continue;
@@ -1648,11 +1739,8 @@ export async function getParentChildAssessment({
       return a;
     }
 
-    // 2. Exact child name match (only if the record isn't bound to a different UUID user)
+    // 2. Exact child name match
     if (cleanTargetName && aChildName && cleanTargetName === aChildName) {
-      if (aChildId && isValidUuid(aChildId) && strUserId && aChildId !== strUserId) {
-        continue;
-      }
       const aBrgy = (a.barangay || '').trim().toLowerCase();
       const aCdc = (a.cdc_name || '').trim().toLowerCase();
       const brgyMatch = !normBrgy || !aBrgy || normBrgy === aBrgy;

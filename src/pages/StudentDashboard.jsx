@@ -667,6 +667,13 @@ export default function StudentDashboard({ profile }) {
         }
       }, [currentUserId, greetingName, studentBarangay, adviserInfo?.cdcName, profile]);
 
+      // Automatically refresh developmental assessment when the parent opens "My Child" tab
+      useEffect(() => {
+        if (navTab === 'my_child') {
+          loadChildAssessment();
+        }
+      }, [navTab, loadChildAssessment]);
+
       // Listen to teacher uploads in localStorage & Supabase Realtime across devices
       useEffect(() => {
         loadAnnouncements();

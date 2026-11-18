@@ -256,7 +256,7 @@ export default function TeacherChildDevelopment({
 
     const record = {
       id: evalForm.id || `ass-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-      child_id: evaluatingLearner.id,
+      child_id: evaluatingLearner.id || evaluatingLearner.profile_id || evaluatingLearner.user_id || '',
       child_name: evaluatingLearner.full_name,
       age: evalForm.age,
       level: evalForm.level,
@@ -294,6 +294,15 @@ export default function TeacherChildDevelopment({
         );
         return [saved, ...filtered];
       });
+
+      // Notify other windows/tabs in realtime
+      try {
+        window.dispatchEvent(new CustomEvent('earlylearn_assessments_updated', { detail: [saved] }));
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: 'earlylearn_teacher_eccd_assessments',
+          newValue: JSON.stringify([saved]),
+        }));
+      } catch {}
 
       setEvaluatingLearner(null);
       setMsg({
