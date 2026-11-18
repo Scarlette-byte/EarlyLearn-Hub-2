@@ -38,7 +38,8 @@ export default function Login() {
     const teacherMatch = await resolveTeacherForLogin(trimmedInput);
     const parentMatch = !teacherMatch ? await resolveParentForLogin(trimmedInput) : null;
 
-    const teacherDigits = (teacherMatch?.contact_number || '').replace(/\D/g, '');
+    const rawTeacherContact = String(teacherMatch?.contact_number || '').split('||')[0].trim();
+    const teacherDigits = rawTeacherContact.replace(/\D/g, '');
     const teacherPhoneEmail = teacherDigits.length >= 7 ? `${teacherDigits}@earlylearn.ph` : null;
     const teacherIdEmail = teacherMatch?.id
       ? `${String(teacherMatch.id).toLowerCase().replace(/[^a-z0-9]/g, '')}@earlylearn.ph`
@@ -84,51 +85,66 @@ export default function Login() {
 
       if (syncedTeacherCred && syncedTeacherCred.temporary_password === password) {
         // Teacher entered the exact temporary password set by Admin!
-        const primaryEmail = syncedTeacherCred.email || teacherMatch?.email || authEmail;
         const teacherName = syncedTeacherCred.full_name || teacherMatch?.full_name || 'Teacher';
+        const healEmails = Array.from(
+          new Set(
+            [
+              syncedTeacherCred.email,
+              teacherPhoneEmail,
+              teacherMatch?.email,
+              authEmail,
+              teacherIdEmail,
+            ].filter(Boolean)
+          )
+        );
 
-        await supabaseSecondaryAuth.auth.signUp({
-          email: primaryEmail,
-          password: password,
-          options: {
-            data: {
-              role: 'teacher',
-              full_name: teacherName,
-              teacher_id: syncedTeacherCred.teacher_id || teacherMatch?.id,
-              barangay: syncedTeacherCred.barangay || teacherMatch?.barangay,
-              cdc_name: syncedTeacherCred.cdc_name || teacherMatch?.cdc_name,
-              contact_number: syncedTeacherCred.contact_number || teacherMatch?.contact_number,
-              must_change_password: true,
+        for (const healEmail of healEmails) {
+          await supabaseSecondaryAuth.auth.signUp({
+            email: healEmail,
+            password: password,
+            options: {
+              data: {
+                role: 'teacher',
+                full_name: teacherName,
+                teacher_id: syncedTeacherCred.teacher_id || teacherMatch?.id,
+                barangay: syncedTeacherCred.barangay || teacherMatch?.barangay,
+                cdc_name: syncedTeacherCred.cdc_name || teacherMatch?.cdc_name,
+                contact_number: syncedTeacherCred.contact_number || teacherMatch?.contact_number,
+                must_change_password: true,
+              },
             },
-          },
-        });
+          });
 
-        const { data: retryData, error: retryErr } = await supabase.auth.signInWithPassword({
-          email: primaryEmail,
-          password,
-        });
+          const { data: retryData, error: retryErr } = await supabase.auth.signInWithPassword({
+            email: healEmail,
+            password,
+          });
 
-        if (!retryErr && retryData?.user) {
-          authSuccessData = retryData;
-        } else {
+          if (!retryErr && retryData?.user) {
+            authSuccessData = retryData;
+            break;
+          }
+        }
+
+        if (!authSuccessData) {
           const candidateOldPasswords = Array.isArray(syncedTeacherCred.previous_passwords)
             ? syncedTeacherCred.previous_passwords
             : [];
-          for (const oldPass of candidateOldPasswords) {
-            const { data: oldData, error: oldErr } = await supabase.auth.signInWithPassword({
-              email: primaryEmail,
-              password: oldPass,
-            });
-            if (!oldErr && oldData?.user) {
-              try {
-                await supabase.auth.updateUser({ password });
-              } catch {}
-              authSuccessData = oldData;
-              break;
+          for (const healEmail of healEmails) {
+            for (const oldPass of candidateOldPasswords) {
+              const { data: oldData, error: oldErr } = await supabase.auth.signInWithPassword({
+                email: healEmail,
+                password: oldPass,
+              });
+              if (!oldErr && oldData?.user) {
+                try {
+                  await supabase.auth.updateUser({ password });
+                } catch {}
+                authSuccessData = oldData;
+                break;
+              }
             }
-          }
-          if (!authSuccessData) {
-            lastError = retryErr || lastError;
+            if (authSuccessData) break;
           }
         }
       }
