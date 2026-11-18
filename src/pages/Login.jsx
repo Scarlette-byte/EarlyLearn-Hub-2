@@ -38,10 +38,19 @@ export default function Login() {
     const teacherMatch = await resolveTeacherForLogin(trimmedInput);
     const parentMatch = !teacherMatch ? await resolveParentForLogin(trimmedInput) : null;
 
+    const teacherDigits = (teacherMatch?.contact_number || '').replace(/\D/g, '');
+    const teacherPhoneEmail = teacherDigits.length >= 7 ? `${teacherDigits}@earlylearn.ph` : null;
+    const teacherIdEmail = teacherMatch?.id
+      ? `${String(teacherMatch.id).toLowerCase().replace(/[^a-z0-9]/g, '')}@earlylearn.ph`
+      : null;
+
     const candidateEmails = Array.from(
       new Set(
         [
           teacherMatch?.email,
+          teacherPhoneEmail,
+          teacherIdEmail,
+          teacherMatch?.baseline_email,
           parentMatch?.authEmail,
           authEmail,
           trimmedInput.includes('@') ? trimmedInput.toLowerCase() : null,
@@ -70,6 +79,7 @@ export default function Login() {
       const syncedTeacherCred =
         (await getTeacherSyncedCredential(trimmedInput)) ||
         (teacherMatch?.email ? await getTeacherSyncedCredential(teacherMatch.email) : null) ||
+        (teacherDigits ? await getTeacherSyncedCredential(teacherDigits) : null) ||
         (await getTeacherSyncedCredential(authEmail));
 
       if (syncedTeacherCred && syncedTeacherCred.temporary_password === password) {

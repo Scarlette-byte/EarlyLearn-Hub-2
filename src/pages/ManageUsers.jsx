@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { supabase, barangays, normalizeAuthIdentifier } from '../lib/supabaseClient';
+import { supabase, supabaseSecondaryAuth, barangays, normalizeAuthIdentifier } from '../lib/supabaseClient';
 import { adminSetTeacherPassword, formatDisplayTeacherId } from '../lib/teacherAuthService.js';
 import {
   cardBox,
@@ -321,7 +321,43 @@ export default function ManageUsers({ currentUser }) {
     setCreateSaving(true);
     const { authEmail, isPhone, display } = normalizeAuthIdentifier(newIdentifier);
 
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    if (newRole === 'teacher') {
+      try {
+        const teacherDraft = {
+          full_name: newFullName.trim(),
+          email: authEmail,
+          identifier: display,
+          teacher_id: display,
+          barangay: newBarangay || 'Manolo Fortich',
+          contact_number: isPhone ? display : null,
+        };
+        const res = await adminSetTeacherPassword(teacherDraft, newUserPassword);
+        setCreateSaving(false);
+        setCreatedCredentials({
+          fullName: newFullName.trim(),
+          identifier: res.teacherId || display,
+          email: res.email || authEmail,
+          role: 'teacher',
+          barangay: newBarangay || 'Not specified',
+          password: newUserPassword,
+        });
+        setNewFullName('');
+        setNewIdentifier('');
+        setNewRole('teacher');
+        setNewBarangay('');
+        setNewUserPassword('');
+        setAddUserModal(false);
+        setMsg({ text: `Teacher account "${newFullName.trim()}" created successfully.`, type: 'ok' });
+        loadUsers();
+        return;
+      } catch (err) {
+        alert('Failed to create teacher account: ' + (err.message || err));
+        setCreateSaving(false);
+        return;
+      }
+    }
+
+    const { data: authData, error: authError } = await supabaseSecondaryAuth.auth.signUp({
       email: authEmail,
       password: newUserPassword,
       options: {
@@ -358,19 +394,6 @@ export default function ManageUsers({ currentUser }) {
 
       if (newRole === 'superadmin') {
         addSuperAdminId(createdUserId);
-      }
-
-      if (newRole === 'teacher') {
-        try {
-          await supabase.from('teachers').upsert({
-            id: createdUserId,
-            full_name: newFullName.trim(),
-            email: authEmail,
-            barangay: newBarangay || null,
-          });
-        } catch {
-          // Ignored
-        }
       }
     }
 

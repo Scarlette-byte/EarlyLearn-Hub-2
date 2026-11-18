@@ -218,7 +218,7 @@ export default function ManageTeachers() {
     return p;
   }
 
-  // --- Add Teacher (Admin creates Teacher account with Teacher ID & Temporary Password) ---
+  // --- Add Teacher (Admin creates Teacher account with Teacher ID & Password) ---
   async function handleAddTeacher(e) {
     e.preventDefault();
     if (!newFullName.trim()) {
@@ -234,7 +234,7 @@ export default function ManageTeachers() {
       return;
     }
     if (!newUserPassword || newUserPassword.length < 6) {
-      alert('Temporary password must be at least 6 characters long.');
+      alert('Password must be at least 6 characters long.');
       return;
     }
 
@@ -249,113 +249,44 @@ export default function ManageTeachers() {
       selectedCdcObj?.name || `${newBarangay} Child Development Center`;
     const validCdcUuid = isValidUuid(newCdcId) ? newCdcId : null;
 
-    let createdViaEdge = false;
-    let tempPass = newUserPassword;
-    let createdUserId = null;
-
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-
-      if (token) {
-        const { data: edgeData, error: edgeErr } = await supabase.functions.invoke('create-teacher', {
-          body: {
-            fullName: cleanFullName,
-            email: authEmail,
-            barangay: newBarangay,
-            cdcId: validCdcUuid,
-            contactNumber: finalContact || null,
-          },
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!edgeErr && !edgeData?.error && edgeData?.email) {
-          createdViaEdge = true;
-          tempPass = edgeData.tempPassword || newUserPassword;
-          createdUserId = edgeData.id || edgeData.user?.id || null;
-        }
-      }
-    } catch {
-      // Proceed to direct secondary auth creation
-    }
-
-    // Use secondary non-persisting auth client so Admin stays logged in!
-    if (!createdViaEdge) {
-      const { data: authData, error: authError } = await supabaseSecondaryAuth.auth.signUp({
-        email: authEmail,
-        password: newUserPassword,
-        options: {
-          data: {
-            full_name: cleanFullName,
-            role: 'teacher',
-            teacher_id: display,
-            barangay: newBarangay,
-            cdc_name: selectedCdcName,
-            contact_number: finalContact || null,
-            must_change_password: true,
-          },
-        },
-      });
-
-      if (authError) {
-        alert('Failed to create teacher account: ' + authError.message);
-        setAddSaving(false);
-        return;
-      }
-
-      createdUserId = authData.user?.id;
-    }
-
-    const parentRegCode = buildDefaultTeacherCode({
-      id: createdUserId || display,
-      full_name: cleanFullName,
-      barangay: newBarangay,
-    });
-    const packedContact = packTeacherContactAndCode(finalContact, parentRegCode);
-
-    if (createdUserId) {
-      // Save to Supabase profiles table
-      await supabase.from('profiles').upsert({
-        id: createdUserId,
-        full_name: cleanFullName,
-        role: 'teacher',
-        barangay: newBarangay,
-        cdc_name: selectedCdcName,
-        contact_number: finalContact || null,
-      });
-
-      // Save to Supabase teachers table
-      await supabase.from('teachers').upsert({
-        id: createdUserId,
+      const teacherDraft = {
         full_name: cleanFullName,
         email: authEmail,
+        identifier: display,
+        teacher_id: display,
         barangay: newBarangay,
         cdc_id: validCdcUuid,
-        contact_number: packedContact,
-        must_change_password: true,
+        cdc_name: selectedCdcName,
+        contact_number: finalContact,
+      };
+
+      const res = await adminSetTeacherPassword(teacherDraft, newUserPassword);
+
+      setCredentialsModal({
+        fullName: cleanFullName,
+        email: res.email || authEmail,
+        identifier: display,
+        password: newUserPassword,
+        barangay: newBarangay,
+        cdcName: selectedCdcName,
+        registrationCode: res.registrationCode,
       });
+
+      setNewFullName('');
+      setNewIdentifier('');
+      setNewBarangay('');
+      setNewCdcId('');
+      setNewContactNumber('');
+      setNewUserPassword('');
+      setAddTeacherModal(false);
+      setMsg({ text: `Teacher account "${cleanFullName}" (ID: ${display}) saved in Supabase.`, type: 'ok' });
+      loadTeachers();
+    } catch (err) {
+      alert('Failed to create teacher account: ' + (err.message || err));
+    } finally {
+      setAddSaving(false);
     }
-
-    setAddSaving(false);
-    setCredentialsModal({
-      fullName: cleanFullName,
-      email: authEmail,
-      identifier: display,
-      password: tempPass,
-      barangay: newBarangay,
-      cdcName: selectedCdcName,
-      registrationCode: parentRegCode,
-    });
-
-    setNewFullName('');
-    setNewIdentifier('');
-    setNewBarangay('');
-    setNewCdcId('');
-    setNewContactNumber('');
-    setNewUserPassword('');
-    setAddTeacherModal(false);
-    setMsg({ text: `Teacher account "${cleanFullName}" (ID: ${display}) created in Supabase.`, type: 'ok' });
-    loadTeachers();
   }
 
   // --- Edit Teacher ---
