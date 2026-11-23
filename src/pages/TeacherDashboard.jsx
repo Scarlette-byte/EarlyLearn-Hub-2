@@ -242,6 +242,10 @@ const baselineTeacherRef = useRef(null);
 
 // My Learners tab — auto-filtered by this teacher's assigned CDC
 const [myLearners, setMyLearners] = useState([]);
+const myLearnersRef = useRef([]);
+useEffect(() => {
+  myLearnersRef.current = myLearners;
+}, [myLearners]);
 const [learnersLoading, setLearnersLoading] = useState(true);
 const [teacherRegCode, setTeacherRegCode] = useState('');
 const [codeCopied, setCodeCopied] = useState(false);
@@ -2319,50 +2323,62 @@ const handleFileSelected = async (file) => {
   }
 
   // --- Progress (1 record per student only, student name only without parent name) ---
-  const loadProgress = useCallback(async () => {
-    const { data: students } = await supabase
-      .from('profiles')
-      .select('id, full_name')
-      .eq('role', 'student');
+  const loadProgress = useCallback(async (scopedLearners = null) => {
+    // Strictly scope progress to learners belonging to this teacher's CDC
+    const targetLearners = Array.isArray(scopedLearners)
+      ? scopedLearners
+      : (myLearnersRef.current || []);
+
+    if (!targetLearners || targetLearners.length === 0) {
+      setTotalStudents(0);
+      setProgressRows([]);
+      return;
+    }
+
     const { data: subs } = await supabase
       .from('submissions')
       .select('id, student_id, material_id, answer_text, status');
 
-    // Group students by cleaned student name so there is strictly 1 record per student (excluding placeholder/test accounts)
+    // Group students by cleaned student name so there is strictly 1 record per student
     const studentMap = new Map();
-    const placeholderIds = [];
-    (students || []).forEach((st) => {
+    targetLearners.forEach((st) => {
       const cleaned = cleanStudentName(st.full_name || '');
-      if (!cleaned || isPlaceholderStudentName(cleaned)) {
-        if (st?.id) placeholderIds.push(st.id);
-        return;
-      }
+      if (!cleaned || isPlaceholderStudentName(cleaned)) return;
       const key = cleaned.toLowerCase();
+      const stIds = new Set();
+      if (st.id) stIds.add(st.id);
+      if (st.student_id) stIds.add(st.student_id);
+      if (st.user_id) stIds.add(st.user_id);
+      if (st.profile_id) stIds.add(st.profile_id);
+
       if (!studentMap.has(key)) {
         studentMap.set(key, {
-          id: st.id,
+          id: st.id || key,
           name: cleaned,
-          studentIds: new Set([st.id]),
+          studentIds: stIds,
         });
       } else {
-        studentMap.get(key).studentIds.add(st.id);
+        stIds.forEach((id) => studentMap.get(key).studentIds.add(id));
       }
     });
-
-    if (placeholderIds.length > 0) {
-      supabase
-        .from('profiles')
-        .delete()
-        .in('id', placeholderIds)
-        .then(() => { })
-        .catch(() => { });
-    }
 
     const uniqueStudents = Array.from(studentMap.values());
     setTotalStudents(uniqueStudents.length);
 
     const rows = uniqueStudents.map((st) => {
-      const mine = (subs || []).filter((s) => st.studentIds.has(s.student_id));
+      const mine = (subs || []).filter((s) => {
+        if (st.studentIds.has(s.student_id)) return true;
+        if (s.answer_text && s.answer_text.trim().startsWith('{')) {
+          try {
+            const p = JSON.parse(s.answer_text);
+            if (p?.student_name && cleanStudentName(p.student_name).toLowerCase() === st.name.toLowerCase()) {
+              return true;
+            }
+          } catch { }
+        }
+        return false;
+      });
+
       // Deduplicate by activity title / material_id so 1 activity = 1 count
       const byActivity = new Map();
       mine.forEach((s) => {
@@ -2770,14 +2786,19 @@ const handleFileSelected = async (file) => {
         cdcId: effectiveCdcId,
       });
 
-      setMyLearners(learners || []);
+      const cleanList = learners || [];
+      setMyLearners(cleanList);
+      setTotalStudents(cleanList.length);
+      loadProgress(cleanList);
     } catch (err) {
       console.warn('Failed loading learners for teacher:', err);
       setMyLearners([]);
+      setTotalStudents(0);
+      loadProgress([]);
     } finally {
       setLearnersLoading(false);
     }
-  }, [currentUserId, profile, myBarangay, myCdcName]);
+  }, [currentUserId, profile, myBarangay, myCdcName, loadProgress]);
 
   // Regenerate Teacher's Parent Registration Code & save to Supabase
   async function handleRegenerateTeacherCode() {
@@ -3065,7 +3086,7 @@ const handleFileSelected = async (file) => {
           label: 'Pending Submissions',
           value: submissions.filter((s) => s.status === 'submitted').length,
         },
-        { label: 'Total Students', value: myLearners.length || totalStudents || 0 },
+        { label: 'Total Students', value: myLearners?.length ?? 0 },
       ]}
       activeTab={activeTab}
       onTabChange={setActiveTab}
@@ -5003,13 +5024,21 @@ const handleFileSelected = async (file) => {
                 </tr>
               </thead>
               <tbody>
-                {progressRows.map((r) => (
-                  <tr key={r.id}>
-                    <td className={td}>{r.name}</td>
-                    <td className={td}>{r.submitted}</td>
-                    <td className={td}>{r.checked}</td>
+                {progressRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-8 text-center text-sm text-slate-500">
+                      No learners recorded yet for this Child Development Center.
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  progressRows.map((r) => (
+                    <tr key={r.id}>
+                      <td className={td}>{r.name}</td>
+                      <td className={td}>{r.submitted}</td>
+                      <td className={td}>{r.checked}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
