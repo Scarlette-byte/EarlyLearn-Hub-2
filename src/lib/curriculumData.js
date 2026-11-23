@@ -452,10 +452,40 @@ export function getCleanCurriculumAssignments() {
         }
         return a;
       });
-    if (filtered.length !== parsed.length) {
-      localStorage.setItem('earlylearn_curriculum_assignments', JSON.stringify(filtered));
+
+    // Deduplicate any broadcast assignments created for "all" teachers or duplicated across the 84-teacher loop
+    const seenAllKeys = new Set();
+    const dedupedList = [];
+    filtered.forEach((a) => {
+      const isBroadcast =
+        a.targetType === 'all' ||
+        a.teacherName === 'All Teachers' ||
+        a.cdcName === 'All Child Development Centers' ||
+        a.cdcName === 'All CDCs';
+
+      if (isBroadcast) {
+        const key = `all-${(a.level || '').toLowerCase()}-${a.quarter || 1}-${(a.week || '').toLowerCase()}-${(a.topicTitle || a.subTheme || '').toLowerCase().trim()}`;
+        if (seenAllKeys.has(key)) {
+          return; // Skip duplicate broadcast assignment
+        }
+        seenAllKeys.add(key);
+        dedupedList.push({
+          ...a,
+          targetType: 'all',
+          teacherId: 'all',
+          teacherName: 'All Teachers',
+          cdcName: 'All Child Development Centers',
+          barangay: 'all',
+        });
+      } else {
+        dedupedList.push(a);
+      }
+    });
+
+    if (dedupedList.length !== parsed.length) {
+      localStorage.setItem('earlylearn_curriculum_assignments', JSON.stringify(dedupedList));
     }
-    return filtered;
+    return dedupedList;
   } catch {
     return [];
   }
@@ -1220,36 +1250,43 @@ export function getCleanTeacherModulesList() {
 export function doesAssignmentMatchTeacher(asg, { teacherId, teacherName, barangay, cdcName }) {
   if (!asg || !asg.topicTitle) return false;
 
-  // 1. Explicitly assigned to ALL teachers
-  if (
-    asg.targetType === 'all' ||
-    asg.teacherName === 'All Teachers' ||
-    asg.cdcName === 'All CDCs' ||
-    asg.barangay === 'all'
-  ) {
-    return true;
-  }
-
   const normMyName = normalizeTeacherName(teacherName);
   const normAsgTeacher = normalizeTeacherName(asg.teacherName);
 
-  const idMatch = Boolean(
-    teacherId &&
-      asg.teacherId &&
-      String(teacherId).trim() === String(asg.teacherId).trim()
+  // 1. If the assignment names a specific individual teacher, it MUST match this teacher
+  const isIndividualTeacherAssignment = Boolean(
+    (asg.teacherId && asg.teacherId !== 'all') ||
+    (normAsgTeacher.length >= 3 && normAsgTeacher !== 'all teachers' && !normAsgTeacher.includes('all teachers'))
   );
 
-  const nameMatch = Boolean(
-    normMyName.length >= 3 &&
-      normAsgTeacher.length >= 3 &&
-      (normMyName === normAsgTeacher ||
-        normMyName.includes(normAsgTeacher) ||
-        normAsgTeacher.includes(normMyName))
-  );
+  if (isIndividualTeacherAssignment) {
+    const idMatch = Boolean(
+      teacherId &&
+        asg.teacherId &&
+        String(teacherId).trim() === String(asg.teacherId).trim()
+    );
 
-  // 2. If the assignment specifies a teacher (or targetType is 'teacher'), ONLY match by teacher ID or teacher name
-  if (asg.targetType === 'teacher' || normAsgTeacher.length >= 3 || asg.teacherId) {
+    const nameMatch = Boolean(
+      normMyName.length >= 3 &&
+        normAsgTeacher.length >= 3 &&
+        (normMyName === normAsgTeacher ||
+          normMyName.includes(normAsgTeacher) ||
+          normAsgTeacher.includes(normMyName))
+    );
+
     return idMatch || nameMatch;
+  }
+
+  // 2. Broadcast to ALL teachers across the municipality
+  if (
+    asg.targetType === 'all' ||
+    asg.teacherName === 'All Teachers' ||
+    normAsgTeacher === 'all teachers' ||
+    asg.cdcName === 'All CDCs' ||
+    asg.cdcName === 'All Child Development Centers' ||
+    asg.barangay === 'all'
+  ) {
+    return true;
   }
 
   // 3. If explicitly assigned by CDC only (no specific teacher set)

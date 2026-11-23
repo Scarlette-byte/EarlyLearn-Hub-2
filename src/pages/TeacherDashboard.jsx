@@ -263,9 +263,9 @@ const [newParentPassword, setNewParentPassword] = useState('');
 const [creatingParent, setCreatingParent] = useState(false);
 const [createdParentCredentials, setCreatedParentCredentials] = useState(null);
 
-// Filter assignments targeted strictly to this logged-in teacher (only matches all teachers if explicitly assigned to All Teachers)
+// Filter assignments targeted strictly to this logged-in teacher (deduplicated by curriculum level, quarter, week & topic)
 const myAssignedTopics = useMemo(() => {
-  return assignments.filter((a) => {
+  const matched = assignments.filter((a) => {
     if (
       !a ||
       !a.topicTitle ||
@@ -284,6 +284,19 @@ const myAssignedTopics = useMemo(() => {
       cdcName: myCdcName || profile?.cdc_name || '',
     });
   });
+
+  // Deduplicate so a teacher never sees duplicate cards for the exact same topic/week/quarter
+  const seenKeys = new Set();
+  const deduped = [];
+  matched.forEach((asg) => {
+    const key = `${(asg.level || '').toLowerCase()}-Q${asg.quarter || 1}-${(asg.week || '').toLowerCase()}-${(asg.topicTitle || asg.subTheme || '').toLowerCase().trim()}`;
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      deduped.push(asg);
+    }
+  });
+
+  return deduped;
 }, [assignments, profile, currentUserId, myFullName, myBarangay, myCdcName]);
 
 // Choices for "3. ECCD Week & Theme" based ONLY on what MSWD assigned to this teacher
@@ -375,9 +388,23 @@ const loadMyMaterials = useCallback(async () => {
         });
 
         const seen = new Set();
+        const seenBroadcastKeys = new Set();
         const mergedAssigns = [];
         [...sbAssigns, ...localClean].forEach((a) => {
           if (a && a.id && !seen.has(a.id) && !permDeletedIds.has(a.id)) {
+            const isBroadcast =
+              a.targetType === 'all' ||
+              a.teacherName === 'All Teachers' ||
+              a.cdcName === 'All Child Development Centers' ||
+              a.cdcName === 'All CDCs';
+            if (isBroadcast) {
+              const bKey = `all-${(a.level || '').toLowerCase()}-${a.quarter || 1}-${(a.week || '').toLowerCase()}-${(a.topicTitle || a.subTheme || '').toLowerCase().trim()}`;
+              if (seenBroadcastKeys.has(bKey)) {
+                return;
+              }
+              seenBroadcastKeys.add(bKey);
+            }
+
             seen.add(a.id);
             const localOverride = localMapById.get(a.id);
             mergedAssigns.push(
@@ -1989,13 +2016,13 @@ const handleFileSelected = async (file) => {
     loadAnnouncements();
   }
 
-  // --- Submissions (1 record per student, student name only without parent name, cross-device file view) ---
-  const loadSubmissions = useCallback(async () => {
+  // --- Submissions (1 record per student, strictly scoped to this teacher's enrolled learners & center) ---
+  const loadSubmissions = useCallback(async (scopedLearners = null) => {
     let rawList = [];
     try {
       const { data, error } = await supabase
         .from('submissions')
-        .select('id, material_id, student_id, answer_text, status, created_at, profiles(full_name), materials(title)')
+        .select('id, material_id, student_id, answer_text, status, created_at, profiles(full_name, barangay, cdc_name), materials(id, title, created_by)')
         .order('created_at', { ascending: false });
       if (!error && data) {
         rawList = data.map((s) => {
@@ -2022,6 +2049,8 @@ const handleFileSelected = async (file) => {
             status: isChecked ? 'checked' : 'submitted',
             profiles: {
               full_name: studentOnlyName || 'Learner',
+              barangay: s.profiles?.barangay || parsedMeta?.barangay || '',
+              cdc_name: s.profiles?.cdc_name || parsedMeta?.cdc_name || '',
             },
             materials: {
               title:
@@ -2029,6 +2058,7 @@ const handleFileSelected = async (file) => {
                 parsedMeta?.material_title ||
                 parsedMeta?.category ||
                 'Activity Submission',
+              created_by: s.materials?.created_by || null,
             },
             mediaUrl: parsedMeta?.file_url || null,
             fileName: parsedMeta?.file_name || null,
@@ -2057,8 +2087,15 @@ const handleFileSelected = async (file) => {
           student_id: u.studentId || null,
           answer_text: u.note || '',
           status: isChecked ? 'checked' : 'submitted',
-          profiles: { full_name: studentOnlyName || 'Student' },
-          materials: { title: u.materialTitle || u.title || 'Activity Submission' },
+          profiles: {
+            full_name: studentOnlyName || 'Student',
+            barangay: u.barangay || '',
+            cdc_name: u.cdcName || u.cdc_name || '',
+          },
+          materials: {
+            title: u.materialTitle || u.title || 'Activity Submission',
+            created_by: u.teacherId || null,
+          },
           mediaUrl: u.mediaUrl || null,
           fileName: u.fileName || null,
           fileType: u.fileType || null,
@@ -2066,6 +2103,13 @@ const handleFileSelected = async (file) => {
           is_deleted: Boolean(u.is_deleted),
           deleted_at: u.deleted_at || null,
           isStudentUpload: true,
+          parsed_meta: {
+            student_name: studentOnlyName,
+            barangay: u.barangay || '',
+            cdc_name: u.cdcName || u.cdc_name || '',
+            teacher_id: u.teacherId || null,
+            teacher_name: u.teacherName || null,
+          },
         };
       });
       const existingIds = new Set(rawList.map((s) => s.id));
@@ -2076,9 +2120,67 @@ const handleFileSelected = async (file) => {
       // ignore
     }
 
+    // Determine the active learners for this teacher
+    const targetLearners = Array.isArray(scopedLearners)
+      ? scopedLearners
+      : (myLearnersRef.current || []);
+
+    // Build sets of known student IDs and lowercase cleaned student names for this teacher
+    const knownStudentIds = new Set();
+    const knownStudentNames = new Set();
+    targetLearners.forEach((l) => {
+      if (l.id) knownStudentIds.add(String(l.id).trim());
+      if (l.student_id) knownStudentIds.add(String(l.student_id).trim());
+      if (l.user_id) knownStudentIds.add(String(l.user_id).trim());
+      if (l.profile_id) knownStudentIds.add(String(l.profile_id).trim());
+      const cleanName = cleanStudentName(l.full_name || '');
+      if (cleanName) knownStudentNames.add(cleanName.toLowerCase());
+    });
+
+    const cleanCdc = (c) =>
+      String(c || '')
+        .toLowerCase()
+        .replace(/\b(child\s*development\s*center|day\s*care\s*center|daycare\s*center|cdc|manolo\s*fortich)\b/gi, '')
+        .trim();
+    const myCdcClean = cleanCdc(myCdcName);
+    const myNameNorm = normalizeTeacherName(myFullName || profile?.full_name || '');
+
+    // Filter rawList strictly to this teacher's jurisdiction
+    const teacherFilteredList = rawList.filter((item) => {
+      const itemStudentId = item.student_id ? String(item.student_id).trim() : '';
+      const itemStudentName = cleanStudentName(
+        item.profiles?.full_name || item.parsed_meta?.student_name || ''
+      ).toLowerCase();
+
+      // 1. Direct learner match by ID or student name in this teacher's roster
+      if (itemStudentId && knownStudentIds.has(itemStudentId)) return true;
+      if (itemStudentName && knownStudentNames.has(itemStudentName)) return true;
+
+      // 2. Direct teacher ID or teacher name match in submission metadata
+      const subTeacherId = item.parsed_meta?.teacher_id || item.materials?.created_by;
+      if (subTeacherId && currentUserId && String(subTeacherId).trim() === String(currentUserId).trim()) {
+        return true;
+      }
+      const subTeacherName = normalizeTeacherName(
+        item.parsed_meta?.teacher_name || item.parsed_meta?.adviser_name || ''
+      );
+      if (myNameNorm.length >= 3 && subTeacherName.length >= 3 && (subTeacherName === myNameNorm || subTeacherName.includes(myNameNorm))) {
+        return true;
+      }
+
+      // 3. Direct CDC match if submission or student profile indicates this teacher's CDC
+      const subCdc = cleanCdc(item.parsed_meta?.cdc_name || item.profiles?.cdc_name);
+      if (myCdcClean.length >= 3 && subCdc.length >= 3 && subCdc === myCdcClean) {
+        return true;
+      }
+
+      // Otherwise, this submission belongs to a student under a different teacher/CDC
+      return false;
+    });
+
     // Strictly 1 record per student only (merging any duplicate submission rows for the same student)
     const byStudent = new Map();
-    rawList.forEach((item) => {
+    teacherFilteredList.forEach((item) => {
       const cleanedName = cleanStudentName(item.profiles?.full_name || '');
       const studentKey = cleanedName.toLowerCase();
       if (!studentKey || isPlaceholderStudentName(cleanedName)) return;
@@ -2113,7 +2215,7 @@ const handleFileSelected = async (file) => {
     });
 
     setSubmissions(Array.from(byStudent.values()));
-  }, []);
+  }, [currentUserId, myFullName, profile, myCdcName]);
 
   async function markChecked(submissionOrId) {
     const targetSub =
@@ -2790,15 +2892,17 @@ const handleFileSelected = async (file) => {
       setMyLearners(cleanList);
       setTotalStudents(cleanList.length);
       loadProgress(cleanList);
+      loadSubmissions(cleanList);
     } catch (err) {
       console.warn('Failed loading learners for teacher:', err);
       setMyLearners([]);
       setTotalStudents(0);
       loadProgress([]);
+      loadSubmissions([]);
     } finally {
       setLearnersLoading(false);
     }
-  }, [currentUserId, profile, myBarangay, myCdcName, loadProgress]);
+  }, [currentUserId, profile, myBarangay, myCdcName, loadProgress, loadSubmissions]);
 
   // Regenerate Teacher's Parent Registration Code & save to Supabase
   async function handleRegenerateTeacherCode() {

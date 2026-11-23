@@ -357,11 +357,35 @@ export default function CurriculumGuides({
 
     const createdOnly = [];
     if (targetType === 'all') {
-      activeTeachersList.forEach((teacher) => {
-        const built = buildAssignmentForTeacher(teacher, teacher.id);
-        newAssignmentsList.push(built);
-        createdOnly.push(built);
-      });
+      const built = {
+        id: 'asg-' + Date.now() + '-all',
+        targetType: 'all',
+        teacherId: 'all',
+        teacherName: 'All Teachers',
+        barangay: 'all',
+        cdcName: 'All Child Development Centers',
+        level: selectedLevelForAssign,
+        quarters: selectedQuartersForAssign,
+        quarter: firstTopic.quarter || selectedQuartersForAssign[0] || 1,
+        weeks: targetWeeks === 'all' ? matchedTopicItems.map((t) => t.week) : targetWeeks,
+        week: resolvedWeekStr,
+        topicTitle: resolvedTopic,
+        subTheme: firstTopic.subTheme || resolvedTopic,
+        theme:
+          selectedSpecificTopic?.theme ||
+          firstTopic.theme ||
+          (selectedLevelForAssign === 'Pre-K1' ? 'TELL ME ABOUT YOURSELF' : 'MORE ABOUT MYSELF AND MY SCHOOL'),
+        suggestedContent: selectedSpecificTopic?.suggestedContent || firstTopic.suggestedContent || '',
+        suggestedActivities: selectedSpecificTopic?.suggestedActivities || firstTopic.suggestedActivities || '',
+        assignedTopics: matchedTopicItems,
+        deadline: assignmentDeadline,
+        notes: adminNotes.trim(),
+        schoolYear,
+        status: 'Pending',
+        assignedDate: new Date().toISOString().split('T')[0],
+      };
+      newAssignmentsList.push(built);
+      createdOnly.push(built);
     } else if (targetType === 'teacher') {
       const teacher = activeTeachersList.find((t) => t.id === selectedTeacherId);
       if (!teacher) {
@@ -414,8 +438,15 @@ export default function CurriculumGuides({
     // Sync newly assigned topics to Supabase so teachers on other devices see them immediately
     (async () => {
       try {
+        let catId = null;
+        try {
+          const { data: cats } = await supabase.from('categories').select('id').limit(1);
+          catId = cats?.[0]?.id || null;
+        } catch { }
+
         const { data: { user } } = await supabase.auth.getUser();
         const rowsToInsert = createdOnly.map((asg) => ({
+          category_id: catId,
           title: `[MSWD_ASSIGNMENT] ${asg.id}`,
           type: 'text',
           age_range: asg.level === 'Pre-K1' ? '3-4' : '4-5',

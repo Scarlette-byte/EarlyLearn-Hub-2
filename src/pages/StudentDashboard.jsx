@@ -1323,6 +1323,10 @@ export default function StudentDashboard({ profile }) {
       fileSize: uploadFileSize || '',
       uploadedAt: uploadedAtStr,
       status: 'Submitted to Teacher',
+      cdc_name: adviserInfo?.cdcName || profile?.cdc_name || '',
+      barangay: studentBarangay || profile?.barangay || '',
+      teacherId: profile?.teacher_id || null,
+      teacherName: adviserInfo?.name || null,
     };
 
     const updatedUploads = [newUpload, ...studentUploads];
@@ -1352,6 +1356,10 @@ export default function StudentDashboard({ profile }) {
         file_type: uploadFileType || '',
         file_size: uploadFileSize || '',
         uploaded_at: uploadedAtStr,
+        cdc_name: adviserInfo?.cdcName || profile?.cdc_name || '',
+        barangay: studentBarangay || profile?.barangay || '',
+        teacher_id: profile?.teacher_id || null,
+        teacher_name: adviserInfo?.name || null,
       });
 
       await supabase.from('submissions').insert({
