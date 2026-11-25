@@ -27,20 +27,7 @@ export function cleanStudentName(rawName) {
  * ("Student Test", "Student User", "Hannah Mae Tion", etc.) that should be excluded.
  */
 export function isPlaceholderStudentName(rawName) {
-  const cleaned = cleanStudentName(rawName).toLowerCase();
-  if (!cleaned) return true;
-  return (
-    cleaned === 'student test' ||
-    cleaned === 'student user' ||
-    cleaned === 'test student' ||
-    cleaned === 'demo student' ||
-    cleaned === 'student' ||
-    cleaned === 'learner' ||
-    cleaned === 'hannah mae tion' ||
-    cleaned === 'mateo bukidnon' ||
-    cleaned === 'mateo' ||
-    cleaned.startsWith('mateo bukidnon')
-  );
+  return !cleanStudentName(rawName);
 }
 
 /**
