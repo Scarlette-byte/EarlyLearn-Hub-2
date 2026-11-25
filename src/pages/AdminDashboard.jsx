@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase, barangays } from '../lib/supabaseClient';
+import { isSuperAdminUser } from '../lib/roles.js';
 import DashboardLayout from '../components/DashboardLayout.jsx';
 import MswdOverview from '../components/admin/MswdOverview.jsx';
 import EnrolleePopulation from '../components/admin/EnrolleePopulation.jsx';
@@ -433,7 +434,7 @@ export default function AdminDashboard({ profile }) {
   const statusPillKind = (s) =>
     ({ approved: 'teacher', pending: 'admin', rejected: 'student' }[s] || 'teacher');
 
-  const isSuperAdmin = profile?.role === 'superadmin' || profile?.isSuperAdmin;
+  const isSuperAdmin = isSuperAdminUser(profile);
 
   return (
     <DashboardLayout
