@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { supabase, barangays } from '../lib/supabaseClient';
+import { fetchTeacherDashboardSummary } from '../lib/dashboardService.js';
 import DashboardLayout from '../components/DashboardLayout.jsx';
 import {
   preK1Curriculum,
@@ -82,6 +83,20 @@ const TABS = [
 export default function TeacherDashboard({ profile }) {
   const currentUserId = profile.id;
   const [activeTab, setActiveTab] = useState('overview');
+  const [dbTeacherSummary, setDbTeacherSummary] = useState(null);
+  const [teacherSummaryLoading, setTeacherSummaryLoading] = useState(true);
+
+  useEffect(() => {
+    if (!profile?.id) {
+      setTeacherSummaryLoading(false);
+      return;
+    }
+    setTeacherSummaryLoading(true);
+    fetchTeacherDashboardSummary(profile.id)
+      .then((data) => setDbTeacherSummary(data))
+      .catch(() => {})
+      .finally(() => setTeacherSummaryLoading(false));
+  }, [profile?.id]);
 
   // MSWD Admin Assigned Topics & Tasks state (Real MSWDO deployments only)
   const [assignments, setAssignments] = useState(getCleanCurriculumAssignments);
@@ -3213,8 +3228,12 @@ const handleFileSelected = async (file) => {
                 className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 cursor-pointer hover:bg-amber-50 transition-colors"
               >
                 <div className="text-[11px] font-bold text-amber-800 uppercase">1. MSWD Assigned Topics</div>
-                <div className="text-2xl font-bold text-amber-950 mt-1">{assignedCounts.total}</div>
-                <div className="text-[11px] text-amber-700 mt-0.5">{assignedCounts.pending} open to comply →</div>
+                <div className="text-2xl font-bold text-amber-950 mt-1">
+                  {teacherSummaryLoading ? '…' : (dbTeacherSummary?.assigned_topics_total ?? assignedCounts.total)}
+                </div>
+                <div className="text-[11px] text-amber-700 mt-0.5">
+                  {teacherSummaryLoading ? 'Loading…' : `${dbTeacherSummary?.assigned_topics_pending ?? assignedCounts.pending} open to comply →`}
+                </div>
               </div>
 
               <div
@@ -3226,7 +3245,7 @@ const handleFileSelected = async (file) => {
               >
                 <div className="text-[11px] font-bold text-slate-600 uppercase">2. Pending MSWD Decision</div>
                 <div className="text-2xl font-bold text-slate-900 mt-1">
-                  {combinedUploadedMaterials.filter((m) => m.status === 'Pending Review').length}
+                  {teacherSummaryLoading ? '…' : (dbTeacherSummary?.materials_pending ?? combinedUploadedMaterials.filter((m) => m.status === 'Pending Review').length)}
                 </div>
                 <div className="text-[11px] text-slate-500 mt-0.5">Awaiting MSWD review →</div>
               </div>
@@ -3240,7 +3259,7 @@ const handleFileSelected = async (file) => {
               >
                 <div className="text-[11px] font-bold text-emerald-800 uppercase">3. Approved by MSWD</div>
                 <div className="text-2xl font-bold text-emerald-900 mt-1">
-                  {combinedUploadedMaterials.filter((m) => m.status === 'Approved').length}
+                  {teacherSummaryLoading ? '…' : (dbTeacherSummary?.materials_approved ?? combinedUploadedMaterials.filter((m) => m.status === 'Approved').length)}
                 </div>
                 <div className="text-[11px] text-emerald-700 mt-0.5">
                   {approvedReadyToPost.length} ready to post to students →
@@ -3256,7 +3275,7 @@ const handleFileSelected = async (file) => {
               >
                 <div className="text-[11px] font-bold text-blue-800 uppercase">4. Posted to Students</div>
                 <div className="text-2xl font-bold text-blue-900 mt-1">
-                  {combinedUploadedMaterials.filter((m) => m.posted_to_students).length}
+                  {teacherSummaryLoading ? '…' : (dbTeacherSummary?.materials_posted ?? combinedUploadedMaterials.filter((m) => m.posted_to_students).length)}
                 </div>
                 <div className="text-[11px] text-blue-700 mt-0.5">Live on Student Dashboard →</div>
               </div>
