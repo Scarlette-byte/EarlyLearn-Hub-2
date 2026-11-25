@@ -28,6 +28,7 @@ import {
   fetchEccdAssessmentsFromSupabase,
   isPlaceholderStudentName,
 } from '../lib/learnersService.js';
+import { fetchAdminDashboardSummary } from '../lib/dashboardService.js';
 import {
   cardBox,
   cardBoxTitle,
@@ -65,6 +66,8 @@ const TABS = [
 
 export default function AdminDashboard({ profile }) {
   const [activeTab, setActiveTab] = useState('overview');
+  const [dbSummary, setDbSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
 
   // Core MSWD Datasets (Real Data from MSWDO Manolo Fortich)
   const [cdcs, setCdcs] = useState(realCdcsList);
@@ -409,6 +412,11 @@ export default function AdminDashboard({ profile }) {
   }, [loadLearners, loadTeachers, loadAssessments]);
 
   useEffect(() => {
+    setSummaryLoading(true);
+    fetchAdminDashboardSummary()
+      .then((data) => setDbSummary(data))
+      .catch(() => {})
+      .finally(() => setSummaryLoading(false));
     loadCdcs();
     loadLearners();
     loadTeachers();
@@ -469,15 +477,21 @@ export default function AdminDashboard({ profile }) {
       {/* OVERVIEW (EXECUTIVE SUMMARY)                        */}
       {/* ---------------------------------------------------- */}
       {activeTab === 'overview' && (
-        <MswdOverview
-          profile={profile}
-          learnersCount={learners.length}
-          cdcsCount={cdcs.length}
-          teachersCount={teachers.length}
-          pendingVerificationCount={pendingVerificationCount}
-          assessmentsCount={assessments.length}
-          onNavigateTab={setActiveTab}
-        />
+        summaryLoading && !dbSummary ? (
+          <div className="p-8 text-center text-sm text-[#8a7f66] bg-white rounded-2xl border border-[#ece6da]">
+            Loading live dashboard metrics from database...
+          </div>
+        ) : (
+          <MswdOverview
+            profile={profile}
+            learnersCount={dbSummary?.total_students ?? 0}
+            cdcsCount={dbSummary?.total_cdcs ?? 0}
+            teachersCount={dbSummary?.total_teachers ?? 0}
+            pendingVerificationCount={dbSummary?.pending_materials ?? 0}
+            assessmentsCount={dbSummary?.total_assessments ?? 0}
+            onNavigateTab={setActiveTab}
+          />
+        )
       )}
 
       {/* ---------------------------------------------------- */}
