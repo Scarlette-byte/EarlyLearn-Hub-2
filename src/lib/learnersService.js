@@ -186,16 +186,6 @@ export async function verifyTeacherRegistrationCode(codeInput) {
         cdcName: t.cdc_name || fallbackCdc?.name || 'Child Development Center',
       };
     }
-  } catch {}
-            cdcName:
-              t.cdcs?.name ||
-              fallbackCdc?.name ||
-              `${t.barangay || 'Manolo Fortich'} Child Development Center`,
-            contactNumber,
-          };
-        }
-      }
-    }
   } catch (err) {
     console.warn('Supabase teacher code lookup warning:', err);
   }
