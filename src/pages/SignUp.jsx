@@ -11,6 +11,8 @@ import {
   cleanStudentName,
   isValidUuid,
 } from '../lib/learnersService.js';
+import { validatePassword, PASSWORD_MIN_LENGTH } from '../lib/passwordPolicy.js';
+import PasswordStrengthMeter from '../components/PasswordStrengthMeter.jsx';
 
 export default function SignUp() {
   // Teacher Registration Code state
@@ -112,9 +114,12 @@ export default function SignUp() {
       return;
     }
 
-    if (!password || password.length < 6) {
+    const pwCheck = validatePassword(password, {
+      identifiers: [contactInput, parentName, childName],
+    });
+    if (!pwCheck.valid) {
       setMsg({
-        text: '⚠️ Password must be at least 6 characters long.',
+        text: `⚠️ ${pwCheck.errors[0]}`,
         type: 'error',
       });
       return;
@@ -525,11 +530,15 @@ export default function SignUp() {
                           id="password"
                           type="password"
                           required
-                          minLength={6}
-                          placeholder="At least 6 characters"
+                          minLength={PASSWORD_MIN_LENGTH}
+                          placeholder={`At least ${PASSWORD_MIN_LENGTH} characters`}
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           className="w-full px-3.5 py-2.5 rounded-2xl border-2 border-[#E6E6E6] font-nunito text-sm bg-white outline-none transition-colors focus:border-sky-deep"
+                        />
+                        <PasswordStrengthMeter
+                          password={password}
+                          identifiers={[contactInput, parentName, childName]}
                         />
 
                         <div className="mt-3 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900">
