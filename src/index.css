@@ -2,6 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --elh-brand-gold: #f4b41a;
+  --elh-brand-gold-hover: #e0a210;
+  --elh-surface: #ffffff;
+  --elh-surface-muted: #faf8f4;
+  --elh-border: #ece6da;
+  --elh-text-primary: #2b261c;
+  --elh-text-muted: #7c725e;
+}
+
+@layer base {
+  /* Prevent flex/grid children from overflowing their containers */
+  .flex > *,
+  .grid > * {
+    min-width: 0;
+  }
+}
+
 html,
 body,
 #root {
