@@ -12,8 +12,6 @@ import {
   getEffectiveRole,
   isSuperAdminUser,
   getDbRole,
-  addSuperAdminId,
-  removeSuperAdminId,
 } from '../lib/roles.js';
 import {
   IconSearch,
@@ -171,11 +169,6 @@ export default function ManageUsers({ currentUser }) {
     if (error) {
       alert('Failed to update user: ' + error.message);
     } else {
-      if (editRole === 'superadmin') {
-        addSuperAdminId(editModalUser.id);
-      } else if (isSuperAdminUser(editModalUser)) {
-        removeSuperAdminId(editModalUser.id);
-      }
       setMsg({ text: `User "${editName.trim()}" updated successfully.`, type: 'ok' });
       setEditModalUser(null);
       loadUsers();
@@ -286,7 +279,6 @@ export default function ManageUsers({ currentUser }) {
     if (error) {
       setMsg({ text: 'Failed to delete user: ' + error.message, type: 'error' });
     } else {
-      removeSuperAdminId(u.id);
       try {
         await supabase.from('teachers').delete().eq('id', u.id);
       } catch {
@@ -390,10 +382,6 @@ export default function ManageUsers({ currentUser }) {
 
       if (profError) {
         alert('Account created, but profile record notice: ' + profError.message);
-      }
-
-      if (newRole === 'superadmin') {
-        addSuperAdminId(createdUserId);
       }
     }
 
