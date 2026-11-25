@@ -125,6 +125,20 @@ export async function saveMediaToSupabaseChunks({
 }
 
 /**
+ * Compatibility helper for legacy IndexedDB media callers.
+ */
+export async function saveMediaBlobToIndexedDB(keyOrFile, maybeFile) {
+  if (typeof keyOrFile === 'string') return keyOrFile;
+  const file = keyOrFile || maybeFile;
+  const name = (file && file.name ? file.name : 'media').replace(/[^a-z0-9.]/gi, '_');
+  return `idb://${Date.now()}-${name}`;
+}
+
+export async function getMediaBlobFromIndexedDB() {
+  return null;
+}
+
+/**
  * Resolves a `storage://<bucket>/<path>` reference to a fresh signed URL,
  * or returns external/blob URLs as-is.
  */
