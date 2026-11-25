@@ -9,9 +9,7 @@ import {
 import { syncStudentLogin, getStudentApprovalStatus } from '../lib/learnersService.js';
 import {
   resolveTeacherForLogin,
-  getTeacherSyncedCredential,
   resolveParentForLogin,
-  getParentSyncedCredential,
 } from '../lib/teacherAuthService.js';
 import { validatePassword, PASSWORD_MIN_LENGTH } from '../lib/passwordPolicy.js';
 import PasswordStrengthMeter from '../components/PasswordStrengthMeter.jsx';
@@ -187,117 +185,6 @@ export default function Login() {
         break;
       }
       lastError = error;
-    }
-
-    // Auto-heal with admin-set or teacher-created temporary password if sign in failed
-    if (!authSuccessData) {
-      const syncedTeacherCred =
-        (await getTeacherSyncedCredential(trimmedInput)) ||
-        (teacherMatch?.email ? await getTeacherSyncedCredential(teacherMatch.email) : null) ||
-        (teacherDigits ? await getTeacherSyncedCredential(teacherDigits) : null) ||
-        (await getTeacherSyncedCredential(authEmail));
-
-      if (syncedTeacherCred && syncedTeacherCred.temporary_password === password) {
-        const teacherName = syncedTeacherCred.full_name || teacherMatch?.full_name || 'Teacher';
-        const healEmails = Array.from(
-          new Set(
-            [
-              syncedTeacherCred.email,
-              teacherPhoneEmail,
-              teacherMatch?.email,
-              authEmail,
-              teacherIdEmail,
-            ].filter(Boolean)
-          )
-        );
-
-        for (const healEmail of healEmails) {
-          await supabaseSecondaryAuth.auth.signUp({
-            email: healEmail,
-            password,
-            options: {
-              data: {
-                full_name: teacherName,
-                teacher_id: syncedTeacherCred.teacher_id || teacherMatch?.id,
-                barangay: syncedTeacherCred.barangay || teacherMatch?.barangay,
-                cdc_name: syncedTeacherCred.cdc_name || teacherMatch?.cdc_name,
-                contact_number: syncedTeacherCred.contact_number || teacherMatch?.contact_number,
-              },
-            },
-          });
-
-          const { data: retryData, error: retryErr } = await supabase.auth.signInWithPassword({
-            email: healEmail,
-            password,
-          });
-
-          if (!retryErr && retryData?.user) {
-            authSuccessData = retryData;
-            break;
-          }
-        }
-
-        if (!authSuccessData) {
-          const candidateOldPasswords = Array.isArray(syncedTeacherCred.previous_passwords)
-            ? syncedTeacherCred.previous_passwords
-            : [];
-          for (const healEmail of healEmails) {
-            for (const oldPass of candidateOldPasswords) {
-              const { data: oldData, error: oldErr } = await supabase.auth.signInWithPassword({
-                email: healEmail,
-                password: oldPass,
-              });
-              if (!oldErr && oldData?.user) {
-                try {
-                  await supabase.auth.updateUser({ password });
-                } catch {}
-                authSuccessData = oldData;
-                break;
-              }
-            }
-            if (authSuccessData) break;
-          }
-        }
-      }
-
-      if (!authSuccessData) {
-        const syncedParentCred =
-          (await getParentSyncedCredential(trimmedInput)) ||
-          (parentMatch?.authEmail ? await getParentSyncedCredential(parentMatch.authEmail) : null) ||
-          (await getParentSyncedCredential(authEmail));
-
-        if (syncedParentCred && syncedParentCred.temporary_password === password) {
-          const parentEmail = syncedParentCred.email || parentMatch?.authEmail || authEmail;
-          const childName = syncedParentCred.child_name || parentMatch?.childName || 'Child Learner';
-
-          await supabaseSecondaryAuth.auth.signUp({
-            email: parentEmail,
-            password,
-            options: {
-              data: {
-                full_name: childName,
-                child_name: childName,
-                parent_name: syncedParentCred.parent_name || '',
-                barangay: syncedParentCred.barangay || '',
-                cdc_name: syncedParentCred.cdc_name || '',
-                contact_number: syncedParentCred.identifier || '',
-                approval_status: 'approved',
-              },
-            },
-          });
-
-          const { data: pRetryData, error: pRetryErr } = await supabase.auth.signInWithPassword({
-            email: parentEmail,
-            password,
-          });
-
-          if (!pRetryErr && pRetryData?.user) {
-            authSuccessData = pRetryData;
-          } else {
-            lastError = pRetryErr || lastError;
-          }
-        }
-      }
     }
 
     if (!authSuccessData) {
