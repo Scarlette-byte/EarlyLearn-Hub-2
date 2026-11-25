@@ -9,6 +9,7 @@ import ReportsGeneration from '../components/admin/ReportsGeneration.jsx';
 import ProgramMonitoring from '../components/admin/ProgramMonitoring.jsx';
 import CurriculumGuides from '../components/admin/CurriculumGuides.jsx';
 import ManageTeachers from './ManageTeachers.jsx';
+import ManageUsers from './ManageUsers.jsx';
 import {
   baselineCdcs,
   baselineActivityReports,
@@ -435,11 +436,17 @@ export default function AdminDashboard({ profile }) {
     ({ approved: 'teacher', pending: 'admin', rejected: 'student' }[s] || 'teacher');
 
   const isSuperAdmin = isSuperAdminUser(profile);
+  const visibleTabs = isSuperAdmin
+    ? [
+        ...TABS,
+        { key: 'users', label: 'Manage Users', icon: <IconUsers className="w-4 h-4" /> },
+      ]
+    : TABS;
 
   return (
     <DashboardLayout
       logoSubtitle={isSuperAdmin ? 'Superadmin' : 'MSWD Admin'}
-      tabs={TABS}
+      tabs={visibleTabs}
       title={isSuperAdmin ? 'Municipal Superadmin Governance' : 'MSWD Admin Dashboard'}
       subtitle={
         isSuperAdmin
@@ -534,6 +541,11 @@ export default function AdminDashboard({ profile }) {
       {/* MANAGE TEACHERS (BARANGAY, CDC, CREDENTIALS)         */}
       {/* ---------------------------------------------------- */}
       {activeTab === 'teachers' && <ManageTeachers />}
+
+      {/* ---------------------------------------------------- */}
+      {/* MANAGE USERS & CREATE ADMIN (SUPERADMIN)             */}
+      {/* ---------------------------------------------------- */}
+      {activeTab === 'users' && isSuperAdmin && <ManageUsers currentUser={profile} />}
 
       {/* ---------------------------------------------------- */}
       {/* CATEGORIES MANAGEMENT                                */}
