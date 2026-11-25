@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
+import { isSuperAdminUser } from '../../lib/roles.js';
 import {
   isAuthenticSupabaseMaterial,
   getCleanTeacherModulesList,
@@ -16,7 +17,7 @@ export default function MswdOverview({
   assessmentsCount = 0,
   onNavigateTab,
 }) {
-  const isSuperAdmin = profile?.role === 'superadmin' || profile?.isSuperAdmin;
+  const isSuperAdmin = isSuperAdminUser(profile);
 
   const getLocalCompliedActivities = () => {
     return getCleanTeacherModulesList();
