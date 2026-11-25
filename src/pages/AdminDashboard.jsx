@@ -29,6 +29,7 @@ import {
   isPlaceholderStudentName,
 } from '../lib/learnersService.js';
 import { fetchAdminDashboardSummary } from '../lib/dashboardService.js';
+import { EmptyState } from '../components/ui/index.js';
 import {
   cardBox,
   cardBoxTitle,
