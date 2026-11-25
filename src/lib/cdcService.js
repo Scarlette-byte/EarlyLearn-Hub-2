@@ -14,7 +14,7 @@ export async function fetchBarangaysFromDb() {
   return data || [];
 }
 
-export async function fetchCdcsFromDb({ barangayId = null, status = 'active' } = {}) {
+export async function fetchCdcsFromDb({ barangayId = null, status = null } = {}) {
   let query = supabase
     .from('cdcs')
     .select('id, name, center_type, status, permit_number, permit_issued_at, permit_expires_at, barangay_id, barangays(id, name)')
@@ -26,4 +26,47 @@ export async function fetchCdcsFromDb({ barangayId = null, status = 'active' } =
   const { data, error } = await query;
   if (error) throw new Error(`Failed to load CDCs: ${error.message}`);
   return data || [];
+}
+
+export async function createCdcInDb({
+  barangayId,
+  barangayName,
+  name,
+  centerType = 'CDC',
+  status = 'active',
+  permitNumber = null,
+  permitIssuedAt = null,
+  permitExpiresAt = null,
+  address = null,
+}) {
+  const { data, error } = await supabase
+    .from('cdcs')
+    .insert({
+      barangay_id: barangayId,
+      barangay: barangayName,
+      name: String(name || '').trim(),
+      center_type: centerType,
+      status,
+      permit_number: permitNumber || null,
+      permit_issued_at: permitIssuedAt || null,
+      permit_expires_at: permitExpiresAt || null,
+      address: address || null,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(`Failed to create CDC: ${error.message}`);
+  return data;
+}
+
+export async function updateCdcInDb(id, updates) {
+  const { data, error } = await supabase
+    .from('cdcs')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw new Error(`Failed to update CDC: ${error.message}`);
+  return data;
 }
