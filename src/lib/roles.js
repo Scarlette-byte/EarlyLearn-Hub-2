@@ -1,158 +1,125 @@
-// Centralized role definition and superadmin governance for EarlyLearn Hub
+// Centralized server-trusted role resolution for EarlyLearn Hub.
+// Role and superadmin authority are derived strictly from Supabase JWT `app_metadata`
+// (populated server-side in 1C). Client-editable `user_metadata`, `localStorage`,
+// and `public.profiles.role` are never trusted for authorization.
 
 export const ROLE_SUPERADMIN = 'superadmin';
 export const ROLE_ADMIN = 'admin';
 export const ROLE_TEACHER = 'teacher';
 export const ROLE_STUDENT = 'student';
 
-// Known hardcoded/default superadmin accounts
-export const DEFAULT_SUPERADMIN_IDS = [
-  '3cb5bc92-1742-414d-8d12-e9cc523464f6', // superadmin@earlylearn.ph
-];
-
-export const DEFAULT_SUPERADMIN_EMAILS = [
-  'superadmin@earlylearn.ph',
-];
-
-const LOCAL_STORAGE_SUPERADMINS_KEY = 'earlylearn_superadmin_ids';
-
 /**
- * Returns all recognized superadmin IDs (hardcoded defaults + dynamic additions from localStorage).
+ * Decodes the `app_metadata` object from a Supabase JWT access token payload, if provided.
+ * Used only as a read-side fallback alongside `user.app_metadata` (e.g. when a Custom Access
+ * Token Hook injects claims directly into the JWT). Server APIs verify the JWT signature.
  */
-export function getSuperAdminIds() {
-  const ids = new Set(DEFAULT_SUPERADMIN_IDS);
+export function decodeJwtAppMetadata(accessToken) {
+  if (!accessToken || typeof accessToken !== 'string') return null;
+  const parts = accessToken.split('.');
+  if (parts.length !== 3) return null;
+
   try {
-    const raw = localStorage.getItem(LOCAL_STORAGE_SUPERADMINS_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        parsed.forEach((id) => id && ids.add(id));
-      }
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    const json = atob(padded);
+    const payload = JSON.parse(json);
+    if (payload && typeof payload.app_metadata === 'object' && payload.app_metadata !== null) {
+      return payload.app_metadata;
     }
   } catch {
-    // Ignore localStorage parsing issues
+    // Ignore malformed tokens
   }
-  return Array.from(ids);
+  return null;
 }
 
 /**
- * Registers an ID as superadmin in local persistent storage.
+ * Extracts server-controlled `app_metadata` from a Supabase User, Session, or wrapper object.
  */
-export function addSuperAdminId(id) {
-  if (!id) return;
-  try {
-    const current = getSuperAdminIds();
-    if (!current.includes(id)) {
-      current.push(id);
-      localStorage.setItem(LOCAL_STORAGE_SUPERADMINS_KEY, JSON.stringify(current));
-    }
-  } catch {
-    // Ignore storage errors
-  }
+export function getTrustedAppMetadata(subject) {
+  if (!subject || typeof subject !== 'object') return null;
+
+  const userAppMeta =
+    subject.app_metadata && typeof subject.app_metadata === 'object'
+      ? subject.app_metadata
+      : subject.user?.app_metadata && typeof subject.user.app_metadata === 'object'
+        ? subject.user.app_metadata
+        : null;
+
+  const token =
+    typeof subject.access_token === 'string'
+      ? subject.access_token
+      : typeof subject.session?.access_token === 'string'
+        ? subject.session.access_token
+        : null;
+
+  const jwtAppMeta = decodeJwtAppMetadata(token);
+
+  if (!userAppMeta && !jwtAppMeta) return null;
+  return { ...(jwtAppMeta || {}), ...(userAppMeta || {}) };
 }
 
 /**
- * Removes an ID from the dynamic superadmin registry (cannot remove the primary default ID).
+ * Determines whether the subject carries a server-trusted Superadmin claim in `app_metadata`.
  */
-export function removeSuperAdminId(id) {
-  if (!id || DEFAULT_SUPERADMIN_IDS.includes(id)) return;
-  try {
-    const current = getSuperAdminIds().filter((existing) => existing !== id);
-    localStorage.setItem(LOCAL_STORAGE_SUPERADMINS_KEY, JSON.stringify(current));
-  } catch {
-    // Ignore storage errors
-  }
+export function isSuperAdminUser(subject) {
+  const appMeta = getTrustedAppMetadata(subject);
+  if (!appMeta) return false;
+
+  const rawRole = String(appMeta.role || '').toLowerCase().trim();
+  return rawRole === ROLE_SUPERADMIN || appMeta.is_superadmin === true;
 }
 
 /**
- * Determines whether a user or profile object represents a Superadmin.
+ * Returns the server-trusted application role from JWT `app_metadata`:
+ *   'superadmin' | 'admin' | 'teacher' | 'student' | null
+ * Returns `null` when no valid server `app_metadata` role claim is present.
  */
-export function isSuperAdminUser(userOrProfile) {
-  if (!userOrProfile) return false;
+export function getEffectiveRole(subject) {
+  const appMeta = getTrustedAppMetadata(subject);
+  if (!appMeta) return null;
 
-  // Direct boolean flag
-  if (userOrProfile.is_superadmin === true || userOrProfile.isSuperAdmin === true) return true;
+  if (isSuperAdminUser(subject)) return ROLE_SUPERADMIN;
 
-  // Explicit role string
-  if (userOrProfile.role === 'superadmin' || userOrProfile.role_tier === 'superadmin') return true;
+  const rawRole = String(appMeta.role || '').toLowerCase().trim();
+  if (rawRole === ROLE_ADMIN) return ROLE_ADMIN;
+  if (rawRole === ROLE_TEACHER) return ROLE_TEACHER;
+  if (rawRole === ROLE_STUDENT || rawRole === 'parent') return ROLE_STUDENT;
 
-  // Supabase Auth metadata checks
-  if (userOrProfile.user_metadata) {
-    const meta = userOrProfile.user_metadata;
-    if (meta.role === 'superadmin' || meta.is_superadmin === true || meta.role_tier === 'superadmin') {
-      return true;
-    }
-  }
-
-  // App metadata checks
-  if (userOrProfile.app_metadata) {
-    const appMeta = userOrProfile.app_metadata;
-    if (appMeta.role === 'superadmin' || appMeta.is_superadmin === true) {
-      return true;
-    }
-  }
-
-  // Recognized ID check
-  if (userOrProfile.id && getSuperAdminIds().includes(userOrProfile.id)) {
-    return true;
-  }
-
-  // Recognized Email check
-  const email = (
-    userOrProfile.email ||
-    userOrProfile.user_metadata?.email ||
-    ''
-  ).toLowerCase().trim();
-  if (email && DEFAULT_SUPERADMIN_EMAILS.includes(email)) {
-    return true;
-  }
-
-  return false;
+  return null;
 }
 
 /**
- * Returns the effective application role:
- * 'superadmin' | 'admin' | 'teacher' | 'student'
+ * Maps a server-trusted role to its canonical dashboard route, or `/login` when absent.
  */
-export function getEffectiveRole(userOrProfile) {
-  if (!userOrProfile) return 'student';
-  if (isSuperAdminUser(userOrProfile)) return 'superadmin';
-
-  const role =
-    userOrProfile.role ||
-    userOrProfile.user_metadata?.role ||
-    'student';
-
-  if (role === 'admin') return 'admin';
-  if (role === 'teacher') return 'teacher';
-  return 'student';
+export function getRoleDashboardPath(role) {
+  if (role === ROLE_SUPERADMIN || role === ROLE_ADMIN) return '/admin-dashboard';
+  if (role === ROLE_TEACHER) return '/teacher-dashboard';
+  if (role === ROLE_STUDENT || role === 'parent') return '/student-dashboard';
+  return '/login';
 }
 
 /**
- * Returns the role value safe to write into the PostgreSQL profiles table.
- * The PostgreSQL database has `CHECK (role IN ('student', 'teacher', 'admin'))`.
- * Hence, 'superadmin' is mapped to 'admin' at the database column level, while
- * superadmin metadata is preserved in auth metadata and the superadmin registry.
+ * Maps an application role to the value stored in `public.profiles.role`
+ * (`CHECK (role IN ('student', 'teacher', 'admin'))`).
  */
 export function getDbRole(role) {
-  if (role === 'superadmin') return 'admin';
-  if (role === 'teacher') return 'teacher';
-  if (role === 'admin') return 'admin';
-  return 'student';
+  if (role === ROLE_SUPERADMIN || role === ROLE_ADMIN) return ROLE_ADMIN;
+  if (role === ROLE_TEACHER) return ROLE_TEACHER;
+  return ROLE_STUDENT;
 }
 
 /**
- * Human readable label for roles
+ * Human-readable label for roles.
  */
 export function formatRoleLabel(role) {
   switch (role) {
-    case 'superadmin':
+    case ROLE_SUPERADMIN:
       return 'Municipal Superadmin';
-    case 'admin':
+    case ROLE_ADMIN:
       return 'MSWD ECCD Administrator';
-    case 'teacher':
+    case ROLE_TEACHER:
       return 'Daycare Worker (Teacher)';
-    case 'student':
+    case ROLE_STUDENT:
       return 'Learner / Parent';
     default:
       return role || 'User';
