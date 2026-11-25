@@ -1,25 +1,41 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { getEffectiveRole, isSuperAdminUser } from '../lib/roles.js';
+import {
+  getEffectiveRole,
+  isSuperAdminUser,
+  getRoleDashboardPath,
+} from '../lib/roles.js';
 import { getStudentApprovalStatus } from '../lib/learnersService.js';
 
 /**
  * Wraps a dashboard page and guarantees:
- *  1. The visitor is logged in (else -> /login)
- *  2. The visitor's effective role is one of `allowedRoles` (else -> /login)
- *     Superadmins automatically inherit administrative access.
- *  3. If the visitor is a Parent/Student ('student'), verifies that their assigned
- *     teacher has approved their registration before allowing access to the child's dashboard.
+ *  1. The visitor has a valid Supabase session (else -> /login).
+ *  2. Authorization uses ONLY the server-trusted JWT `app_metadata` claim (`roles.js`).
+ *     - Missing trusted role claim -> denied -> /login.
+ *     - Authenticated with a different valid role -> redirected to that role's dashboard.
+ *  3. Teachers (or any account) flagged with `must_change_password` are redirected to /login
+ *     to complete forced password change before accessing the dashboard.
+ *  4. Parent/Student ('student') accounts must be approved by their assigned teacher.
  */
 export default function ProtectedRoute({ allowedRoles, children }) {
   const navigate = useNavigate();
-  const [status, setStatus] = useState('checking'); // checking | ok | pending_approval | rejected_approval | denied | anon
+  const [status, setStatus] = useState('checking'); // checking | ok | must_change_password | wrong_role | pending_approval | rejected_approval | denied | anon
+  const [redirectPath, setRedirectPath] = useState('/login');
   const [profile, setProfile] = useState(null);
   const [approvalInfo, setApprovalInfo] = useState(null);
   const [rechecking, setRechecking] = useState(false);
 
   const checkAccess = useCallback(async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.user) {
+      setStatus('anon');
+      return;
+    }
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -29,35 +45,54 @@ export default function ProtectedRoute({ allowedRoles, children }) {
       return;
     }
 
-    const { data: prof } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-
-    const userProfilePayload = {
-      ...(prof || {}),
-      id: user.id,
-      email: user.email,
-      user_metadata: user.user_metadata,
+    const authSubject = {
+      user,
+      app_metadata: user.app_metadata,
+      access_token: session.access_token,
     };
 
-    const effectiveRole = getEffectiveRole(userProfilePayload);
-    const isSuperAdmin = isSuperAdminUser(userProfilePayload);
+    const effectiveRole = getEffectiveRole(authSubject);
+    const isSuperAdmin = isSuperAdminUser(authSubject);
+
+    if (!effectiveRole) {
+      setStatus('denied');
+      return;
+    }
 
     const isAuthorized =
       allowedRoles.includes(effectiveRole) ||
       (isSuperAdmin && (allowedRoles.includes('admin') || allowedRoles.includes('superadmin')));
 
-    if (!prof && !isSuperAdmin && !user.user_metadata?.role) {
-      setStatus('denied');
+    if (!isAuthorized) {
+      setRedirectPath(getRoleDashboardPath(effectiveRole));
+      setStatus('wrong_role');
       return;
     }
 
-    if (!isAuthorized) {
-      setStatus('denied');
+    // Enforce forced password change before allowing dashboard access
+    let mustChangePassword = Boolean(user.app_metadata?.must_change_password);
+    if (!mustChangePassword && effectiveRole === 'teacher') {
+      const { data: teacherRow } = await supabase
+        .from('teachers')
+        .select('must_change_password')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (teacherRow?.must_change_password === true) {
+        mustChangePassword = true;
+      }
+    }
+
+    if (mustChangePassword) {
+      setStatus('must_change_password');
       return;
     }
+
+    // Load display profile fields (never used to override server-trusted role)
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .maybeSingle();
 
     const resolvedProfile = {
       ...(prof || {
@@ -68,15 +103,16 @@ export default function ProtectedRoute({ allowedRoles, children }) {
       email: user.email,
       role: effectiveRole,
       isSuperAdmin,
-      adviser_name: user.user_metadata?.adviser_name || prof?.adviser_name || null,
+      app_metadata: user.app_metadata,
+      adviser_name: prof?.adviser_name || user.user_metadata?.adviser_name || null,
       teacher_name: user.user_metadata?.teacher_name || user.user_metadata?.adviser_name || null,
-      cdc_name: user.user_metadata?.cdc_name || prof?.cdc_name || null,
+      cdc_name: prof?.cdc_name || user.user_metadata?.cdc_name || null,
       child_name: user.user_metadata?.child_name || null,
       parent_name: user.user_metadata?.parent_name || null,
       user_metadata: user.user_metadata,
     };
 
-    // Enforce Teacher Approval for Parent/Student accounts and enrich profile from Supabase
+    // Enforce Teacher Approval for Parent/Student accounts
     if (effectiveRole === 'student' && allowedRoles.includes('student')) {
       const check = await getStudentApprovalStatus(user, resolvedProfile);
       setApprovalInfo(check);
@@ -115,8 +151,12 @@ export default function ProtectedRoute({ allowedRoles, children }) {
     );
   }
 
-  if (status === 'anon') {
+  if (status === 'anon' || status === 'must_change_password' || status === 'denied') {
     return <Navigate to="/login" replace />;
+  }
+
+  if (status === 'wrong_role') {
+    return <Navigate to={redirectPath} replace />;
   }
 
   if (status === 'pending_approval' || status === 'rejected_approval') {
@@ -185,11 +225,6 @@ export default function ProtectedRoute({ allowedRoles, children }) {
         </div>
       </div>
     );
-  }
-
-  if (status === 'denied') {
-    alert('You do not have access to this page. Redirecting to login.');
-    return <Navigate to="/login" replace />;
   }
 
   return children(profile);
