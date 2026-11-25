@@ -8,8 +8,6 @@ import {
 } from './curriculumData.js';
 import { isValidUuid, buildDefaultTeacherCode, parseTeacherContactAndCode } from './learnersService.js';
 
-const LOCAL_TEACHER_CREDS_KEY = 'earlylearn_teacher_credentials';
-
 /**
  * Formats a clean display Teacher ID from a teacher object.
  */
@@ -46,28 +44,22 @@ export async function resolveTeacherForLogin(identifier) {
   const rawClean = rawLower.replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
   const rawTokens = rawClean.split(' ').filter((w) => w.length >= 2);
 
-  // 1. Fetch current roster (baseline + synced teachers in database)
+  // 1. Narrow RPC lookup (anon-safe, returns only auth email)
+  try {
+    const { data: rpcRows, error: rpcErr } = await supabase.rpc('lookup_teacher_login_email', {
+      p_identifier: raw,
+    });
+    if (!rpcErr && Array.isArray(rpcRows) && rpcRows[0]?.email) {
+      return { email: rpcRows[0].email };
+    }
+  } catch {}
+
+  // 2. Fallback to baseline/synced roster
   let roster = realTeachersList;
   try {
     const synced = await fetchSyncedTeachersList(supabase);
     if (Array.isArray(synced) && synced.length > 0) {
       roster = synced;
-    }
-  } catch {}
-
-  // Also query active teachers table directly
-  try {
-    const { data: dbTeachers } = await supabase.from('teachers').select('*');
-    if (Array.isArray(dbTeachers) && dbTeachers.length > 0) {
-      const existingIds = new Set(roster.map((r) => String(r.id || '').toLowerCase()));
-      for (const d of dbTeachers) {
-        if (!existingIds.has(String(d.id || '').toLowerCase())) {
-          roster.unshift({
-            ...d,
-            full_name: cleanTeacherDisplayName(d.full_name) || d.full_name,
-          });
-        }
-      }
     }
   } catch {}
 
@@ -126,14 +118,47 @@ export async function resolveTeacherForLogin(identifier) {
 }
 
 /**
- * Sets a password for a teacher from the Admin Dashboard, ensures
- * an active account in Supabase auth, synchronizes credentials to Supabase
- * teachers and materials tables, and returns the login credentials for immediate teacher use.
+ * Resets a teacher's password server-side via the `admin-reset-password` Edge Function
+ * (`auth.admin.updateUserById`), without storing plaintext passwords in any table or localStorage.
  */
 export async function adminSetTeacherPassword(teacher, newPassword) {
-  if (!teacher || !newPassword || newPassword.length < 6) {
-    throw new Error('Teacher and a password with at least 6 characters are required.');
+  if (!teacher || !newPassword || newPassword.length < 8) {
+    throw new Error('Teacher and a password with at least 8 characters are required.');
   }
+
+  const rawContact = teacher.contact_number || '';
+  const cleanContact = parseTeacherContactAndCode(rawContact).contactNumber || rawContact;
+  const rawDigits = cleanContact.replace(/\D/g, '');
+  const displayTeacherId = formatDisplayTeacherId(teacher);
+  const fallbackEmail =
+    (teacher.email && !teacher.email.startsWith('admin@') ? teacher.email.toLowerCase().trim() : null) ||
+    (rawDigits.length >= 7 ? `${rawDigits}@earlylearn.ph` : null) ||
+    (displayTeacherId && displayTeacherId !== '-'
+      ? `${displayTeacherId.toLowerCase().replace(/[^a-z0-9._-]/g, '')}@earlylearn.ph`
+      : null);
+
+  const { data, error } = await supabase.functions.invoke('admin-reset-password', {
+    body: {
+      userId: isValidUuid(teacher.id) ? teacher.id : undefined,
+      email: fallbackEmail || undefined,
+      newPassword,
+      mustChangePassword: true,
+    },
+  });
+
+  if (error) {
+    throw new Error(error.message || 'Failed to reset teacher password.');
+  }
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+
+  return {
+    email: fallbackEmail,
+    teacherId: displayTeacherId,
+    userId: data?.userId || teacher.id,
+  };
+}
 
   const cleanName = cleanTeacherDisplayName(teacher.full_name) || teacher.full_name;
   const rawContact = teacher.contact_number || '';
@@ -591,18 +616,7 @@ export async function resolveParentForLogin(identifier) {
   const rawLower = raw.toLowerCase();
   const rawDigits = raw.replace(/\D/g, '');
 
-  // 1. Check synced credentials
-  const cred = await getParentSyncedCredential(raw);
-  if (cred?.email) {
-    return {
-      authEmail: cred.email,
-      childName: cred.child_name,
-      parentName: cred.parent_name,
-      approval_status: 'approved',
-    };
-  }
-
-  // 2. Check Supabase learners table
+  // 1. Check Supabase learners table
   try {
     const { data: learners } = await supabase
       .from('learners')
