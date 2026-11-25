@@ -129,14 +129,13 @@ export default function SignUp() {
     const assignedTeacherId = matchedTeacher.teacherId;
     const assignedCdcId = isValidUuid(matchedTeacher.cdcId) ? matchedTeacher.cdcId : null;
 
-    // 2. Register user in Supabase Auth with approval_status = 'pending'
+    // 2. Register parent/learner in Supabase Auth with approval_status = 'pending' (public sign-up is strictly student/parent only)
     const { data, error } = await supabase.auth.signUp({
       email: authEmail,
       password,
       options: {
         data: {
           full_name: cleanChild,
-          role: 'student',
           barangay: assignedBarangay,
           contact_number: display,
           email_or_phone: display,
