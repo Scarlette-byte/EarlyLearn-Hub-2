@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import { fetchStudentDashboardSummary } from '../lib/dashboardService.js';
 import { BILINGUAL_CATEGORIES, playAudioWord } from '../lib/studentLearningData.js';
 import { CategoryBadge } from '../components/Category3DBadges.jsx';
 import PineappleLogo from '../components/PineappleLogo.jsx';
@@ -35,6 +36,20 @@ export default function StudentDashboard({ profile }) {
   const currentUserId = profile?.id || 'demo-student';
 
   const [view, setView] = useState('home'); // home | category_detail | content
+  const [dbStudentSummary, setDbStudentSummary] = useState(null);
+  const [studentSummaryLoading, setStudentSummaryLoading] = useState(true);
+
+  useEffect(() => {
+    if (!currentUserId) {
+      setStudentSummaryLoading(false);
+      return;
+    }
+    setStudentSummaryLoading(true);
+    fetchStudentDashboardSummary(currentUserId)
+      .then((data) => setDbStudentSummary(data))
+      .catch(() => {})
+      .finally(() => setStudentSummaryLoading(false));
+  }, [currentUserId]);
   const [backTarget, setBackTarget] = useState('home');
   const [navTab, setNavTab] = useState('home'); // home | my_child | activities | resources | messages | settings
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -1692,7 +1707,7 @@ export default function StudentDashboard({ profile }) {
                         </div>
                         <div className="min-w-0">
                           <h3 className="font-baloo text-base sm:text-lg font-black text-[#1E293B] m-0 truncate">
-                            Teacher Announcements ({announcements.length})
+                            Teacher Announcements ({studentSummaryLoading ? '…' : (dbStudentSummary?.announcements_count ?? announcements.length)})
                           </h3>
                           <span className="text-xs font-bold text-[#64748B]">
                             {announcements[0]?.created_at
