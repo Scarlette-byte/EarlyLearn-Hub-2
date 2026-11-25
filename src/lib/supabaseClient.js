@@ -7,12 +7,10 @@ import { createClient } from '@supabase/supabase-js';
 // static HTML pages, so the app keeps working out of the box.
 // ============================================================
 export const SUPABASE_URL =
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) ||
-  'https://igdhovaqbntalbrgzebu.supabase.co';
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || '';
 
 export const SUPABASE_ANON_KEY =
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnZGhvdmFxYm50YWxicmd6ZWJ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyOTU4ODcsImV4cCI6MjEwMjg3MTg4N30.B2crr9hPhgcCg9tRvcCDaHmkBO2DhNLA44M555E-qSA';
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || '';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
