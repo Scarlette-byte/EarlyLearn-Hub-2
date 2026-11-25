@@ -293,3 +293,187 @@
 | [src/lib/curriculumData.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/curriculumData.js) | `isAuthenticLocalTeacherModule` (`line 650`), `earlylearn_active_teacher_profile` `localStorage` key (`line 816`) | `isAuthenticLocalTeacherModule` is only called internally once; `earlylearn_active_teacher_profile` is written and never read |
 | [src/lib/learnersService.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/learnersService.js) | `getTeachersForBarangaySync` (`line 331`) | Only called internally by `getTeachersForBarangay`; never imported externally |
 | [src/components/Category3DBadges.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/Category3DBadges.jsx) | Individual badge components if any beyond `CategoryBadge` | Only `CategoryBadge` is imported (`StudentDashboard.jsx:5`, `LandingPage.jsx:4`) |
+
+
+---
+
+## 7. Role-by-Role Execution Trace: Login $\rightarrow$ Tabs $\rightarrow$ Database Calls
+
+### 7.1 Shared Authentication & Route-Guard Pipeline (`/login` $\rightarrow$ `ProtectedRoute`)
+
+1. **`POST` Form Submit in [src/pages/Login.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/pages/Login.jsx#L21-L293)** *(caller is unauthenticated `anon` until step 1c)*:
+   - **1a. Teacher lookup (`resolveTeacherForLogin` in [teacherAuthService.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/teacherAuthService.js#L50-L150))**:
+     - `SELECT * FROM public.teachers` (`line 60` — permitted for `anon`).
+     - If not matched on `teachers`: `SELECT content_text FROM public.materials WHERE title ILIKE '[TEACHER_CREDENTIAL_SYNC]%'` (`line 435` — **rejected by RLS** because `materials` `SELECT` is restricted `TO authenticated`).
+   - **1b. Parent lookup (`resolveParentForLogin` in [teacherAuthService.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/teacherAuthService.js#L580-L638), only if not a teacher)**:
+     - `SELECT content_text FROM public.materials WHERE title ILIKE '[PARENT_CREDENTIAL_SYNC]%'` (`line 551` — **rejected by RLS** for `anon`).
+     - `SELECT * FROM public.learners` (`line 608` — **rejected by RLS** for `anon`).
+   - **1c. Primary Sign-In (`Login.jsx:66-76`)**:
+     - Loops candidate emails calling `supabase.auth.signInWithPassword({ email, password })`.
+   - **1d. Auto-Heal Provisioning Fallback (`Login.jsx:79-192`, only if `signInWithPassword` fails)**:
+     - Calls `getTeacherSyncedCredential()` / `getParentSyncedCredential()` (`localStorage` + `teachers` + `materials`).
+     - If plaintext password matches, calls `supabaseSecondaryAuth.auth.signUp(...)` followed by `supabase.auth.signInWithPassword(...)` (and `supabase.auth.updateUser({ password })` if matched against `previous_passwords`).
+   - **1e. Profile Fetch & Auto-Heal (`Login.jsx:201-242`, now `authenticated`)**:
+     - `SELECT * FROM public.profiles WHERE id = user.id` (`.single()`).
+     - If missing: `UPSERT INTO public.profiles (id, full_name, role, barangay, cdc_name, contact_number) ... SELECT *`.
+   - **1f. Student Approval Gate (`Login.jsx:252-279`, only when `effectiveRole === 'student'`)**:
+     - `getStudentApprovalStatus(user, profile)` ([learnersService.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/learnersService.js#L585-L655)):
+       - `SELECT * FROM public.learners WHERE id = user.id` (`.maybeSingle()`); fallback `SELECT * FROM public.learners WHERE full_name ILIKE childName`.
+       - Fallback `SELECT * FROM public.profiles WHERE id = user.id`.
+     - If `'pending'` or `'rejected'`: calls `supabase.auth.signOut()` and aborts login.
+     - If `'approved'`: calls `syncStudentLogin(user, profile)` (`learnersService.js:765-815`) $\rightarrow$ `UPSERT INTO public.profiles` + `recordRegisteredLearner()` (`UPSERT` / `SELECT`+`UPDATE` / `INSERT INTO public.learners`).
+2. **Route Guard Mount in [src/components/ProtectedRoute.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/ProtectedRoute.jsx#L22-L108)** *(runs again after `navigate(...)`)*:
+   - `supabase.auth.getUser()` (`line 25`).
+   - `SELECT * FROM public.profiles WHERE id = user.id` (`.single()`, `line 33`).
+   - For `student`: re-runs `getStudentApprovalStatus(user, resolvedProfile)` (`learners` + `profiles` `SELECT`s, `line 81`); renders lock screen with `"Check Approval Status"` retry button (`checkAccess`) or `"Sign Out"` (`supabase.auth.signOut()`).
+
+---
+
+### 7.2 Role 1: MSWD Administrator (`admin`) — `/admin-dashboard` ([src/pages/AdminDashboard.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/pages/AdminDashboard.jsx))
+
+#### Mount-Time Calls (Executed Immediately Before Any Tab Interaction)
+- **Realtime Subscription (`AdminDashboard.jsx:381-392`)**: `mswd-admin-live-sync` on `postgres_changes` (`*`) for `public.teachers`, `public.profiles`, `public.materials` (all three trigger `loadTeachers()`).
+- **8 Parallel Data Loaders (`AdminDashboard.jsx:409-418`)**:
+  1. `loadCdcs()` $\rightarrow$ `SELECT * FROM public.cdcs ORDER BY barangay, name` (`line 100`).
+  2. `loadLearners()` $\rightarrow$ `SELECT id, full_name, birthdate, barangay, cdc_id, parent_name, parent_contact, cdcs(name) FROM public.learners ORDER BY full_name` (`line 120`).
+  3. `loadTeachers()` $\rightarrow$ `fetchSyncedTeachersList()` ([curriculumData.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/curriculumData.js#L1055-L1125)):
+     - `SELECT id, full_name, barangay, contact_number, email, cdc_id, cdcs(id, name, barangay) FROM public.teachers ORDER BY full_name` (+ unawaited `DELETE FROM public.teachers WHERE id = ...` for dummy names, `line 1065`).
+     - `SELECT * FROM public.profiles WHERE role = 'teacher' ORDER BY full_name` (+ unawaited `DELETE FROM public.profiles WHERE id = ...` for dummy names, `line 1090`).
+     - `SELECT id, title, content_text, created_at FROM public.materials WHERE title ILIKE '[TEACHER_PROFILE_SYNC]%' ORDER BY created_at ASC` (`line 1104`).
+  4. `loadAssessments()` $\rightarrow$ `fetchEccdAssessmentsFromSupabase({ migrateLocal: true })` ([learnersService.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/learnersService.js#L1450-L1555)):
+     - `SELECT * FROM public.eccd_assessments ORDER BY updated_at DESC` (`line 1455`).
+     - `SELECT * FROM public.learners ORDER BY created_at DESC` (`line 1483`).
+     - `SELECT id, title, content_text, created_by, created_at FROM public.materials WHERE title ILIKE '[ECCD_ASSESSMENT]%' ORDER BY created_at DESC` (`line 1515`).
+     - If `localStorage` contains unsynced assessments: runs `saveEccdAssessmentToSupabase()` (`SELECT`/`UPDATE`/`INSERT` on `eccd_assessments`, `learners`, `materials`, `categories`).
+  5. `loadCategories()` $\rightarrow$ `SELECT * FROM public.categories ORDER BY created_at` (`line 191`).
+  6. `loadUsers()` *(dead state)* $\rightarrow$ `SELECT id, full_name, role, barangay FROM public.profiles ORDER BY full_name` + unawaited `DELETE FROM public.profiles` (`lines 165-176`).
+  7. `loadMaterials()` *(dead state)* $\rightarrow$ `SELECT id, title, type, age_range, status, categories(name) FROM public.materials ORDER BY created_at DESC` (`line 248`).
+  8. `loadApprovals()` *(dead state)* $\rightarrow$ `SELECT id, title, type, categories(name) FROM public.materials WHERE status = 'pending' ORDER BY created_at DESC` (`line 270`).
+
+#### Per-Tab Trace (`admin`)
+| Tab Key & UI Label | Component | DB Calls on Tab Open | User Actions $\rightarrow$ DB Calls |
+| :--- | :--- | :--- | :--- |
+| `overview` — **MSWD Overview** | [MswdOverview.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/admin/MswdOverview.jsx) | `SELECT * FROM public.materials ORDER BY created_at DESC` (`line 31`) | Tab-navigation buttons only (`programs`, `curriculum`, `enrollees`, `centers`, `reports`, `teachers`) — zero DB writes |
+| `enrollees` — **Enrollee Population** | [EnrolleePopulation.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/admin/EnrolleePopulation.jsx) | None *(uses `learners`/`cdcs` props + static census)* | • **Register Learner**: `INSERT INTO public.learners` (`AdminDashboard.jsx:300`)<br>• **Edit Learner**: `UPDATE public.learners SET undefined WHERE id = [object Object]` (**broken** 1-arg vs 2-arg mismatch: `EnrolleePopulation.jsx:129` $\rightarrow$ `AdminDashboard.jsx:313-319`)<br>• **Delete Learner**: `DELETE FROM public.learners WHERE id = ...` (`AdminDashboard.jsx:328`) |
+| `centers` — **Daycare Centers** | [DaycareCenterMonitoring.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/admin/DaycareCenterMonitoring.jsx) | None *(uses props + static census)* | Filter & Dossier modal inspection only — **zero DB calls** |
+| `reports` — **Reports Generation** | [ReportsGeneration.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/admin/ReportsGeneration.jsx) | None *(uses props + `localStorage` + static datasets)* | CSV export (`Blob` download) & `window.print()` — **zero DB calls** |
+| `programs` — **Activity Monitoring** | [ProgramMonitoring.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/admin/ProgramMonitoring.jsx) | • `SELECT * FROM public.materials ORDER BY created_at DESC` (`159`)<br>• Unawaited `DELETE FROM public.materials WHERE id IN (...)` for duplicate rows (`250`)<br>• Optional `UPDATE public.materials SET content_url = ...` (`118`)<br>• Realtime channel `mswd_program_monitoring_materials_sync` (`materials`, `teachers`) | • **Approve / Reject / Save Review Note**: `UPDATE public.materials SET status = 'approved'\|'rejected', content_text = ... WHERE id = ...` (`553`, `596`, `630`)<br>• **Move to Trash / Restore**: `UPDATE public.materials SET content_text = ... WHERE id = ...` (`408`, `464`)<br>• **Delete Forever**: `DELETE FROM public.materials WHERE id = ...` (`492`)<br>• **View Chunked Video**: `SELECT title, content_text FROM public.materials WHERE title LIKE '[MEDIA_CHUNK]...'` (`mediaStorage.js:500`)<br>• **Post / Upload Activity Modal (`handleCreateModule`, `line 682`)**: **ZERO DB CALLS** (writes to `localStorage` + `IndexedDB` only!) |
+| `curriculum` — **Curriculum Guides** | [CurriculumGuides.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/admin/CurriculumGuides.jsx) | • `SELECT id, title, content_text, created_at FROM public.materials WHERE title ILIKE '[MSWD_ASSIGNMENT]%'` (`69`)<br>• `fetchSyncedTeachersList()` (`teachers`, `profiles`, `materials`)<br>• Realtime channel `curriculum-guides-live-sync` (`materials`, `teachers`) | • **Assign Topic to Teachers**: `SELECT id FROM public.categories LIMIT 1` (`443`) $\rightarrow$ `INSERT INTO public.materials` (`[MSWD_ASSIGNMENT] <id>`, `461`)<br>• **Delete Assignment**: `DELETE FROM public.materials WHERE id = ...` (`486`) + `DELETE FROM public.materials WHERE title = '[MSWD_ASSIGNMENT] <id>'` (`488`) |
+| `teachers` — **Manage Teachers** | [ManageTeachers.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/pages/ManageTeachers.jsx) | • `SELECT * FROM public.cdcs ORDER BY barangay, name` (`126`)<br>• `fetchSyncedTeachersList()` (`teachers`, `profiles`, `materials`) | • **Create Teacher / Set Password (`adminSetTeacherPassword`)**: `supabaseSecondaryAuth.auth.signUp` (or `supabase.auth.updateUser` if self) $\rightarrow$ `UPSERT INTO public.profiles` (`262`) $\rightarrow$ `UPSERT INTO public.teachers` (`276`) $\rightarrow$ `SELECT`/`UPDATE`/`INSERT INTO public.materials` (`[TEACHER_CREDENTIAL_SYNC]`, `320-335`, plus `SELECT id FROM categories LIMIT 1`)<br>• **Edit Teacher (`saveTeacherProfileSyncToSupabase`)**: `SELECT id, name, barangay FROM public.cdcs` (`755`) $\rightarrow$ `UPDATE public.profiles` (`826`) $\rightarrow$ `UPSERT INTO public.teachers` (`850`) $\rightarrow$ `UPDATE public.cdcs SET official_teacher_name = ...` (`860` — fails RLS) $\rightarrow$ `SELECT`/`UPDATE`/`INSERT INTO public.materials` (`[TEACHER_PROFILE_SYNC]`, `874-916`)<br>• **Delete Teacher**: `supabase.functions.invoke('delete-teacher')` (`401`) $\rightarrow$ `DELETE FROM public.teachers WHERE id = ...` (`414`) $\rightarrow$ `DELETE FROM public.profiles WHERE id = ...` (`415` — fails RLS)<br>• **Add CDC**: `INSERT INTO public.cdcs (name, barangay)` (`431` — fails RLS: no `INSERT` policy on `cdcs`) |
+| `categories` — **Categories** | Inline (`AdminDashboard.jsx:540-627`) | None *(uses `categories` state)* | • **Click Category Card**: `SELECT title, type, age_range FROM public.materials WHERE category_id = ...` (`226`)<br>• **+ Add Category**: `INSERT INTO public.categories (icon, name)` (`204`)<br>• **✕ Delete Category**: `DELETE FROM public.categories WHERE id = ...` (`218`) |
+| Sidebar **Sign Out** | [DashboardLayout.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/DashboardLayout.jsx#L26-L29) | — | `supabase.auth.signOut()` $\rightarrow$ `navigate('/login')` |
+
+---
+
+### 7.3 Role 2: Municipal Superadmin (`superadmin`) — `/admin-dashboard`
+- **Login & Mount**: Identical to `admin` above (`profiles.role` in DB is `'admin'`; elevated to `'superadmin'` client-side by `isSuperAdminUser()` in [src/lib/roles.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/roles.js#L70-L115) via hardcoded UUID `3cb5bc92-1742-414d-8d12-e9cc523464f6`, email `superadmin@earlylearn.ph`, `user_metadata`, or `localStorage['earlylearn_superadmin_ids']`).
+- **Tab Differences**: Same 8 sidebar tabs and DB calls as `admin`, plus one extra button in `overview` ([MswdOverview.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/admin/MswdOverview.jsx#L153-L160)): **`Manage Users`** $\rightarrow$ calls `onNavigateTab('users')` $\rightarrow$ **triggers zero DB calls and renders a blank screen** because `AdminDashboard.jsx` has no `{activeTab === 'users' && ...}` branch ([src/pages/ManageUsers.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/pages/ManageUsers.jsx) is unimported).
+
+---
+
+### 7.4 Role 3: Child Development Teacher (`teacher`) — `/teacher-dashboard` ([src/pages/TeacherDashboard.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/pages/TeacherDashboard.jsx))
+
+#### Mount-Time Calls
+- **Realtime Subscription (`TeacherDashboard.jsx:1562-1590`)**: `teacher-live-sync-${currentUserId}` watching `postgres_changes` (`*`) on `materials`, `submissions`, `teachers`, `profiles`.
+- **7 Parallel Data Loaders (`TeacherDashboard.jsx:3157-3173`)**:
+  1. `loadCategoryOptions()` $\rightarrow$ `SELECT id, name, icon FROM public.categories ORDER BY name` (`309`).
+  2. `loadMyMaterials()` $\rightarrow$ `SELECT id, title, type, age_range, status, content_url, content_text, created_by, created_at, categories(name) FROM public.materials ORDER BY created_at DESC` (`319`) + unawaited `DELETE FROM public.materials WHERE id IN (...)` for duplicate rows (`669`).
+  3. `loadAnnouncements()` $\rightarrow$ `SELECT id, title, content_text, created_by, created_at FROM public.materials WHERE title ILIKE '[TEACHER_ANNOUNCEMENT]%'` (`1780`) + `SELECT id, title, message, created_at FROM public.announcements ORDER BY created_at DESC` (`1826`).
+  4. `loadSubmissions()` $\rightarrow$ `SELECT id, material_id, student_id, answer_text, status, created_at, profiles(full_name, barangay, cdc_name), materials(id, title, created_by) FROM public.submissions ORDER BY created_at DESC` (`2024`).
+  5. `loadProgress()` $\rightarrow$ `SELECT id, student_id, material_id, answer_text, status FROM public.submissions` (`2441`).
+  6. `loadMyProfile()` $\rightarrow$ `SELECT * FROM public.profiles WHERE id = currentUserId` (`2530`) + `SELECT full_name, barangay, contact_number, email, cdc_id, cdcs(name) FROM public.teachers WHERE id = currentUserId` (`2542`) + `fetchSyncedTeachersList()`.
+  7. `loadMyLearners()` $\rightarrow$ `getLearnersForTeacher()` ([learnersService.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/learnersService.js#L920-L1055)):
+     - `SELECT * FROM public.learners` filtered by `cdc_id` or `barangay` (`933-940`) + unawaited `DELETE` / `UPDATE` on placeholder names (`950-954`).
+     - `SELECT * FROM public.profiles WHERE role = 'student'` (`973-978`).
+     - `fetchEccdAssessmentsFromSupabase()` (`eccd_assessments`, `learners`, `materials`).
+     - `getTeacherRegistrationCode()` $\rightarrow$ `SELECT id, full_name, barangay, contact_number FROM public.teachers WHERE id = teacherId` (`learnersService.js:123`).
+
+#### Per-Tab Trace (`teacher`)
+| Tab Key & UI Label | Component | DB Calls on Tab Open | User Actions $\rightarrow$ DB Calls |
+| :--- | :--- | :--- | :--- |
+| `overview` — **Overview** | Inline (`TeacherDashboard.jsx:3200-3465`) | None *(uses mounted state)* | Quick-navigation buttons (`assigned_topics`, `upload`, `mylearners`) — zero DB writes |
+| `assigned_topics` — **Assigned Topics & Tasks** | Inline (`3467-3877`) | None *(parsed from `loadMyMaterials`)* | • **Upload Activity for Topic**: opens `TeacherUploadModal` *(disabled button with no `onClick` when past deadline at `3687`)*<br>• **Delete / Retrieve / Delete Forever Assignment**: `SELECT`/`UPDATE`/`DELETE FROM public.materials` on `[MSWD_ASSIGNMENT]` rows (`1628-1751`) |
+| `mylearners` — **My Learners** | Inline (`3879-4264`) | None *(uses `myLearners`)* | • **Generate New Code**: `UPDATE public.teachers SET contact_number = ... WHERE id = teacherId` (`learnersService.js:157`)<br>• **Approve / Decline Parent**: `SELECT`/`UPDATE public.learners SET parent_contact = ...` (`learnersService.js:682-689`) + `UPDATE public.profiles SET contact_number = ...` (`699-701`)<br>• **+ Create Parent Account**: `supabaseSecondaryAuth.auth.signUp` $\rightarrow$ `UPSERT INTO public.profiles` (`780`) $\rightarrow$ `UPSERT`/`UPDATE`/`INSERT INTO public.learners` (`503-522`) $\rightarrow$ `SELECT`/`UPDATE`/`INSERT INTO public.materials` (`[PARENT_CREDENTIAL_SYNC]`, `teacherAuthService.js:495-510`) |
+| `child_development` — **Child Development** | [TeacherChildDevelopment.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/teacher/TeacherChildDevelopment.jsx) + [TeacherReportSheet.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/teacher/TeacherReportSheet.jsx) | `getAssessmentsForTeacher()` $\rightarrow$ `fetchEccdAssessmentsFromSupabase()` (`eccd_assessments`, `learners`, `materials`) | • **Save Evaluation (`saveEccdAssessmentToSupabase`)**: `SELECT`/`UPDATE`/`INSERT INTO public.eccd_assessments` (`1260-1293`) $\rightarrow$ `SELECT`/`UPDATE public.learners SET parent_contact = ...` (`1307-1327`) $\rightarrow$ `SELECT`/`UPDATE`/`INSERT INTO public.materials` (`[ECCD_ASSESSMENT]`, `1342-1375`, + `SELECT id FROM categories LIMIT 1`)<br>• **Print Individual / Class Report**: `window.print()` — zero DB calls |
+| `upload` — **Uploaded Materials** | Inline (`4278-4718`) + [TeacherUploadModal.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/teacher/TeacherUploadModal.jsx) | None *(uses `combinedUploadedMaterials`)* | • **Upload / Update Activity**: `saveMediaToSupabaseChunks()` (`INSERT INTO public.materials` `[MEDIA_CHUNK]` rows if > 2.4 MB, `mediaStorage.js:460`) $\rightarrow$ `UPDATE` or `INSERT INTO public.materials` (`1031-1097`) $\rightarrow$ `SELECT`/`UPDATE public.materials` on `[MSWD_ASSIGNMENT]` (`1207-1233`)<br>• **Post to Student Dashboard**: `UPDATE` or `INSERT INTO public.materials` (`1430-1446`)<br>• **View / Play**: `SELECT title, content_text FROM public.materials LIKE '[MEDIA_CHUNK]...'` (`mediaStorage.js:500`)<br>• **Delete / Retrieve / Delete Forever**: `UPDATE` or `DELETE FROM public.materials` (`1510`, `1572`, `1597`) |
+| `announcements` — **Announcements** | Inline (`4721-4821`) | None *(uses `announcements`)* | • **Post Announcement**: `SELECT id FROM public.categories LIMIT 1` (`1940`) $\rightarrow$ `INSERT INTO public.materials` (`[TEACHER_ANNOUNCEMENT]`, `1943`) $\rightarrow$ `INSERT INTO public.announcements` (`1955`)<br>• **Delete Announcement**: `DELETE FROM public.materials` (`2000-2005`) + `DELETE FROM public.announcements` (`2012`) |
+| `submissions` — **Check Submissions** | Inline (`4824-5115`) | None *(uses `submissions`)* | • **Mark Checked**: `UPDATE public.submissions SET status = 'checked', answer_text = ...` (`2242-2256`)<br>• **Delete / Retrieve**: `UPDATE public.submissions SET answer_text = ...` (`2321`, `2366`)<br>• **Delete Forever**: `DELETE FROM public.submissions WHERE id = ...` (`2405` — **blocked under `007` RLS** for teachers) |
+| `progress` — **Student Progress** | Inline (`5118-5150`) | None *(computed from `myLearners` + `submissions`)* | Read-only table — **zero DB calls** |
+| `profile` — **My Profile** | Inline (`5153-5429`) | None *(uses `myProfile` state)* | • **Save Profile**: `SELECT id, full_name, barangay, contact_number, cdc_id, cdcs(id, name, barangay) FROM public.teachers WHERE id = currentUserId` (`2815`) $\rightarrow$ `saveTeacherProfileSyncToSupabase()` (`SELECT cdcs`, `UPDATE profiles`, `UPSERT teachers`, `UPDATE cdcs.official_teacher_name`, `SELECT`/`UPDATE`/`INSERT materials` `[TEACHER_PROFILE_SYNC]`) |
+
+---
+
+### 7.5 Role 4: Parent / Toddler (`student` / `parent`) — `/student-dashboard` ([src/pages/StudentDashboard.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/pages/StudentDashboard.jsx))
+
+#### Mount-Time Calls
+- **Realtime Subscription (`StudentDashboard.jsx:730-745`)**: `student-live-sync-${currentUserId}` watching `postgres_changes` (`*`) on `materials`, `announcements`, `submissions`, `eccd_assessments`.
+- **Adviser Lookup + 4 Parallel Loaders (`StudentDashboard.jsx:230-285, 678-720`)**:
+  1. Adviser resolution $\rightarrow$ `SELECT * FROM public.learners` / `SELECT * FROM public.teachers` (via `learnersService.js` helpers when `localStorage['earlylearn_student_adviser_<id>']` is absent).
+  2. `loadAnnouncements()` $\rightarrow$ `SELECT id, title, content_text, created_by, created_at FROM public.materials WHERE title ILIKE '[TEACHER_ANNOUNCEMENT]%'` (`381`) + `SELECT id, title, message, created_at FROM public.announcements ORDER BY created_at DESC` (`412`).
+  3. `loadDbMaterials()` $\rightarrow$ `SELECT *, categories(id, name, icon) FROM public.materials WHERE status = 'approved' AND title NOT LIKE '[MSWD_ASSIGNMENT]%' ORDER BY created_at DESC` (`464` — pulls `[MEDIA_CHUNK]`, `[ECCD_ASSESSMENT]`, and `[*_CREDENTIAL_SYNC]` rows over the network before filtering in JS!).
+  4. `loadStudentSubmissions()` $\rightarrow$ `SELECT *, materials(id, title) FROM public.submissions WHERE student_id = currentUserId ORDER BY created_at DESC` (`482`).
+  5. `loadChildAssessment()` $\rightarrow$ `getParentChildAssessment()` $\rightarrow$ `fetchEccdAssessmentsFromSupabase()` (`eccd_assessments`, `learners`, `materials`).
+
+#### Per-Tab (`navTab`) Trace (`student` / `parent`)
+| Nav Key & Label | DB Calls on Tab Switch | User Actions $\rightarrow$ DB Calls |
+| :--- | :--- | :--- |
+| `home` — **Home** | None *(uses mounted state)* | Opens `activities`, `resources`, `messages`, `my_child`, or standalone Upload modal |
+| `my_child` — **My Child** | None *(uses `profile` + `childAssessment`)* | Read-only child card & 4-domain ECCD developmental report — **zero DB calls** |
+| `activities` — **Activities** | None *(uses `teacherActivities` + `studentSubmissions`)* | • **Open / Play Activity**: `SELECT title, content_text FROM public.materials LIKE '[MEDIA_CHUNK]...'` (`mediaStorage.js:500`); if local `data:` URL found on `idb://` item, tries `UPDATE public.materials SET content_url = dataUrl WHERE id = ...` (`StudentDashboard.jsx:195` — **rejected by RLS** for `student`!)<br>• **Submit Activity Answer (`handleSubmitActivity`)**: if attachment > 2.4 MB, calls `saveMediaToSupabaseChunks()` $\rightarrow$ `INSERT INTO public.materials` (`mediaStorage.js:460` — **rejected by RLS** for `student`, silently returning `null`!) $\rightarrow$ `UPDATE` or `INSERT INTO public.submissions` (`1177-1192`)<br>• **Standalone "+ Upload Activity" (`handleStandaloneUpload`)**: if attachment > 2.4 MB, calls `saveMediaToSupabaseChunks()` (**rejected by RLS** for `student`) $\rightarrow$ `INSERT INTO public.submissions` (`material_id: null`, `1365`) |
+| `resources` — **Resources** (+ `view === 'category_detail'` & Flashcard modal) | **None** | 100% static `BILINGUAL_CATEGORIES` flashcards, storybooks, and Web Speech TTS — **zero DB calls** |
+| `messages` — **Messages** | None *(uses `announcements` state)* | Read-only teacher announcements list — **zero DB calls** |
+| `settings` — **Settings** | None *(uses `profile` + `adviserInfo`)* | **Sign Out** button (`2793`) $\rightarrow$ `supabase.auth.signOut()` (`296`) $\rightarrow$ `navigate('/login')` |
+
+---
+
+## 8. Disconnected Items Inventory
+
+### 8.1 Buttons & Controls With Missing, Broken, or Disconnected Handlers
+| Location | Button / Control | Defect |
+| :--- | :--- | :--- |
+| [MswdOverview.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/admin/MswdOverview.jsx#L154-L160) | Superadmin **`Manage Users`** button | Calls `onNavigateTab('users')`, setting `activeTab = 'users'` in `AdminDashboard.jsx`, where no `users` tab renderer exists — switches to an empty page. |
+| [EnrolleePopulation.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/admin/EnrolleePopulation.jsx#L129) $\rightarrow$ [AdminDashboard.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/pages/AdminDashboard.jsx#L313-L320) | **`Save Changes`** in Edit Learner modal | Calls `onUpdateLearner({ ...editingLearner, ...formData })` (1 arg), whereas `handleUpdateLearner(id, updates)` expects 2 args; `updates` is `undefined`, UI list does not update (`l.id === object` is false), and `.update(undefined).eq('id', object)` fails in PostgREST. |
+| [ProgramMonitoring.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/admin/ProgramMonitoring.jsx#L682-L725) (`946`, `1341`, `1559`) | Admin **`Post / Upload Activity`** modal submit | `handleCreateModule` never calls `supabase.from('materials').insert(...)` — saves solely to browser `localStorage` / `IndexedDB` (invisible on all other devices/teachers) and only matches teachers in static `realTeachersList`. |
+| [AdminDashboard.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/pages/AdminDashboard.jsx#L335-L339) & `519` $\rightarrow$ [ProgramMonitoring.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/admin/ProgramMonitoring.jsx#L34) | `onVerifyReport={handleVerifyReport}` prop | Passed from `AdminDashboard` into `ProgramMonitoring`, destructured at `ProgramMonitoring.jsx:34`, and **never wired to any button or called anywhere**. |
+| [ReportsGeneration.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/admin/ReportsGeneration.jsx#L54-L86) vs `912-989` | Missing **`ECCD Development Milestones`** report tab button | Full report table (`reportType === 'development'`) and CSV exporter (`310-330`) are implemented, but no button in `REPORT_TYPES` sets `reportType` to `'development'`. |
+| [TeacherDashboard.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/pages/TeacherDashboard.jsx#L3687) | **`Deadline Passed (Locked)`** `<button disabled>` | Only `<button>` in `src/` without `onClick` or `type="submit"` — intentionally disabled lock indicator when an MSWD topic deadline has expired. |
+| [ManageUsers.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/pages/ManageUsers.jsx#L251) & `349` *(unimported file)* | Password Reset & Create User modal handlers | Calls undefined `loadData()` (`ReferenceError` at `251`) and undefined `setAddUserModal(false)` (`ReferenceError` at `349`). |
+| [AdminOverview.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/AdminOverview.jsx) *(unimported file)* | Quick-action cards (`users`, `learners`, `materials`, `approvals`) | Calls `onNavigateTab` with 4 legacy tab keys that no longer exist in `AdminDashboard.jsx`. |
+
+### 8.2 Queries to Missing SQL Tables, Unverified Columns, or RLS-Blocked Targets
+*(Zero `.from(...)` queries target table names outside the 9 tables cataloged in Section 1; however, the following queries target objects missing from repo SQL or blocked by repo RLS policies.)*
+
+| Target | Location | Why It Fails or Lacks SQL Backing |
+| :--- | :--- | :--- |
+| `public.categories` *(entire table)* | `AdminDashboard.jsx:191, 204, 218`, `TeacherDashboard.jsx:309, 1940`, `CurriculumGuides.jsx:443`, `curriculumData.js:914`, `learnersService.js:1361`, `teacherAuthService.js:334, 509` | **Zero SQL definition**: table, columns, and RLS policies do not appear in any `.sql` file in the repo. |
+| `public.cdcs.official_teacher_name` *(column + `UPDATE` policy)* | [curriculumData.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/curriculumData.js#L861) | Column is absent from all `.sql` files, AND `public.cdcs` has `RLS ENABLED` with only a `SELECT` policy (`supabase_security_and_rls.sql:144-147`) — `UPDATE` is rejected by RLS. |
+| `INSERT INTO public.cdcs` | [ManageTeachers.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/pages/ManageTeachers.jsx#L431) | `public.cdcs` has no `INSERT` RLS policy in any `.sql` file — adding a Day Care Center fails under RLS unless added manually in Supabase. |
+| `Edge Function: delete-teacher` | [ManageTeachers.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/pages/ManageTeachers.jsx#L401) | Invokes `supabase.functions.invoke('delete-teacher')`; no `supabase/functions/` directory exists in the repo. |
+| `DELETE FROM public.profiles` | `AdminDashboard.jsx:176`, `curriculumData.js:1090`, `ManageTeachers.jsx:415`, dead `ManageUsers.jsx:284` | `public.profiles` has `SELECT`, `INSERT`, and `UPDATE` policies, **no `DELETE` policy** — all client-side profile deletes silently delete 0 rows. |
+| `anon` `SELECT` on `public.materials` & `public.learners` | `teacherAuthService.js:435, 551, 608` (called from `/login` before sign-in) | Both tables restrict `SELECT` `TO authenticated`; unauthenticated credential/parent lookup queries always return RLS errors/empty data. |
+| `student` `INSERT`/`UPDATE` on `public.materials` | `StudentDashboard.jsx:195` (`UPDATE` `content_url`) and `mediaStorage.js:460` (`INSERT` `[MEDIA_CHUNK]` during student uploads > 2.4 MB) | `public.materials` restricts write access (`FOR ALL`) to `admin`, `superadmin`, and `teacher` (`supabase_security_and_rls.sql:156-160`) — student video chunk uploads > 2.4 MB cannot be saved to Supabase. |
+| `teacher` `DELETE` on `public.submissions` | `TeacherDashboard.jsx:2405` (`handlePermanentDeleteSubmission`) | Under `sql/007_teacher_privacy.sql:323-371`, teachers have `SELECT` and `UPDATE` policies on `submissions`, **not `DELETE`**. |
+
+### 8.3 UI Data Not Coming From the Database
+| Screen / Tab | Displayed Metric or Content | Actual Source Instead of DB |
+| :--- | :--- | :--- |
+| `LandingPage`, `MswdOverview`, `EnrolleePopulation`, `DaycareCenterMonitoring`, `ReportsGeneration` | **3,041 enrollees**, **22 barangays**, **62/63 CDCs**, ITED (**439**), Pre-K1 (**1,001**), Pre-K2 (**1,596**), 5 y/o (**5**) | Hardcoded constants in [enrolleePopulationData.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/enrolleePopulationData.js) & [MswdOverview.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/admin/MswdOverview.jsx#L203) — unaffected by adding/deleting rows in `public.learners`. |
+| `EnrolleePopulation.jsx` (`490-506`) | Missing learner CDC, Parent Name, and Contact Number cells | Hardcoded real-person fallback strings: `'Maluko Child Development Center'`, `'Lovey Guinevere Tion'`, `'0929-320-5411'`. |
+| `AdminDashboard.jsx` (`131`) | Learner `age` in Admin learner state | Hardcoded `age: 3` for every row fetched from `public.learners` (ignores `l.birthdate`). |
+| `DaycareCenterMonitoring.jsx` (`817`, `833-848`) | Teacher fallback email & Daily Shift Schedules (`8:00–10:30 AM`, `1:00–3:30 PM`) | Synthesized string `<name>@earlylearn.ph` and hardcoded JSX schedule cards. |
+| `ReportsGeneration.jsx` (`190-216`, `996-1009`) | Center Capacity, Capacity Fill %, Monthly Attendance % (`91%–96%`), and Official Signatories | Computed from deterministic formulas `capacity = Math.max(enrolled + 5, 35)` and `attendanceRate = 91 + (idx % 6)`, plus hardcoded `'MARIA CRISTINA FLORES, RSW'`. |
+| `CurriculumGuides.jsx` & `TeacherDashboard.jsx` | Pre-K1 & Pre-K2 Q1–Q4 themes, sub-themes, objectives, activities | Static JS arrays `preK1Curriculum` & `preK2Curriculum` in [curriculumData.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/curriculumData.js). |
+| `AdminDashboard`, `ManageTeachers`, `CurriculumGuides`, `ProgramMonitoring`, `SignUp` | Baseline roster of 64 CDCs & 63 named teachers | Static `realCdcsList` & `realTeachersList` in [curriculumData.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/curriculumData.js#L134-L386) merged into DB results. |
+| `StudentDashboard.jsx` (`home` & `resources`) | All 6 Bilingual Topics (`Alphabet`, `Numbers`, `Colors`, `Shapes`, `Animals`, `Stories`) | Static `BILINGUAL_CATEGORIES` in [studentLearningData.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/studentLearningData.js) — **never reads `public.categories`** (Admin edits in the `Categories` tab have zero effect on the Student Dashboard). |
+
+### 8.4 Writes With No Reader (Database, State, `localStorage`, & `IndexedDB`)
+| Target Written | Where It Is Written | Why Nothing Reads It |
+| :--- | :--- | :--- |
+| `public.teachers.must_change_password` & `user_metadata.must_change_password` | `teacherAuthService.js:185, 231, 283` and `Login.jsx:113` (always set to `true`; column added in `supabase_security_and_rls.sql:17`) | **Zero readers in `src/`**: neither `Login.jsx` nor `TeacherDashboard.jsx` ever inspects `must_change_password` or renders a forced password-change prompt. |
+| `public.cdcs.official_teacher_name` | [curriculumData.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/curriculumData.js#L861) (`.update({ official_teacher_name: cleanName })`) | **Zero readers in `src/`** (and absent from SQL schema + blocked by `cdcs` RLS). |
+| `public.announcements.created_by` | [TeacherDashboard.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/pages/TeacherDashboard.jsx#L1958) (`.insert({ title, message, created_by: currentUserId })`) | Both `TeacherDashboard.jsx:1827` and `StudentDashboard.jsx:413` run `.select('id, title, message, created_at')`, omitting `created_by`. |
+| `public.eccd_assessments.mswd_verified` | [learnersService.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/learnersService.js#L1252) (written as `false` on save) | Only referenced in **dead** [ChildDevelopmentMonitoring.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/admin/ChildDevelopmentMonitoring.jsx#L251) (`375`); no active Admin or Teacher view reads or toggles `eccd_assessments.mswd_verified`. |
+| `public.categories` rows (for Student Portal) | [AdminDashboard.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/pages/AdminDashboard.jsx#L204) (`+ Add Category`) | `StudentDashboard.jsx` renders static `BILINGUAL_CATEGORIES` instead of `public.categories`; DB categories are only used as a dummy FK `category_id` (`SELECT id FROM categories LIMIT 1`) when inserting into `materials`. |
+| `localStorage['earlylearn_active_teacher_profile']` | [curriculumData.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/curriculumData.js#L816) (`localStorage.setItem(...)`) | **Zero `getItem` calls** anywhere in the repository. |
+| `AdminDashboard.jsx` React states: `profiles`, `usersMsg`, `materials`, `approvals`, `activityReports` (`mswd_verified`), and `MswdOverview` props `learnersCount`, `pendingVerificationCount`, `assessmentsCount` | `AdminDashboard.jsx:76, 79-80, 92, 95, 182, 251, 274, 336-338, 466, 469-470` | Populated via 3 network queries + state setters on every mount, or passed as props to `MswdOverview` (`MswdOverview.jsx:12, 15, 16`), and **never read or rendered in JSX**. |
+| `ProgramMonitoring` local-only Admin uploads (`localStorage['earlylearn_teacher_modules']`) | [ProgramMonitoring.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/admin/ProgramMonitoring.jsx#L719) (`handleCreateModule`) | Written only to the admin's own browser `localStorage` / `IndexedDB` — never written to `public.materials`, so zero Teachers or Students on other devices/sessions can ever read them. |
