@@ -562,18 +562,12 @@ export default function SignUp() {
                         👩‍🏫 <strong>Child Development Teachers:</strong> Teacher accounts are issued by MSWDO Administrator with an official Teacher ID.
                       </div>
 
-                      <div className="mt-3 space-y-1.5">
+                      <div className="mt-3">
                         <Link
                           to="/login"
                           className="block text-xs text-[#F46D70] no-underline font-extrabold hover:underline"
                         >
                           Already have an account? Log In here
-                        </Link>
-                        <Link
-                          to="/"
-                          className="block text-[11.5px] text-[#7A6B52] no-underline font-bold hover:text-[#2B241C] hover:underline"
-                        >
-                          ← Back to EarlyLearn Hub
                         </Link>
                       </div>
                     </div>
