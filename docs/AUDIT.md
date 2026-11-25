@@ -477,3 +477,101 @@
 | `localStorage['earlylearn_active_teacher_profile']` | [curriculumData.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/curriculumData.js#L816) (`localStorage.setItem(...)`) | **Zero `getItem` calls** anywhere in the repository. |
 | `AdminDashboard.jsx` React states: `profiles`, `usersMsg`, `materials`, `approvals`, `activityReports` (`mswd_verified`), and `MswdOverview` props `learnersCount`, `pendingVerificationCount`, `assessmentsCount` | `AdminDashboard.jsx:76, 79-80, 92, 95, 182, 251, 274, 336-338, 466, 469-470` | Populated via 3 network queries + state setters on every mount, or passed as props to `MswdOverview` (`MswdOverview.jsx:12, 15, 16`), and **never read or rendered in JSX**. |
 | `ProgramMonitoring` local-only Admin uploads (`localStorage['earlylearn_teacher_modules']`) | [ProgramMonitoring.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/admin/ProgramMonitoring.jsx#L719) (`handleCreateModule`) | Written only to the admin's own browser `localStorage` / `IndexedDB` — never written to `public.materials`, so zero Teachers or Students on other devices/sessions can ever read them. |
+
+
+---
+
+## 9. Security & Access-Control Audit (RLS Resolution, Secrets, Escalation, & Key Handling)
+
+### 9.1 Effective RLS Per Table (Resolving Consolidated File vs. `007` vs. `008`)
+
+#### Git Commit Chronology & PostgreSQL Policy Evaluation Rules
+Git history establishes the exact authoring sequence of the three SQL scripts:
+1. **`853c30f` $\rightarrow$ `35ac3b8`**: [supabase_security_and_rls.sql](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/supabase_security_and_rls.sql) *(consolidated baseline + initial `eccd_assessments` policies)*.
+2. **`549993f`**: [sql/007_teacher_privacy.sql](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/sql/007_teacher_privacy.sql) *(tightens `learners`, `eccd_assessments`, and `submissions` to per-CDC teacher isolation)*.
+3. **`bae7fea`**: [sql/008_create_eccd_assessments.sql](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/sql/008_create_eccd_assessments.sql) *(drops `007`'s 5 policies on `eccd_assessments` and replaces them with permissive cross-center/student policies)*.
+
+> **Critical PostgreSQL `OR`-Composition Traps**:
+> - **Trap A (`007` Policy-Name Typo on `learners`)**: `supabase_security_and_rls.sql:126` creates `"Parents and teachers can insert learner registrations"` (`FOR INSERT TO anon, authenticated WITH CHECK (true)`). `sql/007_teacher_privacy.sql:89` attempts `DROP POLICY IF EXISTS "Authenticated users can insert learners"` (**wrong name**). Because permissive policies combine via `OR`, `"Parents and teachers can insert learner registrations"` **survives `007`**, leaving `public.learners` open to unrestricted `anon` and `authenticated` `INSERT`s!
+> - **Trap B (Re-running Consolidated Script After `007`/`008`)**: `supabase_security_and_rls.sql` never drops policy names introduced in `007` or `008` (e.g., `"Admins full access to ..."`, `"Teachers access own CDC learners"`, `"Teachers select own class assessments"`). If `supabase_security_and_rls.sql` is re-run after `007`/`008`, **both** policy sets remain active simultaneously and PostgreSQL evaluates their **permissive `OR` union** (the loosest rule in either file wins).
+
+#### Effective Table-by-Table Access Matrix (Sequential Execution: Consolidated $\rightarrow$ `007` $\rightarrow$ `008`)
+
+| Table | Governing Script(s) | `anon` | `student` (`authenticated`) | `teacher` (`authenticated`) | `admin` / `superadmin` | Critical Effective Policy Flaws |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `public.profiles` | `consolidated:69-91` | **`INSERT`** (`id = auth.uid()` or role check) | **`SELECT` ALL**, **`INSERT`** own, **`UPDATE`** own | **`SELECT` ALL**, **`INSERT` ALL**, **`UPDATE` ALL** | `SELECT`, `INSERT`, `UPDATE` ALL *(no `DELETE`)* | 1. Self-`INSERT`/`UPDATE` has **no `WITH CHECK` on `role`** (any user can set `role = 'admin'`).<br>2. Any `teacher` can `UPDATE` **any** user's profile (including admins).<br>3. All `student`s can `SELECT` every user's profile/contact metadata.<br>4. Zero `DELETE` policies exist. |
+| `public.teachers` | `consolidated:97-114` | **`SELECT` ALL** (`USING (true)`) | **`SELECT` ALL** (`USING (true)`) | **`FOR ALL` on ALL rows** (`SELECT`/`INSERT`/`UPDATE`/`DELETE`) | **`FOR ALL` on ALL rows** | 1. **`anon` can dump entire table**, including `\|\|PASS:` plaintext passwords in `contact_number`.<br>2. Any `teacher` can modify or delete **other teachers' rows**. |
+| `public.learners` | `007:88-190` **+** surviving `consolidated:126` | **`INSERT` ANY ROW** *(surviving policy!)* | `SELECT`/`UPDATE` own (`id = auth.uid()`); **`INSERT` ANY ROW** *(surviving policy!)* | `SELECT`/`UPDATE` own CDC/barangay; **`INSERT` ANY ROW** *(surviving policy!)* | **`FOR ALL` on ALL rows** | Due to `007:89` dropping `"Authenticated users can insert learners"` instead of `"Parents and teachers can insert learner registrations"`, `WITH CHECK (true)` for `anon, authenticated` remains active on `INSERT`. *(If `consolidated` is re-run later, `SELECT` also reverts to `USING (true)` for all students/teachers.)* |
+| `public.cdcs` | `consolidated:143-147` | **`SELECT` ALL** | **`SELECT` ALL** | **`SELECT` ALL** *(no write)* | **`SELECT` ALL** *(no write)* | RLS enabled with **zero** `INSERT`/`UPDATE`/`DELETE` policies — blocks Admin `"Add Center"` (`ManageTeachers.jsx:431`). |
+| `public.categories` | **None in SQL** | **Unknown** *(unprotected if RLS off; denied if RLS on)* | **Unknown** | **Unknown** | **Unknown** | Completely omitted from all 3 SQL files (`ENABLE ROW LEVEL SECURITY` never called). |
+| `public.materials` | `consolidated:149-160` | None | **`SELECT` ALL** (`USING (true)`) | **`FOR ALL` on ALL rows** | **`FOR ALL` on ALL rows** | 1. Every `student` can `SELECT` all `[TEACHER_CREDENTIAL_SYNC]`, `[PARENT_CREDENTIAL_SYNC]`, and `[ECCD_ASSESSMENT]` rows.<br>2. Any `teacher` can overwrite/delete another teacher's or MSWD's rows. |
+| `public.submissions` | `007:306-400` | None | `SELECT`/`INSERT`/`UPDATE` own (`student_id = auth.uid()`) | `SELECT`/`UPDATE` own CDC/barangay *(no `INSERT`/`DELETE`)* | **`FOR ALL` on ALL rows** | Cleanest isolation in repo, except teachers lack `DELETE` (breaking `Delete Forever` at `TeacherDashboard.jsx:2405`). |
+| `public.announcements` | `consolidated:184-195` | None | **`SELECT` ALL** | **`FOR ALL` on ALL rows** | **`FOR ALL` on ALL rows** | Any `teacher` can delete/edit any other teacher's announcements. |
+| `public.eccd_assessments` | `008:53-143` *(overwrites `007:194-301`)* | `GRANT SELECT` at SQL level (`008:143`), 0 `anon` RLS policies | `SELECT` own OR matching `profiles.full_name` / JWT `user_metadata` `child_name`; **`INSERT` ANY ROW** (`OR auth.uid() IS NOT NULL`) | **`SELECT`/`INSERT`/`UPDATE` ALL rows municipality-wide** *(no `DELETE`)* | **`FOR ALL` on ALL rows** | **`008` destroys `007` privacy**:<br>1. `008:105` `OR auth.uid() IS NOT NULL` lets **any student/parent `INSERT` arbitrary assessments**.<br>2. `008:95, 112` lets every teacher read and overwrite assessments across **all 22 barangays**.<br>3. `008:127-132` lets students spoof `user_metadata.child_name` to `SELECT` any child's assessment. |
+
+---
+
+### 9.2 Unauthenticated (`anon`) Exposures
+Using only the `SUPABASE_URL` and `SUPABASE_ANON_KEY` bundled in client JS ([src/lib/supabaseClient.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/supabaseClient.js#L9-L16)), an unauthenticated caller can:
+1. **Dump All Teacher Records & Plaintext Passwords**: `GET /rest/v1/teachers?select=*` (`consolidated:98-101`) returns every teacher's UUID, full name, login email, barangay, CDC UUID, Parent Registration Code (`||CODE:...`), and temporary password (`||PASS:...`).
+2. **Insert Arbitrary Rows into `public.learners`**: `POST /rest/v1/learners` (`consolidated:126-129`, surviving `007` due to `007:89` typo) accepts unauthenticated inserts with `WITH CHECK (true)`.
+3. **Enumerate All Barangay Registration Codes in UI**: [src/pages/SignUp.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/pages/SignUp.jsx#L323-L439) exposes a public `"Find My Teacher Code"` modal that lists registration codes per barangay and auto-fills them without authentication.
+4. **Trigger Unauthenticated Account Creation from `/login`**: [src/pages/Login.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/pages/Login.jsx#L101-L116) & `163-178` call `supabaseSecondaryAuth.auth.signUp(...)` directly from the public login form when auto-healing credentials, and Supabase Auth `signUp` itself is open to `anon` callers.
+5. **Read All CDCs (`public.cdcs`) & Hold `GRANT SELECT` on `public.eccd_assessments`**: `cdcs` is world-readable (`consolidated:144-147`); `008:143` explicitly executes `GRANT SELECT ON TABLE public.eccd_assessments TO anon;` (blocked only while RLS remains enabled with zero `TO anon`/`PUBLIC` policies).
+
+---
+
+### 9.3 Plaintext Secrets & Sensitive Data Exposures
+| Secret / Sensitive Datum | Storage Location(s) | Who Can Read It | Source Citation |
+| :--- | :--- | :--- | :--- |
+| **Teacher Temporary Passwords** | `public.teachers.contact_number` (`\|\|PASS:<pw>`) | **Anyone on the internet (`anon`)** + all `authenticated` users | [teacherAuthService.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/teacherAuthService.js#L250) (`282`), `consolidated:98-101` |
+| **Teacher Current & Previous Passwords** | `public.materials.content_text` (`[TEACHER_CREDENTIAL_SYNC]`: `temporary_password`, `previous_passwords[]`) | **All `authenticated` users** (including every parent/student) | [teacherAuthService.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/teacherAuthService.js#L291-L343), `consolidated:150-153` |
+| **Parent / Student Passwords** | `public.materials.content_text` (`[PARENT_CREDENTIAL_SYNC]`: `temporary_password`) | **All `authenticated` users** (every other parent/student & teacher) | [teacherAuthService.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/teacherAuthService.js#L465-L518), `consolidated:150-153` |
+| **Teacher & Parent Password Maps** | Browser `localStorage['earlylearn_teacher_credentials']` & `localStorage['earlylearn_parent_credentials']` | Any script/user with access to the browser profile (persists across logouts) | [teacherAuthService.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/teacherAuthService.js#L11) (`312`, `460`, `487`) |
+| **Child ECCD Clinical Evaluations** | `public.materials.content_text` (`[ECCD_ASSESSMENT] <child_name>`) | **All `authenticated` users** (`student` role reads all rows in `materials` on mount at `StudentDashboard.jsx:464`) | [learnersService.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/learnersService.js#L1334-L1381), `consolidated:150-153` |
+| **Parent Phone Numbers & Enrollment Metadata** | `public.profiles` (`SELECT USING (true)` for `authenticated`) | **All `authenticated` users** | `consolidated:70-73` |
+| **Hardcoded Real Teacher PII Fallback** | `'Lovey Guinevere Tion'` & `'0929-320-5411'` in JSX | All Admins viewing incomplete learner rows | [EnrolleePopulation.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/components/admin/EnrolleePopulation.jsx#L490-L506) |
+
+---
+
+### 9.4 Privilege-Escalation Paths
+
+1. **Path 1 — Unauthenticated Visitor $\rightarrow$ Full Database `admin` via `public.profiles` Self-Write (CRITICAL)**:
+   - **Mechanism**: Sign up a fresh account via `supabase.auth.signUp()` using the public `anon` key, then execute `supabase.from('profiles').upsert({ id: user.id, role: 'admin', full_name: 'x' })`.
+   - **Why It Works**: `consolidated:76-91` allows any `authenticated` (and `anon`) user to `INSERT` and `UPDATE` `public.profiles` where `auth.uid() = id` with **no column or value check on `role`**. Once `profiles.role = 'admin'`, `public.get_my_role()` (`consolidated:53-64`) returns `'admin'`, granting `FOR ALL` RLS privileges across every protected table.
+2. **Path 2 — Authenticated User $\rightarrow$ `superadmin` / `admin` RLS Bypass via `user_metadata` in `get_my_role()` (CRITICAL)**:
+   - **Mechanism**: Call `supabase.auth.signUp({ email, password, options: { data: { role: 'superadmin' } } })` (without creating a `profiles` row), **or** if a profile row is missing, call `supabase.auth.updateUser({ data: { role: 'admin' } })`. Moreover, logging in through [src/pages/Login.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/pages/Login.jsx#L207-L233) when `profiles` is absent reads `user.user_metadata.role` (`'admin'` / `'superadmin'`) and **auto-upserts `role: 'admin'` into `public.profiles`**!
+   - **Why It Works**: `public.get_my_role()` in all 3 SQL files (`consolidated:61`, `007:53`, `008:74`) trusts client-writable `auth.jwt() -> 'user_metadata' ->> 'role'` whenever `public.profiles` has no row for `auth.uid()`.
+3. **Path 3 — Unauthenticated Visitor $\rightarrow$ Any `teacher` Account via `anon` Credential Harvesting (CRITICAL)**:
+   - **Mechanism**: Query `public.teachers` as `anon` to obtain any teacher's `email` and `||PASS:<password>` from `contact_number` (or read `[TEACHER_CREDENTIAL_SYNC]` / `[PARENT_CREDENTIAL_SYNC]` from `public.materials` as any logged-in student) and sign in directly on `/login`.
+4. **Path 4 — `teacher` $\rightarrow$ Cross-User Profile Tampering & Teacher Takeover (HIGH)**:
+   - **Mechanism**: Any authenticated `teacher` satisfies `public.get_my_role() IN ('admin', 'superadmin', 'teacher')` in `consolidated:85-91` (`profiles` `UPDATE`) and `consolidated:104-114` (`teachers` `FOR ALL`).
+   - **Impact**: A single compromised teacher account can `UPDATE` any user's `public.profiles` row (including changing their own `profiles.role` to `'admin'`) and modify or delete all other teachers in `public.teachers`.
+5. **Path 5 — `student` $\rightarrow$ Cross-Child `eccd_assessments` Read & Arbitrary Write under `008` (HIGH)**:
+   - **Mechanism**: Under [sql/008_create_eccd_assessments.sql](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/sql/008_create_eccd_assessments.sql#L100-L138), any logged-in `student` can `INSERT` arbitrary assessment rows because line `105` checks `OR auth.uid() IS NOT NULL`, and can `SELECT` any other child's assessment by updating their own `profiles.full_name` or JWT `user_metadata.child_name` (`lines 127-132`) to match the target child's name (in addition to reading `[ECCD_ASSESSMENT]` rows directly from `public.materials`).
+6. **Path 6 — Any User $\rightarrow$ Client-Side `superadmin` UI Unlock (MEDIUM)**:
+   - **Mechanism**: [src/lib/roles.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/roles.js#L22-L36) & `70-98` grant `superadmin` role in the React UI if `user.id` is pushed into `localStorage['earlylearn_superadmin_ids']` or if client-editable `user_metadata` contains `is_superadmin: true` or `role: 'superadmin'`, bypassing `ProtectedRoute` (`ProtectedRoute.jsx:45-50`).
+
+---
+
+### 9.5 Service-Key & Anon-Key Handling
+- **`service_role` Key**: **None present** in the working tree or git commit history (`git log -S "service_role"` matches only `GRANT ALL ... TO service_role` in `008:142`). Privileged Auth deletion is delegated to `supabase.functions.invoke('delete-teacher')` ([ManageTeachers.jsx](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/pages/ManageTeachers.jsx#L401)), whose server-side code is outside this repo.
+- **Hardcoded Project URL & `anon` JWT**: [src/lib/supabaseClient.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/supabaseClient.js#L9-L16) embeds `https://igdhovaqbntalbrgzebu.supabase.co` and an HS256 `anon` JWT (`ref: "igdhovaqbntalbrgzebu"`, `role: "anon"`, `iat: 1787295887`, `exp: 2102871887`) as hardcoded fallback literals when `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are unset. `.env.example` is referenced in comments and `README.md` but missing from the repo.
+- **Multi-Client Session & Token Impersonation Pattern**:
+  1. `supabase` (`supabaseClient.js:17`) — primary browser client (`persistSession: true`).
+  2. `supabaseSecondaryAuth` (`supabaseClient.js:24-31`) — second `createClient(SUPABASE_URL, SUPABASE_ANON_KEY)` with `persistSession: false` so Admins (`teacherAuthService.js:206`), Teachers (`learnersService.js:762`), and `/login` auto-heal (`Login.jsx:102, 163`) can call `auth.signUp()` in the browser without clobbering the caller's session.
+  3. Ephemeral `writeClient` ([teacherAuthService.js](file:///C:/earlyLearningHub/EarlyLearn-Hub-2/src/lib/teacherAuthService.js#L252-L257)) — instantiates a **third** `createClient` with `Authorization: Bearer ${activeToken}` captured from the newly signed-up teacher's session so client code impersonates the new teacher to upsert `profiles` and `teachers`.
+
+---
+
+### 9.6 Severity-Ranked Security Findings
+
+| Rank | Severity | Finding | Key Locations |
+| :---: | :--- | :--- | :--- |
+| **1** | **CRITICAL** | **Self-privilege escalation to `admin` / `superadmin`** via unrestricted `profiles.role` `INSERT`/`UPDATE`, `teacher` `UPDATE` access on all `profiles`, and `user_metadata->>'role'` fallback in `public.get_my_role()` + `Login.jsx` auto-upsert. | `supabase_security_and_rls.sql:53-91`, `007:44-56`, `008:65-77`, `Login.jsx:207-233` |
+| **2** | **CRITICAL** | **Plaintext teacher & parent passwords stored in DB & `localStorage` and exposed to `anon` / `authenticated` users** (`teachers.contact_number` `\|\|PASS:`, `materials` `[TEACHER_CREDENTIAL_SYNC]` & `[PARENT_CREDENTIAL_SYNC]`, `localStorage`). | `teacherAuthService.js:11, 250, 291-343, 460-518`, `supabase_security_and_rls.sql:98-101, 150-153` |
+| **3** | **HIGH** | **Child ECCD privacy breach & assessment forgery**: `[ECCD_ASSESSMENT]` rows in `materials` are readable by all authenticated users; `008` allows any logged-in student to `INSERT` assessments (`OR auth.uid() IS NOT NULL`), spoof `child_name` via `user_metadata` to `SELECT` any child's evaluation, and lets any teacher read/overwrite all 22 barangays. | `sql/008_create_eccd_assessments.sql:91-138`, `learnersService.js:1334-1381`, `StudentDashboard.jsx:464` |
+| **4** | **HIGH** | **Unauthenticated `INSERT` leak on `public.learners` (`007` policy-name mismatch)** + lateral `teacher` write access over all `teachers`, `materials`, and `announcements` rows. | `supabase_security_and_rls.sql:104-129, 156-160, 191-195`, `sql/007_teacher_privacy.sql:89` |
+| **5** | **HIGH** | **`public.categories` has zero RLS / DDL in SQL**, and `public.cdcs`, `public.profiles`, and `public.submissions` (`007`) have missing write/delete policies causing silent operation failures or unverified DB state. | `supabase_security_and_rls.sql:69-91, 143-147`, `sql/007_teacher_privacy.sql:306-400` |
+| **6** | **MEDIUM** | **Client-side `superadmin` spoofing via `localStorage` / `user_metadata`** and **public Teacher Registration Code enumeration** on `/signup`. | `roles.js:22-36, 70-111`, `ProtectedRoute.jsx:45-50`, `SignUp.jsx:323-439` |
+| **7** | **LOW** | **Hardcoded Supabase URL & `anon` JWT fallback**, missing `.env.example`, hardcoded superadmin UUID/email, hardcoded real-person fallback PII in `EnrolleePopulation.jsx`, and `GRANT SELECT ... TO anon` on `eccd_assessments`. | `supabaseClient.js:9-16`, `roles.js:9-15`, `EnrolleePopulation.jsx:490-506`, `008:143` |
