@@ -13,6 +13,8 @@ import {
   resolveParentForLogin,
   getParentSyncedCredential,
 } from '../lib/teacherAuthService.js';
+import { validatePassword, PASSWORD_MIN_LENGTH } from '../lib/passwordPolicy.js';
+import PasswordStrengthMeter from '../components/PasswordStrengthMeter.jsx';
 import PineappleLogo from '../components/PineappleLogo.jsx';
 
 async function checkMustChangePassword(user, effectiveRole) {
@@ -437,8 +439,17 @@ export default function Login() {
     e.preventDefault();
     if (!passwordChangeState?.user) return;
 
-    if (!newPassword || newPassword.length < 6) {
-      setMsg({ text: '⚠️ New password must be at least 6 characters long.', type: 'error' });
+    const pwCheck = validatePassword(newPassword, {
+      identifiers: [
+        passwordChangeState.user.email,
+        passwordChangeState.user.user_metadata?.username,
+        passwordChangeState.user.user_metadata?.contact_number,
+        passwordChangeState.user.user_metadata?.full_name,
+        passwordChangeState.user.user_metadata?.teacher_id,
+      ],
+    });
+    if (!pwCheck.valid) {
+      setMsg({ text: `⚠️ ${pwCheck.errors[0]}`, type: 'error' });
       return;
     }
 
@@ -536,17 +547,27 @@ export default function Login() {
                   htmlFor="new-password"
                   className="block font-bold text-xs text-[#3D3327] mb-1.5"
                 >
-                  New Password (min. 6 characters)
+                  New Password (min. {PASSWORD_MIN_LENGTH} characters)
                 </label>
                 <input
                   id="new-password"
                   type={showPassword ? 'text' : 'password'}
                   required
-                  minLength={6}
+                  minLength={PASSWORD_MIN_LENGTH}
                   placeholder="Enter new password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   className="w-full px-4 py-2.5 rounded-2xl border-2 border-[#EBE7DF] bg-[#FFFDF9] font-nunito text-sm outline-none transition-colors focus:border-[#78BD58] focus:bg-white text-slate-800"
+                />
+                <PasswordStrengthMeter
+                  password={newPassword}
+                  identifiers={[
+                    passwordChangeState.user.email,
+                    passwordChangeState.user.user_metadata?.username,
+                    passwordChangeState.user.user_metadata?.contact_number,
+                    passwordChangeState.user.user_metadata?.full_name,
+                    passwordChangeState.user.user_metadata?.teacher_id,
+                  ]}
                 />
               </div>
 
@@ -561,7 +582,7 @@ export default function Login() {
                   id="confirm-password"
                   type={showPassword ? 'text' : 'password'}
                   required
-                  minLength={6}
+                  minLength={PASSWORD_MIN_LENGTH}
                   placeholder="Re-enter new password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
