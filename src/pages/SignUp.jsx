@@ -32,6 +32,7 @@ export default function SignUp() {
   const [childAge, setChildAge] = useState('3-3.11');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [consentAccepted, setConsentAccepted] = useState(false);
 
   const [msg, setMsg] = useState({ text: '', type: '' });
   const [loading, setLoading] = useState(false);
@@ -324,13 +325,6 @@ export default function SignUp() {
                             >
                               🔑 Teacher Registration Code <span className="text-coral">*</span>
                             </label>
-                            <button
-                              type="button"
-                              onClick={() => setShowCodeHelper((v) => !v)}
-                              className="text-[11px] font-bold text-sky-deep hover:underline bg-transparent border-none cursor-pointer"
-                            >
-                              {showCodeHelper ? 'Hide Code Lookup' : 'Find My Teacher Code'}
-                            </button>
                           </div>
 
                           <div className="flex gap-2">
@@ -540,6 +534,19 @@ export default function SignUp() {
                           password={password}
                           identifiers={[contactInput, parentName, childName]}
                         />
+
+                        <label className="mt-3 flex items-start gap-2 text-[11px] text-[#5C4E3C] cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            required
+                            checked={consentAccepted}
+                            onChange={(e) => setConsentAccepted(e.target.checked)}
+                            className="mt-0.5"
+                          />
+                          <span>
+                            I accept the <strong>Data Privacy Notice</strong> and consent to the collection and processing of my child&apos;s enrollment and ECCD records for the current school year.
+                          </span>
+                        </label>
 
                         <div className="mt-3 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900">
                           🔒 <strong>Teacher Approval Required:</strong> After registering, your assigned teacher will review and approve your account before you can access your child&apos;s dashboard.
