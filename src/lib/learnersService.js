@@ -647,8 +647,10 @@ export async function getStudentApprovalStatus(user, profile) {
     // ignore
   }
 
-  // 3. Fallback to user_metadata.approval_status (defaulting to 'approved' for legacy accounts)
-  const fallbackStatus = meta.approval_status || 'approved';
+  // 3. Fallback strictly to server-trusted app_metadata (defaulting to 'pending' until teacher approves)
+  const serverStatus = user?.app_metadata?.approval_status || profile?.app_metadata?.approval_status;
+  const fallbackStatus =
+    serverStatus === 'approved' || serverStatus === 'rejected' ? serverStatus : 'pending';
   return {
     approval_status: fallbackStatus,
     adviser_name: meta.adviser_name || meta.teacher_name || '',
