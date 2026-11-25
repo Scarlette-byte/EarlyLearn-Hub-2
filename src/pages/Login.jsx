@@ -400,18 +400,12 @@ export default function Login() {
                             )}
                           </form>
 
-                          <div className="mt-5 pt-4 border-t border-[#F0EBE0] space-y-2">
+                          <div className="mt-5 pt-4 border-t border-[#F0EBE0]">
                             <Link
                               to="/signup"
                               className="block text-xs text-[#F46D70] no-underline font-extrabold hover:underline"
                             >
                               Don't have an account? Sign Up here
-                            </Link>
-                            <Link
-                              to="/"
-                              className="block text-[11.5px] text-[#7A6B52] no-underline font-bold hover:text-[#2B241C] hover:underline"
-                            >
-                              ← Back to EarlyLearn Hub
                             </Link>
                           </div>
                         </div>
