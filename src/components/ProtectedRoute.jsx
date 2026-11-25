@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import {
+  getTrustedAppMetadata,
   getEffectiveRole,
   isSuperAdminUser,
   getRoleDashboardPath,
@@ -94,6 +95,7 @@ export default function ProtectedRoute({ allowedRoles, children }) {
       .eq('id', user.id)
       .maybeSingle();
 
+    const trustedAppMeta = getTrustedAppMetadata(authSubject);
     const resolvedProfile = {
       ...(prof || {
         full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
@@ -103,13 +105,12 @@ export default function ProtectedRoute({ allowedRoles, children }) {
       email: user.email,
       role: effectiveRole,
       isSuperAdmin,
-      app_metadata: user.app_metadata,
+      app_metadata: trustedAppMeta,
       adviser_name: prof?.adviser_name || user.user_metadata?.adviser_name || null,
       teacher_name: user.user_metadata?.teacher_name || user.user_metadata?.adviser_name || null,
       cdc_name: prof?.cdc_name || user.user_metadata?.cdc_name || null,
       child_name: user.user_metadata?.child_name || null,
       parent_name: user.user_metadata?.parent_name || null,
-      user_metadata: user.user_metadata,
     };
 
     // Enforce Teacher Approval for Parent/Student accounts
