@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase, barangays, normalizeAuthIdentifier } from '../lib/supabaseClient';
 import { adminSetTeacherPassword } from '../lib/teacherAuthService.js';
 import { createParentAccountByTeacher } from '../lib/learnersService.js';
+import { validatePassword, PASSWORD_MIN_LENGTH } from '../lib/passwordPolicy.js';
+import PasswordStrengthMeter from '../components/PasswordStrengthMeter.jsx';
 import {
   cardBox,
   table,
@@ -222,8 +224,11 @@ export default function ManageUsers({ currentUser }) {
       alert('Please enter an email address or mobile number.');
       return;
     }
-    if (!adminPassword || adminPassword.length < 6) {
-      alert('Initial password must be at least 6 characters long.');
+    const pwCheck = validatePassword(adminPassword, {
+      identifiers: [adminIdentifier, adminFullName],
+    });
+    if (!pwCheck.valid) {
+      alert(pwCheck.errors[0]);
       return;
     }
 
@@ -313,8 +318,18 @@ export default function ManageUsers({ currentUser }) {
   async function handleUpdatePassword(e) {
     e.preventDefault();
     if (!passwordModalUser) return;
-    if (newPassword.length < 6) {
-      alert('Password must be at least 6 characters long.');
+    const pwCheck = validatePassword(newPassword, {
+      identifiers: [
+        passwordModalUser.email,
+        passwordModalUser.contact_number,
+        passwordModalUser.full_name,
+        teachersMap[passwordModalUser.id]?.email,
+        teachersMap[passwordModalUser.id]?.contact_number,
+        teachersMap[passwordModalUser.id]?.teacher_id,
+      ],
+    });
+    if (!pwCheck.valid) {
+      alert(pwCheck.errors[0]);
       return;
     }
 
@@ -434,8 +449,11 @@ export default function ManageUsers({ currentUser }) {
       alert('Please enter a mobile phone number or email address.');
       return;
     }
-    if (!newUserPassword || newUserPassword.length < 6) {
-      alert('Password must be at least 6 characters long.');
+    const pwCheck = validatePassword(newUserPassword, {
+      identifiers: [newIdentifier, newFullName],
+    });
+    if (!pwCheck.valid) {
+      alert(pwCheck.errors[0]);
       return;
     }
 
@@ -921,11 +939,15 @@ export default function ManageUsers({ currentUser }) {
                   <input
                     type="text"
                     required
-                    minLength={6}
-                    placeholder="Minimum 6 characters"
+                    minLength={PASSWORD_MIN_LENGTH}
+                    placeholder={`Minimum ${PASSWORD_MIN_LENGTH} characters`}
                     value={adminPassword}
                     onChange={(e) => setAdminPassword(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] font-mono text-sm text-dash-ink bg-[#FFFDF8] outline-none focus:border-[#5A2E9E]"
+                  />
+                  <PasswordStrengthMeter
+                    password={adminPassword}
+                    identifiers={[adminIdentifier, adminFullName]}
                   />
                 </div>
 
@@ -1130,7 +1152,7 @@ export default function ManageUsers({ currentUser }) {
                 <div>
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-1.5">
                     <label className="text-xs font-bold text-dash-ink">
-                      New Password <span className="text-dash-ink-soft font-normal">(Min. 6 chars)</span>
+                      New Password <span className="text-dash-ink-soft font-normal">(Min. {PASSWORD_MIN_LENGTH} chars)</span>
                     </label>
                     <button
                       type="button"
@@ -1144,11 +1166,22 @@ export default function ManageUsers({ currentUser }) {
                   <input
                     type="text"
                     required
-                    minLength={6}
+                    minLength={PASSWORD_MIN_LENGTH}
                     placeholder="Enter new password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl border border-[#E5DCC9] font-mono text-sm text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent"
+                  />
+                  <PasswordStrengthMeter
+                    password={newPassword}
+                    identifiers={[
+                      passwordModalUser.email,
+                      passwordModalUser.contact_number,
+                      passwordModalUser.full_name,
+                      teachersMap[passwordModalUser.id]?.email,
+                      teachersMap[passwordModalUser.id]?.contact_number,
+                      teachersMap[passwordModalUser.id]?.teacher_id,
+                    ]}
                   />
                 </div>
 
@@ -1357,11 +1390,15 @@ export default function ManageUsers({ currentUser }) {
                   <input
                     type="text"
                     required
-                    minLength={6}
+                    minLength={PASSWORD_MIN_LENGTH}
                     placeholder="Enter or generate password"
                     value={newUserPassword}
                     onChange={(e) => setNewUserPassword(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] font-mono text-sm text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent"
+                  />
+                  <PasswordStrengthMeter
+                    password={newUserPassword}
+                    identifiers={[newIdentifier, newFullName]}
                   />
                 </div>
 
