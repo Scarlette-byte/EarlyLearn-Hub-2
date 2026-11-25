@@ -1,16 +1,92 @@
+import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import LandingPage from './pages/LandingPage.jsx';
 import Login from './pages/Login.jsx';
 import SignUp from './pages/SignUp.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
 import TeacherDashboard from './pages/TeacherDashboard.jsx';
 import StudentDashboard from './pages/StudentDashboard.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
+import { supabase } from './lib/supabaseClient.js';
+import { getEffectiveRole, isSuperAdminUser } from './lib/roles.js';
+
+function getRoleDashboardPath(role) {
+  if (role === 'superadmin' || role === 'admin') return '/admin-dashboard';
+  if (role === 'teacher') return '/teacher-dashboard';
+  return '/student-dashboard';
+}
+
+function RootOrFallbackRedirect() {
+  const [targetPath, setTargetPath] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function resolveDestination() {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session?.user) {
+          if (active) setTargetPath('/login');
+          return;
+        }
+
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          if (active) setTargetPath('/login');
+          return;
+        }
+
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        const payload = {
+          ...(prof || {}),
+          id: user.id,
+          email: user.email,
+          user_metadata: user.user_metadata,
+        };
+
+        if (!prof && !isSuperAdminUser(payload) && !user.user_metadata?.role) {
+          if (active) setTargetPath('/login');
+          return;
+        }
+
+        const effectiveRole = getEffectiveRole(payload);
+        if (active) setTargetPath(getRoleDashboardPath(effectiveRole));
+      } catch {
+        if (active) setTargetPath('/login');
+      }
+    }
+
+    resolveDestination();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (!targetPath) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-dashbg text-dash-ink-soft font-nunito text-sm">
+        Loading...
+      </div>
+    );
+  }
+
+  return <Navigate to={targetPath} replace />;
+}
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<LandingPage />} />
+      <Route path="/" element={<RootOrFallbackRedirect />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<SignUp />} />
 
@@ -41,7 +117,7 @@ export default function App() {
         }
       />
 
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<RootOrFallbackRedirect />} />
     </Routes>
   );
 }
