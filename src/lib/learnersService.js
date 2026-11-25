@@ -181,33 +181,25 @@ export async function verifyTeacherRegistrationCode(codeInput) {
   const cleanInput = (codeInput || '').trim().toUpperCase();
   if (!cleanInput) return { valid: false };
 
-  // 1. Check live Supabase `teachers` table (publicly readable on /signup)
+  // 1. Narrow RPC lookup (anon-safe, no contact_number or credentials exposed)
   try {
-    const { data: dbTeachers } = await supabase
-      .from('teachers')
-      .select('id, full_name, barangay, contact_number, email, cdc_id, cdcs(id, name, barangay)');
-
-    if (Array.isArray(dbTeachers)) {
-      for (const t of dbTeachers) {
-        const { contactNumber, registrationCode } = parseTeacherContactAndCode(t.contact_number);
-        const defaultCode = buildDefaultTeacherCode(t);
-        const shortBrgyCode = t.barangay
-          ? `ELH-${t.barangay.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7)}`
-          : '';
-
-        if (
-          (registrationCode && registrationCode.toUpperCase() === cleanInput) ||
-          defaultCode.toUpperCase() === cleanInput ||
-          (shortBrgyCode && shortBrgyCode === cleanInput)
-        ) {
-          const fallbackCdc = getCdcForBarangay(t.barangay);
-          return {
-            valid: true,
-            code: registrationCode || defaultCode,
-            teacherId: t.id,
-            teacherName: t.full_name,
-            barangay: t.barangay || fallbackCdc?.barangay || 'Dalirig',
-            cdcId: t.cdc_id || null,
+    const { data: rpcRows, error: rpcErr } = await supabase.rpc('verify_teacher_registration_code', {
+      p_code: cleanInput,
+    });
+    if (!rpcErr && Array.isArray(rpcRows) && rpcRows[0]) {
+      const t = rpcRows[0];
+      const fallbackCdc = getCdcForBarangay(t.barangay);
+      return {
+        valid: true,
+        code: cleanInput,
+        teacherId: t.id,
+        teacherName: t.full_name,
+        barangay: t.barangay || fallbackCdc?.barangay || 'Dalirig',
+        cdcId: null,
+        cdcName: t.cdc_name || fallbackCdc?.name || 'Child Development Center',
+      };
+    }
+  } catch {}
             cdcName:
               t.cdcs?.name ||
               fallbackCdc?.name ||
