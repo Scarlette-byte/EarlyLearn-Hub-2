@@ -7,13 +7,7 @@ import TeacherDashboard from './pages/TeacherDashboard.jsx';
 import StudentDashboard from './pages/StudentDashboard.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import { supabase } from './lib/supabaseClient.js';
-import { getEffectiveRole, isSuperAdminUser } from './lib/roles.js';
-
-function getRoleDashboardPath(role) {
-  if (role === 'superadmin' || role === 'admin') return '/admin-dashboard';
-  if (role === 'teacher') return '/teacher-dashboard';
-  return '/student-dashboard';
-}
+import { getEffectiveRole, getRoleDashboardPath } from './lib/roles.js';
 
 function RootOrFallbackRedirect() {
   const [targetPath, setTargetPath] = useState(null);
@@ -41,26 +35,15 @@ function RootOrFallbackRedirect() {
           return;
         }
 
-        const { data: prof } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .maybeSingle();
+        const effectiveRole = getEffectiveRole({
+          user,
+          app_metadata: user.app_metadata,
+          access_token: session.access_token,
+        });
 
-        const payload = {
-          ...(prof || {}),
-          id: user.id,
-          email: user.email,
-          user_metadata: user.user_metadata,
-        };
-
-        if (!prof && !isSuperAdminUser(payload) && !user.user_metadata?.role) {
-          if (active) setTargetPath('/login');
-          return;
+        if (active) {
+          setTargetPath(getRoleDashboardPath(effectiveRole));
         }
-
-        const effectiveRole = getEffectiveRole(payload);
-        if (active) setTargetPath(getRoleDashboardPath(effectiveRole));
       } catch {
         if (active) setTargetPath('/login');
       }
