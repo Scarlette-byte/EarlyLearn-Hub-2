@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { isSuperAdminUser } from '../../lib/roles.js';
+import Icon from '../Icons.jsx';
 import {
   isAuthenticSupabaseMaterial,
   getCleanTeacherModulesList,
@@ -127,7 +128,7 @@ export default function MswdOverview({
       <div className="bg-gradient-to-r from-[#FAF5EC] via-[#FFFDF8] to-[#FFF8EE] p-6 sm:p-7 rounded-3xl border border-card-border shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="space-y-1.5 max-w-2xl">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FFE4D6] text-accent text-xs font-bold">
-            <span>🏛️</span>
+            <Icon name="landmark" size={14} />
             <span>
               {isSuperAdmin
                 ? 'Municipal System Administration & Governance • Manolo Fortich, Bukidnon'
@@ -190,8 +191,8 @@ export default function MswdOverview({
             className="bg-white p-5 rounded-2xl border border-card-border shadow-xs hover:border-accent hover:shadow-card transition-all cursor-pointer space-y-2 group"
           >
             <div className="flex items-center justify-between">
-              <span className="w-10 h-10 rounded-xl bg-[#FFE4D6] text-accent flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
-                🏛️
+              <span className="w-10 h-10 rounded-xl bg-[#FFE4D6] text-accent flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Icon name="landmark" size={20} />
               </span>
               <span className="text-[11px] font-bold text-accent bg-[#FFF5EE] px-2 py-0.5 rounded-full">
                 Core Function 1
@@ -215,8 +216,8 @@ export default function MswdOverview({
             className="bg-white p-5 rounded-2xl border border-card-border shadow-xs hover:border-accent hover:shadow-card transition-all cursor-pointer space-y-2 group"
           >
             <div className="flex items-center justify-between">
-              <span className="w-10 h-10 rounded-xl bg-[#E0EFFE] text-[#1E5B94] flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
-                🏫
+              <span className="w-10 h-10 rounded-xl bg-[#E0EFFE] text-[#1E5B94] flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Icon name="school" size={20} />
               </span>
               <span className="text-[11px] font-bold text-[#1E5B94] bg-[#F0F7FF] px-2 py-0.5 rounded-full">
                 Core Function 2
@@ -240,8 +241,8 @@ export default function MswdOverview({
             className="bg-white p-5 rounded-2xl border border-card-border shadow-xs hover:border-accent hover:shadow-card transition-all cursor-pointer space-y-2 group"
           >
             <div className="flex items-center justify-between">
-              <span className="w-10 h-10 rounded-xl bg-[#FFF3D6] text-[#8C6200] flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
-                📄
+              <span className="w-10 h-10 rounded-xl bg-[#FFF3D6] text-[#8C6200] flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Icon name="file" size={20} />
               </span>
               <span className="text-[11px] font-bold text-[#8C6200] bg-[#FFFBF0] px-2 py-0.5 rounded-full">
                 Core Function 3
@@ -265,8 +266,8 @@ export default function MswdOverview({
             className="bg-white p-5 rounded-2xl border border-card-border shadow-xs hover:border-accent hover:shadow-card transition-all cursor-pointer space-y-2 group"
           >
             <div className="flex items-center justify-between">
-              <span className="w-10 h-10 rounded-xl bg-[#E8DEF8] text-[#553C9A] flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
-                📋
+              <span className="w-10 h-10 rounded-xl bg-[#E8DEF8] text-[#553C9A] flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Icon name="clipboard-check" size={20} />
               </span>
               <span className="text-[11px] font-bold text-[#553C9A] bg-[#F7F4FD] px-2 py-0.5 rounded-full">
                 Core Function 4
@@ -290,8 +291,8 @@ export default function MswdOverview({
             className="bg-white p-5 rounded-2xl border border-card-border shadow-xs hover:border-accent hover:shadow-card transition-all cursor-pointer space-y-2 group"
           >
             <div className="flex items-center justify-between">
-              <span className="w-10 h-10 rounded-xl bg-[#FFF9CC] text-[#8C6200] flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
-                🌱
+              <span className="w-10 h-10 rounded-xl bg-[#FFF9CC] text-[#8C6200] flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Icon name="seedling" size={20} />
               </span>
               <span className="text-[11px] font-bold text-[#8C6200] bg-[#FFFBF0] px-2 py-0.5 rounded-full">
                 Curriculum
@@ -315,8 +316,8 @@ export default function MswdOverview({
             className="bg-white p-5 rounded-2xl border border-card-border shadow-xs hover:border-accent hover:shadow-card transition-all cursor-pointer space-y-2 group"
           >
             <div className="flex items-center justify-between">
-              <span className="w-10 h-10 rounded-xl bg-[#FAF5EC] text-dash-ink flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
-                👩‍🏫
+              <span className="w-10 h-10 rounded-xl bg-[#FAF5EC] text-dash-ink flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Icon name="teachers" size={20} />
               </span>
               <span className="text-[11px] font-bold text-dash-ink bg-[#FAF5EC] px-2 py-0.5 rounded-full">
                 Personnel
