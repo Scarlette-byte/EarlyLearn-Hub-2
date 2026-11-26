@@ -541,7 +541,7 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen min-h-[100dvh] bg-gradient-to-br from-brand-forest-deep via-brand-forest to-[#0d3523] text-ui-ink font-nunito flex flex-col items-center justify-center p-3 sm:p-6 lg:p-8 relative overflow-x-hidden selection:bg-brand-yellow/40 selection:text-ui-ink">
+    <div className="min-h-screen min-h-[100dvh] bg-ui-panel bg-gradient-to-br from-[#0D2B1E] via-[#123B29] to-[#1B5139] text-ui-ink font-nunito flex flex-col items-center justify-center p-3 sm:p-6 lg:p-8 relative overflow-x-hidden selection:bg-brand-yellow/40 selection:text-ui-ink">
       {/* Subtle ambient background glow */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
         <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-brand-leaf/15 blur-3xl" />
@@ -569,7 +569,7 @@ export default function Login() {
         {/* ================================================================= */}
         <aside
           aria-label="Program information"
-          className="lg:col-span-6 relative overflow-hidden bg-gradient-to-br from-brand-forest via-brand-leaf-deep to-brand-forest-deep text-white flex flex-col justify-between p-6 sm:p-8 lg:p-10 min-h-[210px] lg:min-h-[560px]"
+          className="lg:col-span-6 relative overflow-hidden bg-ui-panel bg-gradient-to-br from-[#1B5139] via-[#123B29] to-[#0D2B1E] text-white flex flex-col justify-between p-6 sm:p-8 lg:p-10 min-h-[210px] lg:min-h-[560px]"
         >
           {/* Overlapping Gradient Circles / Spheres */}
           <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
