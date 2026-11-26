@@ -565,12 +565,23 @@ export default function Login() {
         className="relative z-10 w-full max-w-4xl bg-ui-surface rounded-3xl shadow-2xl border border-white/15 overflow-hidden grid grid-cols-1 lg:grid-cols-12"
       >
         {/* ================================================================= */}
-        {/* LEFT HALF: BRAND-GRADIENT PANEL WITH OVERLAPPING SPHERES           */}
+        {/* LEFT HALF: BRAND-GRADIENT PANEL WITH LANDSCAPE BACKGROUND          */}
         {/* ================================================================= */}
         <aside
           aria-label="Program information"
-          className="lg:col-span-6 relative overflow-hidden bg-ui-panel bg-gradient-to-br from-[#1B5139] via-[#123B29] to-[#0D2B1E] text-white flex flex-col justify-between p-6 sm:p-8 lg:p-10 min-h-[210px] lg:min-h-[560px]"
+          className="lg:col-span-6 relative overflow-hidden bg-ui-panel text-white flex flex-col justify-between p-6 sm:p-8 lg:p-10 min-h-[220px] lg:min-h-[560px]"
         >
+          {/* Playful Preschool Learning Landscape Background + Legible Forest Overlay */}
+          <img
+            src="/login-landscape-bg.png"
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 w-full h-full object-cover object-center"
+          />
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-gradient-to-br from-[#0D2B1E]/85 via-[#123B29]/75 to-[#1B5139]/80"
+          />
           {/* Overlapping Gradient Circles / Spheres */}
           <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
             {/* Big circle forming a curved edge into the white half */}
