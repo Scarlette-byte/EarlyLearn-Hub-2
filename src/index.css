@@ -6,10 +6,22 @@
   --elh-brand-gold: #f4b41a;
   --elh-brand-gold-hover: #e0a210;
   --elh-surface: #ffffff;
-  --elh-surface-muted: #faf8f4;
-  --elh-border: #ece6da;
-  --elh-text-primary: #2b261c;
-  --elh-text-muted: #7c725e;
+  --elh-surface-muted: #faf7f0;
+  --elh-border: #e4dfd3;
+  --elh-text-primary: #1f2421;
+  --elh-text-muted: #636e67;
+  --elh-focus-ring: #2f6f22;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 @layer base {
