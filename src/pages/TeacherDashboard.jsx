@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { supabase, barangays } from '../lib/supabaseClient';
 import { fetchTeacherDashboardSummary } from '../lib/dashboardService.js';
 import DashboardLayout from '../components/DashboardLayout.jsx';
+import NotificationBell from '../components/NotificationBell.jsx';
 import {
   preK1Curriculum,
   preK2Curriculum,
@@ -3199,13 +3200,19 @@ const handleFileSelected = async (file) => {
       title="Teacher Dashboard"
       subtitle="Manolo Fortich, Bukidnon · EarlyLearn Hub"
       avatar="TC"
+      roleBadge="Teacher"
+      userName={cleanTeacherDisplayName(myFullName || profile?.full_name || 'Teacher')}
+      userEmail={profile?.email}
+      notificationSlot={<NotificationBell />}
       stats={[
-        { label: 'Materials Uploaded', value: combinedUploadedMaterials.length || 0 },
+        { label: 'Materials Uploaded', value: combinedUploadedMaterials.length || 0, icon: 'upload', tone: 'forest' },
         {
           label: 'Pending Submissions',
           value: submissions.filter((s) => s.status === 'submitted').length,
+          icon: 'clipboard',
+          tone: 'amber',
         },
-        { label: 'Total Students', value: myLearners?.length ?? 0 },
+        { label: 'Total Students', value: myLearners?.length ?? 0, icon: 'users', tone: 'teal' },
       ]}
       activeTab={activeTab}
       onTabChange={setActiveTab}
