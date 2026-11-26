@@ -48,9 +48,9 @@ export default function TeacherActivityNotifications({
   }, [materials, statusFilter]);
 
   return (
-    <div className="bg-white rounded-2xl border border-card-border p-5 shadow-xs space-y-4">
+    <div className="bg-ui-surface rounded-ui-card border border-ui-border p-5 shadow-ui-card space-y-4">
       {/* Header with Title & Quick Counts */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-ui-border-subtle">
         <div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FFF5EE] border border-amber-200 text-accent text-[11px] font-bold">
             <Icon name="bell" size={13} />
