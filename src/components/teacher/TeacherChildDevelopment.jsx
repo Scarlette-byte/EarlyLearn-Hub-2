@@ -11,6 +11,7 @@ import TeacherReportSheet, {
   formatAgeInYears,
   getRatingBadgeClass,
 } from './TeacherReportSheet.jsx';
+import Icon from '../Icons.jsx';
 
 export default function TeacherChildDevelopment({
   teacherProfile,
@@ -350,7 +351,7 @@ export default function TeacherChildDevelopment({
       <div className="bg-gradient-to-r from-[#FAF5EC] via-[#FFFDF8] to-[#FFF8EE] p-5 sm:p-6 rounded-3xl border border-card-border shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1.5 max-w-2xl">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
-            <span>🌱</span>
+            <Icon name="seedling" size={14} />
             <span>Child Development Evaluation</span>
           </div>
           <h2 className="font-fraunces text-2xl sm:text-3xl font-bold text-dash-ink m-0">
@@ -413,8 +414,8 @@ export default function TeacherChildDevelopment({
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-8 pr-3 py-2 rounded-xl border border-gray-300 bg-white text-xs font-semibold text-dash-ink outline-none focus:border-accent"
             />
-            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
-              🔍
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400">
+              <Icon name="search" size={14} />
             </span>
           </div>
 
@@ -461,7 +462,9 @@ export default function TeacherChildDevelopment({
                   <td colSpan="5" className="p-8 text-center text-dash-ink-soft">
                     {totalLearners === 0 ? (
                       <div className="space-y-1.5 max-w-md mx-auto py-3">
-                        <div className="text-2xl">🧒</div>
+                        <div className="w-10 h-10 rounded-xl bg-[#FAF5EC] border border-[#EADBCE] text-accent flex items-center justify-center mx-auto">
+                          <Icon name="child" size={20} />
+                        </div>
                         <div className="font-bold text-sm text-dash-ink">
                           No learners in your class yet
                         </div>
@@ -482,8 +485,10 @@ export default function TeacherChildDevelopment({
                     <tr key={l.id || l.full_name} className="hover:bg-amber-50/30 transition-colors">
                       {/* Learner and age */}
                       <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-base">🧒</span>
+                        <div className="flex items-center gap-2.5">
+                          <span className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 flex items-center justify-center shrink-0">
+                            <Icon name="child" size={16} />
+                          </span>
                           <div>
                             <div className="font-bold text-sm text-dash-ink">{l.full_name}</div>
                             <div className="text-[11px] text-dash-ink-soft">
@@ -604,9 +609,10 @@ export default function TeacherChildDevelopment({
               <button
                 type="button"
                 onClick={() => setEvaluatingLearner(null)}
-                className="w-8 h-8 rounded-full bg-[#FAF5EC] text-dash-ink font-bold text-sm hover:bg-[#EFE8DC] cursor-pointer"
+                aria-label="Close evaluation form"
+                className="w-8 h-8 rounded-full bg-[#FAF5EC] text-dash-ink font-bold text-sm hover:bg-[#EFE8DC] cursor-pointer flex items-center justify-center"
               >
-                ✕
+                <Icon name="close" size={15} />
               </button>
             </div>
 
@@ -811,9 +817,10 @@ export default function TeacherChildDevelopment({
               <button
                 type="button"
                 onClick={() => setActiveDossier(null)}
-                className="no-print w-8 h-8 rounded-full bg-[#FAF5EC] text-dash-ink font-bold text-sm hover:bg-[#EFE8DC] cursor-pointer"
+                aria-label="Close dossier"
+                className="no-print w-8 h-8 rounded-full bg-[#FAF5EC] text-dash-ink font-bold text-sm hover:bg-[#EFE8DC] cursor-pointer flex items-center justify-center"
               >
-                ✕
+                <Icon name="close" size={15} />
               </button>
             </div>
 
