@@ -1494,15 +1494,15 @@ export default function StudentDashboard({ profile }) {
   }
 
   return (
-    <div className="min-h-screen font-nunito bg-[#FAF8FE] text-[#231F4A] flex flex-col md:flex-row relative overflow-x-hidden">
-      {/* Soft background pastel glow accents */}
-      <div className="absolute -top-24 -right-24 w-96 h-96 bg-purple-200/30 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-emerald-100/35 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen font-nunito bg-play-bg text-ui-ink flex flex-col md:flex-row relative overflow-x-hidden">
+      {/* Soft background brand glow accents */}
+      <div className="absolute -top-24 -right-24 w-96 h-96 bg-brand-forest-tint/70 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-brand-gold/15 rounded-full blur-3xl pointer-events-none" />
 
       {/* -------------------------------------------------------- */}
       {/* 1. LEFT SIDEBAR NAVIGATION (Desktop & Laptop)            */}
       {/* -------------------------------------------------------- */}
-      <aside className="hidden md:flex md:w-56 lg:w-60 xl:w-64 shrink-0 bg-white border-r border-[#ECE7F4] flex-col justify-between p-5 min-h-screen sticky top-0 z-30 shadow-xs overflow-x-hidden">
+      <aside className="hidden md:flex md:w-56 lg:w-60 xl:w-64 shrink-0 bg-ui-surface border-r border-play-border flex-col justify-between p-5 min-h-screen sticky top-0 z-30 shadow-ui-card overflow-x-hidden">
         <div className="w-full min-w-0">
           {/* Logo: EarlyLearn Hub Official Pineapple Brand Identity */}
           <div
@@ -1526,18 +1526,18 @@ export default function StudentDashboard({ profile }) {
                     setNavTab(item.key);
                     if (view !== 'home') setView('home');
                   }}
-                  className={`w-full py-3 px-4 rounded-2xl font-baloo font-bold text-sm flex items-center justify-between transition-all cursor-pointer ${isActive
-                      ? 'bg-[#7C5CE9] text-white shadow-xs font-black'
-                      : 'text-[#5C5874] hover:bg-[#F3EFFC] hover:text-[#231F4A]'
+                  className={`w-full py-3.5 px-4 rounded-2xl font-baloo font-bold text-sm flex items-center justify-between transition-all cursor-pointer active:scale-[0.98] ${isActive
+                      ? 'bg-brand-forest text-white shadow-ui-card font-black'
+                      : 'text-ui-muted hover:bg-brand-forest-tint/60 hover:text-ui-ink'
                     }`}
                 >
-                  <div className="flex items-center gap-3.5">
+                  <div className="flex items-center gap-3.5 min-w-0">
                     {renderNavIcon(item.icon, isActive)}
-                    <span>{item.label}</span>
+                    <span className="truncate">{item.label}</span>
                   </div>
                   {item.badge ? (
                     <span
-                      className={`text-[10.5px] font-black px-2 py-0.5 rounded-full ${isActive ? 'bg-white text-[#7C5CE9]' : 'bg-[#FFE4E6] text-[#E11D48]'
+                      className={`text-[10.5px] font-black px-2 py-0.5 rounded-full ${isActive ? 'bg-white text-brand-forest' : 'bg-status-error-bg text-status-error'
                         }`}
                     >
                       {item.badge}
@@ -1551,22 +1551,22 @@ export default function StudentDashboard({ profile }) {
 
         {/* Sidebar Bottom Doodles: Paper Plane & Pastel Green Hill */}
         <div className="relative pt-6 overflow-hidden">
-          <div className="relative flex items-center justify-end pr-3 pb-2 text-[#9A93B5]">
+          <div className="relative flex items-center justify-end pr-3 pb-2 text-brand-forest/60">
             <svg className="w-16 h-8 overflow-visible" viewBox="0 0 70 30" fill="none">
-              <path d="M5 25 C 20 20, 35 10, 55 15" stroke="#B8B2D1" strokeWidth="1.5" strokeDasharray="3 3" />
+              <path d="M5 25 C 20 20, 35 10, 55 15" stroke="#86B49B" strokeWidth="1.5" strokeDasharray="3 3" />
             </svg>
             <span className="-rotate-12 transform">
               <PlayfulIcon name="paper-plane" size={18} blob={false} />
             </span>
           </div>
-          <div className="h-10 bg-gradient-to-r from-[#D7F5DF] to-[#E8F8EC] rounded-t-3xl border-t border-[#C7ECD1]/60 w-full" />
+          <div className="h-10 bg-gradient-to-r from-brand-forest-tint to-emerald-50 rounded-t-3xl border-t border-brand-forest/15 w-full" />
         </div>
       </aside>
 
       {/* -------------------------------------------------------- */}
       {/* MOBILE TOP NAVIGATION BAR (< md)                         */}
       {/* -------------------------------------------------------- */}
-      <header className="md:hidden bg-white/95 backdrop-blur-xs border-b border-[#ECE7F4] px-4 py-3 sticky top-0 z-40 flex items-center justify-between gap-2 shadow-2xs min-w-0">
+      <header className="md:hidden bg-ui-surface/95 backdrop-blur-xs border-b border-play-border px-4 py-3 sticky top-0 z-40 flex items-center justify-between gap-2 shadow-2xs min-w-0">
         <div
           onClick={() => {
             setNavTab('home');
