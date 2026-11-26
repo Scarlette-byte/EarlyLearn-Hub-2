@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient.js';
 import Icon from './Icons.jsx';
@@ -6,11 +6,23 @@ import Icon from './Icons.jsx';
 /**
  * NotificationBell: displays unread count badge, dropdown panel,
  * mark-read / mark-all-read actions, and Realtime updates filtered by user_id.
+ * Styled to match the unified MSWDO EarlyLearn Hub design system.
  */
-export default function NotificationBell({ userId }) {
+export default function NotificationBell({ userId, dark = false }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    function handleOutside(e) {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, []);
 
   useEffect(() => {
     if (!userId) return;
@@ -73,30 +85,38 @@ export default function NotificationBell({ userId }) {
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label="Notifications"
-        className="relative p-2 rounded-xl bg-white/80 hover:bg-white border border-[#E5DCC9] text-slate-700 cursor-pointer"
+        aria-expanded={open}
+        className={`relative w-9 h-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+          dark
+            ? 'bg-white/10 hover:bg-white/15 border border-white/15 text-white'
+            : 'bg-ui-surface-subtle hover:bg-ui-surface-warm border border-ui-border text-ui-ink'
+        }`}
       >
         <Icon name="bell" size={18} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-brand-coral-deep text-white text-[10px] font-extrabold flex items-center justify-center shadow-2xs">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto rounded-2xl bg-white border border-[#E5DCC9] shadow-xl z-50 p-3">
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#F0EBE0]">
-            <span className="font-bold text-xs text-slate-800">Notifications</span>
+        <div className="absolute right-0 mt-2 w-80 max-w-[90vw] max-h-96 overflow-y-auto rounded-2xl bg-ui-surface border border-ui-border shadow-auth-card z-50 p-3 text-ui-ink animate-ui-fade-up">
+          <div className="flex items-center justify-between pb-2.5 mb-2 border-b border-ui-border">
+            <div className="flex items-center gap-1.5">
+              <Icon name="bell" size={15} className="text-brand-leaf-deep" />
+              <span className="font-baloo font-extrabold text-sm text-ui-ink">Notifications</span>
+            </div>
             {unreadCount > 0 && (
               <button
                 type="button"
                 onClick={markAllRead}
-                className="text-[11px] font-semibold text-sky-700 hover:underline bg-transparent border-none cursor-pointer"
+                className="text-[11px] font-extrabold text-brand-leaf-deep hover:underline bg-transparent border-none cursor-pointer"
               >
                 Mark all read
               </button>
@@ -104,7 +124,12 @@ export default function NotificationBell({ userId }) {
           </div>
 
           {items.length === 0 ? (
-            <p className="text-xs text-slate-500 py-4 text-center m-0">No notifications yet.</p>
+            <div className="py-6 text-center space-y-1.5">
+              <div className="w-9 h-9 rounded-xl bg-ui-surface-warm text-ui-ink-muted flex items-center justify-center mx-auto">
+                <Icon name="inbox" size={18} />
+              </div>
+              <p className="text-xs font-semibold text-ui-ink-muted m-0">No notifications yet.</p>
+            </div>
           ) : (
             <ul className="space-y-1.5 m-0 p-0 list-none">
               {items.map((n) => (
@@ -112,14 +137,18 @@ export default function NotificationBell({ userId }) {
                   <button
                     type="button"
                     onClick={() => markRead(n)}
-                    className={`w-full text-left p-2.5 rounded-xl border transition-colors cursor-pointer ${
+                    className={`w-full text-left p-2.5 rounded-xl border transition-colors cursor-pointer min-w-0 ${
                       n.read_at
-                        ? 'bg-white border-transparent hover:bg-slate-50'
-                        : 'bg-amber-50/70 border-amber-200 hover:bg-amber-50'
+                        ? 'bg-ui-surface border-transparent hover:bg-ui-surface-subtle'
+                        : 'bg-brand-yellow-tint/70 border-brand-yellow/50 hover:bg-brand-yellow-tint'
                     }`}
                   >
-                    <div className="font-bold text-xs text-slate-800">{n.title}</div>
-                    {n.body && <div className="text-[11px] text-slate-600 mt-0.5">{n.body}</div>}
+                    <div className="font-bold text-xs text-ui-ink break-words">{n.title}</div>
+                    {n.body && (
+                      <div className="text-[11px] text-ui-ink-secondary mt-0.5 break-words leading-snug">
+                        {n.body}
+                      </div>
+                    )}
                   </button>
                 </li>
               ))}
