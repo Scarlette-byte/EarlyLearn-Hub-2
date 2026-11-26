@@ -29,7 +29,16 @@ import {
   isPlaceholderStudentName,
 } from '../lib/learnersService.js';
 import { fetchAdminDashboardSummary } from '../lib/dashboardService.js';
-import { EmptyState } from '../components/ui/index.js';
+import NotificationBell from '../components/NotificationBell.jsx';
+import {
+  Button,
+  Card,
+  Table,
+  Badge,
+  EmptyState,
+  StatCardSkeleton,
+  Toast,
+} from '../components/ui/index.js';
 import {
   cardBox,
   cardBoxTitle,
@@ -466,13 +475,36 @@ export default function AdminDashboard({ profile }) {
           : 'Municipal Social Welfare and Development Office • Manolo Fortich, Bukidnon'
       }
       avatar={isSuperAdmin ? 'SA' : 'AD'}
+      userName={profile?.full_name || (isSuperAdmin ? 'Municipal Superadmin' : 'MSWD Administrator')}
+      userEmail={profile?.email || ''}
       roleBadge={isSuperAdmin ? 'Municipal Superadmin' : 'MSWD Administrator'}
       isSuperAdmin={isSuperAdmin}
+      notificationSlot={profile?.id ? <NotificationBell userId={profile.id} /> : null}
       stats={[
-        { label: 'Registered Children (3.11 – 4.11 y/o)', value: learners.length },
-        { label: 'Daycare Centers (CDCs)', value: cdcs.length },
-        { label: 'Child Dev Workers / Teachers', value: teachers.length },
-
+        {
+          label: 'Registered Children (3.11 – 4.11 y/o)',
+          value: learners.length,
+          sublabel: 'Active portal registrations',
+          icon: 'learners',
+          tone: 'leaf',
+          onClick: () => setActiveTab('enrollees'),
+        },
+        {
+          label: 'Daycare Centers (CDCs)',
+          value: cdcs.length,
+          sublabel: 'Across 22 barangays',
+          icon: 'school',
+          tone: 'gold',
+          onClick: () => setActiveTab('centers'),
+        },
+        {
+          label: 'Child Dev Workers / Teachers',
+          value: teachers.length,
+          sublabel: 'Accredited CDTs & Aides',
+          icon: 'teachers',
+          tone: 'info',
+          onClick: () => setActiveTab('teachers'),
+        },
       ]}
       activeTab={activeTab}
       onTabChange={setActiveTab}
@@ -482,9 +514,7 @@ export default function AdminDashboard({ profile }) {
       {/* ---------------------------------------------------- */}
       {activeTab === 'overview' && (
         summaryLoading && !dbSummary ? (
-          <div className="p-8 text-center text-sm text-[#8a7f66] bg-white rounded-2xl border border-[#ece6da]">
-            Loading live dashboard metrics from database...
-          </div>
+          <StatCardSkeleton count={4} />
         ) : (
           <MswdOverview
             profile={profile}
@@ -569,53 +599,72 @@ export default function AdminDashboard({ profile }) {
       {/* CATEGORIES MANAGEMENT                                */}
       {/* ---------------------------------------------------- */}
       {activeTab === 'categories' && (
-        <>
-          <div className={cardBox}>
-            <h3 className={cardBoxTitle}>Learning Categories</h3>
-            <p className="text-[13px] text-[#8a7f66] -mt-2.5 mb-4">
-              Select a category to inspect its learning materials.
-            </p>
-            <div className="flex gap-3 flex-wrap">
-              {categories.map((c) => {
-                const iconKey = resolveCategoryIconKey(c.icon, 'book');
-                return (
-                  <div
-                    key={c.id}
-                    onClick={() => showCategoryContents(c)}
-                    className="bg-[#FFFDF8] border border-card-border rounded-2xl px-3.5 pt-4.5 pb-3.5 text-center w-[116px] relative cursor-pointer hover:border-accent transition-colors"
-                  >
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteCategory(c.id);
-                      }}
-                      aria-label={`Delete ${c.name}`}
-                      title={`Delete ${c.name}`}
-                      className="absolute top-1.5 right-2 cursor-pointer text-[#ccc] text-xs border-none bg-transparent hover:text-danger p-0.5"
+        <div className="space-y-5">
+          <Card
+            icon="categories"
+            title="Learning Categories"
+            subtitle="Manage official learning categories and ASCII icon keys. Select any category card to inspect its uploaded materials."
+            accentBar
+          >
+            {categories.length === 0 ? (
+              <EmptyState
+                icon="categories"
+                title="No categories configured yet"
+                description="Add your first learning category below using one of the official EarlyLearn Hub icon keys."
+              />
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-3">
+                {categories.map((c) => {
+                  const iconKey = resolveCategoryIconKey(c.icon, 'book');
+                  const isSelected = selectedCategory?.id === c.id;
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => showCategoryContents(c)}
+                      className={`group rounded-2xl p-4 text-center relative cursor-pointer transition-all min-w-0 border ${
+                        isSelected
+                          ? 'bg-brand-leaf-tint border-brand-leaf-deep shadow-xs'
+                          : 'bg-ui-surface-subtle border-ui-border hover:border-brand-leaf/60 hover:bg-ui-surface'
+                      }`}
                     >
-                      <Icon name="close" size={14} />
-                    </button>
-                    <div className="w-11 h-11 rounded-xl bg-[#FAF5EC] border border-[#EADBCE] text-accent flex items-center justify-center mx-auto">
-                      <Icon name={iconKey} size={22} label={c.name} />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteCategory(c.id);
+                        }}
+                        aria-label={`Delete ${c.name}`}
+                        title={`Delete ${c.name}`}
+                        className="absolute top-2 right-2 cursor-pointer text-ui-ink-muted hover:text-status-error hover:bg-status-error-bg rounded-lg border-none bg-transparent p-1 transition-colors"
+                      >
+                        <Icon name="close" size={13} />
+                      </button>
+                      <div className="w-11 h-11 rounded-xl bg-ui-surface border border-ui-border text-brand-leaf-deep flex items-center justify-center mx-auto shadow-2xs group-hover:scale-105 transition-transform">
+                        <Icon name={iconKey} size={21} label={c.name} />
+                      </div>
+                      <div className="text-xs sm:text-[13px] font-extrabold mt-2.5 text-ui-ink truncate">
+                        {c.name}
+                      </div>
+                      <div className="text-[10.5px] font-mono text-ui-ink-muted mt-0.5 truncate">
+                        {iconKey}
+                      </div>
+                      <div className="h-1 w-6 bg-brand-yellow rounded-full mx-auto mt-2" />
                     </div>
-                    <div className="text-[13px] font-bold mt-2 text-[#4A4030] truncate">{c.name}</div>
-                    <div className="text-[10px] font-mono text-[#9c9078] mt-0.5">{iconKey}</div>
-                    <div className="h-[3px] w-5 bg-gold rounded mx-auto mt-1.5" />
-                  </div>
-                );
-              })}
-            </div>
-            <div className="flex items-center gap-2.5 mt-4 flex-wrap">
-              <div className="flex items-center gap-2">
-                <span className="w-9 h-9 rounded-xl bg-[#FAF5EC] border border-[#EADBCE] text-accent flex items-center justify-center shrink-0">
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2.5 mt-5 pt-4 border-t border-ui-border flex-wrap">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-10 h-10 rounded-xl bg-brand-leaf-tint border border-brand-leaf/30 text-brand-leaf-deep flex items-center justify-center shrink-0">
                   <Icon name={resolveCategoryIconKey(newCatIcon, 'book')} size={18} />
                 </span>
                 <select
                   aria-label="Category icon key"
                   value={newCatIcon}
                   onChange={(e) => setNewCatIcon(e.target.value)}
-                  className={`${input} w-[180px]`}
+                  className={`${input} w-[195px] cursor-pointer`}
                 >
                   {CATEGORY_ICON_OPTIONS.map((opt) => (
                     <option key={opt.key} value={opt.key}>
@@ -626,58 +675,63 @@ export default function AdminDashboard({ profile }) {
               </div>
               <input
                 type="text"
-                placeholder="Category name"
+                placeholder="New category name (e.g. Science & Nature)"
                 value={newCatName}
                 onChange={(e) => setNewCatName(e.target.value)}
-                className={`${input} flex-1 min-w-[160px]`}
+                className={`${input} flex-1 min-w-[180px]`}
               />
-              <button onClick={addCategory} className={btnAdd}>
-                + Add Category
-              </button>
+              <Button variant="primary" icon="plus" onClick={addCategory}>
+                Add Category
+              </Button>
             </div>
+
             {catMsg.text && (
-              <p className={`${catMsg.type === 'error' ? msgError : msgOk} flex items-center gap-1.5`}>
-                <Icon name={catMsg.type === 'error' ? 'alert-circle' : 'check-circle'} size={15} />
-                <span>{catMsg.text}</span>
-              </p>
+              <div className="mt-3">
+                <Toast
+                  floating={false}
+                  type={catMsg.type === 'error' ? 'error' : 'success'}
+                  message={catMsg.text}
+                  onClose={() => setCatMsg({ text: '', type: '' })}
+                />
+              </div>
             )}
-          </div>
+          </Card>
 
           {selectedCategory && (
-            <div className={cardBox}>
-              <h3 className={`${cardBoxTitle} flex items-center gap-2`}>
-                <Icon name={resolveCategoryIconKey(selectedCategory.icon, 'book')} size={18} className="text-accent" />
-                <span>{selectedCategory.name} — Uploaded Materials</span>
-              </h3>
+            <Card
+              icon={resolveCategoryIconKey(selectedCategory.icon, 'book')}
+              title={`${selectedCategory.name} — Uploaded Materials`}
+              subtitle={`Icon key: ${resolveCategoryIconKey(selectedCategory.icon, 'book')}`}
+              action={<Badge variant="primary">{catContents.length} item(s)</Badge>}
+            >
               {catContentsMsg ? (
-                <p className="text-[13px] text-dash-ink-soft">{catContentsMsg}</p>
+                <EmptyState icon="folder-open" title={selectedCategory.name} description={catContentsMsg} />
               ) : (
-                <div className="overflow-x-auto">
-                  <table className={table}>
-                    <thead>
-                      <tr>
-                        <th className={th}>Title</th>
-                        <th className={th}>Type</th>
-                        <th className={th}>Age</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {catContents.map((m, idx) => (
-                        <tr key={idx}>
-                          <td className={td}>{m.title}</td>
-                          <td className={td}>{m.type}</td>
-                          <td className={td}>
-                            <span className={ageTag}>{m.age_range || '-'}</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <Table
+                  keyField="title"
+                  columns={[
+                    {
+                      key: 'title',
+                      label: 'Title',
+                      render: (m) => <span className="font-bold text-ui-ink">{m.title}</span>,
+                    },
+                    {
+                      key: 'type',
+                      label: 'Type',
+                      render: (m) => <Badge variant="neutral">{m.type}</Badge>,
+                    },
+                    {
+                      key: 'age_range',
+                      label: 'Age Cohort',
+                      render: (m) => <Badge variant="gold">{m.age_range || '3–4 y/o'}</Badge>,
+                    },
+                  ]}
+                  data={catContents}
+                />
               )}
-            </div>
+            </Card>
           )}
-        </>
+        </div>
       )}
     </DashboardLayout>
   );
