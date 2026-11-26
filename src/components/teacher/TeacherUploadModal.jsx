@@ -53,14 +53,14 @@ export default function TeacherUploadModal({
     '';
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full p-4 sm:p-5 space-y-4 my-auto max-h-[92vh] overflow-y-auto">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+    <div className="fixed inset-0 z-50 bg-brand-forest-deep/45 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      <div className="bg-ui-surface rounded-ui-card shadow-ui-modal border border-ui-border max-w-lg w-full p-4 sm:p-5 space-y-4 my-auto max-h-[92vh] overflow-y-auto">
+        <div className="flex items-center justify-between pb-3 border-b border-ui-border-subtle">
           <div>
-            <h3 className="text-base font-bold text-slate-900 m-0">
+            <h3 className="text-base font-bold text-ui-ink m-0">
               Upload Activity / Learning Material
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-ui-muted mt-0.5">
               Comply with your MSWD-assigned topic for MSWD review and approval.
             </p>
           </div>
