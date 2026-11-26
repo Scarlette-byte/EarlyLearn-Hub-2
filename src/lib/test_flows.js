@@ -21,7 +21,7 @@ console.log('Sample assignment structure verification:', sampleAsg);
 if (!sampleAsg.deadline || !sampleAsg.topicTitle) {
   throw new Error('Missing deadline or topicTitle in assignment structure');
 }
-console.log('✓ Passed: Curriculum assignment structure contains topicTitle and deadline.\n');
+console.log('[PASS] Curriculum assignment structure contains topicTitle and deadline.\n');
 
 console.log('--- Testing 2: Deadline check & Upload lock logic ---');
 const testCases = [
@@ -37,7 +37,7 @@ testCases.forEach((tc) => {
     throw new Error(`Deadline check failed for ${tc.description}`);
   }
 });
-console.log('✓ Passed: Deadline lock correctly identifies expired deadlines.\n');
+console.log('[PASS] Deadline lock correctly identifies expired deadlines.\n');
 
 console.log('--- Testing 3: Activity vs File classification ---');
 const getItemCategory = (m) => {
@@ -68,6 +68,6 @@ moduleTests.forEach((m) => {
   const cat = getItemCategory(m);
   console.log(`Module [${m.module_type} / ${m.file_type}] categorized as: ${cat}`);
 });
-console.log('✓ Passed: Post classification functioning as expected.\n');
+console.log('[PASS] Post classification functioning as expected.\n');
 
 console.log('ALL VERIFICATION CHECKS PASSED SUCCESSFULLY!');
