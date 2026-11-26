@@ -1,3 +1,5 @@
+import Icon from '../Icons.jsx';
+
 /**
  * Shared Modal dialog with backdrop, header, scrollable body, and text-overflow safety.
  */
@@ -41,7 +43,7 @@ export default function Modal({
                 aria-label="Close modal"
                 className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-[#7c725e] hover:bg-[#f5f0e6] cursor-pointer"
               >
-                ✕
+                <Icon name="close" size={16} />
               </button>
             )}
           </div>
