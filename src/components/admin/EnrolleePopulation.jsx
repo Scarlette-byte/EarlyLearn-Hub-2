@@ -5,6 +5,7 @@ import {
   barangayGroupedData,
 } from '../../lib/enrolleePopulationData.js';
 import { barangays } from '../../lib/supabaseClient';
+import Icon from '../Icons.jsx';
 
 export default function EnrolleePopulation({
   learners = [],
@@ -172,7 +173,8 @@ export default function EnrolleePopulation({
             className="px-3.5 py-2 rounded-xl border border-gray-300 bg-gray-50 hover:bg-gray-100 text-dash-ink font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
             title="Print Official Enrollee Census Sheet"
           >
-            <span>🖨️</span> Print / Export
+            <Icon name="printer" size={14} />
+            <span>Print / Export</span>
           </button>
         </div>
       </div>
@@ -251,23 +253,25 @@ export default function EnrolleePopulation({
         <div className="flex items-center gap-1.5 p-1 bg-gray-100 rounded-xl shrink-0">
           <button
             onClick={() => setActiveSubView('population')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
               activeSubView === 'population'
                 ? 'bg-white text-dash-ink shadow-xs'
                 : 'text-dash-ink-soft hover:text-dash-ink'
             }`}
           >
-            🏛️ Barangay Census ({barangayEnrolleesData.length} CDCs)
+            <Icon name="landmark" size={14} />
+            <span>Barangay Census ({barangayEnrolleesData.length} CDCs)</span>
           </button>
           <button
             onClick={() => setActiveSubView('roster')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
               activeSubView === 'roster'
                 ? 'bg-white text-dash-ink shadow-xs'
                 : 'text-dash-ink-soft hover:text-dash-ink'
             }`}
           >
-            🧒 Enrolled Student Roster ({learners.length} Real)
+            <Icon name="child" size={14} />
+            <span>Enrolled Student Roster ({learners.length} Real)</span>
           </button>
         </div>
 
@@ -297,15 +301,16 @@ export default function EnrolleePopulation({
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-gray-300 bg-white text-xs outline-none focus:border-accent"
             />
-            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
-              🔍
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400">
+              <Icon name="search" size={14} />
             </span>
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+                aria-label="Clear search"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs flex items-center justify-center"
               >
-                ✕
+                <Icon name="close" size={13} />
               </button>
             )}
           </div>
@@ -501,8 +506,9 @@ export default function EnrolleePopulation({
                             ({student.relationship || 'Mother'})
                           </span>
                         </div>
-                        <div className="text-[11px] text-dash-ink-soft">
-                          📞 {student.parent_contact || '0929-320-5411'}
+                        <div className="text-[11px] text-dash-ink-soft flex items-center gap-1 mt-0.5">
+                          <Icon name="phone" size={11} />
+                          <span>{student.parent_contact || '0929-320-5411'}</span>
                         </div>
                       </td>
 
@@ -528,10 +534,11 @@ export default function EnrolleePopulation({
                         {onDeleteLearner && (
                           <button
                             onClick={() => onDeleteLearner(student.id)}
-                            className="px-2 py-1 rounded-lg text-rose-600 hover:bg-rose-50 font-bold text-xs transition-colors cursor-pointer"
+                            aria-label="Delete Record"
+                            className="px-2 py-1 rounded-lg text-rose-600 hover:bg-rose-50 font-bold text-xs transition-colors cursor-pointer inline-flex items-center justify-center"
                             title="Delete Record"
                           >
-                            ✕
+                            <Icon name="close" size={13} />
                           </button>
                         )}
                       </td>
@@ -564,9 +571,10 @@ export default function EnrolleePopulation({
                   setShowAddModal(false);
                   setEditingLearner(null);
                 }}
-                className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-dash-ink font-bold text-xs"
+                aria-label="Close student form"
+                className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-dash-ink font-bold text-xs flex items-center justify-center"
               >
-                ✕
+                <Icon name="close" size={14} />
               </button>
             </div>
 
@@ -748,9 +756,10 @@ export default function EnrolleePopulation({
               </div>
               <button
                 onClick={() => setViewingLearner(null)}
-                className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-dash-ink font-bold text-xs"
+                aria-label="Close student details"
+                className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-dash-ink font-bold text-xs flex items-center justify-center"
               >
-                ✕
+                <Icon name="close" size={14} />
               </button>
             </div>
 
@@ -780,12 +789,14 @@ export default function EnrolleePopulation({
                 <div className="font-semibold text-dash-ink">
                   {viewingLearner.parent_name} ({viewingLearner.relationship})
                 </div>
-                <div className="text-dash-ink-soft font-mono">
-                  📞 {viewingLearner.parent_contact}
+                <div className="text-dash-ink-soft font-mono flex items-center gap-1.5">
+                  <Icon name="phone" size={12} />
+                  <span>{viewingLearner.parent_contact}</span>
                 </div>
                 {viewingLearner.address && (
-                  <div className="text-dash-ink-soft mt-1">
-                    📍 {viewingLearner.address}
+                  <div className="text-dash-ink-soft mt-1 flex items-center gap-1.5">
+                    <Icon name="pin" size={12} />
+                    <span>{viewingLearner.address}</span>
                   </div>
                 )}
               </div>
