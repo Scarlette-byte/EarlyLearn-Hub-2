@@ -19,6 +19,8 @@ import {
   saveMediaToSupabaseChunks,
   resolveViewableMediaUrl,
 } from '../../lib/mediaStorage.js';
+import { Button, Card, Modal, Badge, Tabs, StatCard, PageHeader, EmptyState, Toast } from '../ui/index.js';
+import { input } from '../../lib/ui.js';
 import Icon, {
   IconSearch,
   IconCheck,
@@ -805,30 +807,30 @@ export default function ProgramMonitoring({
   }, [cdcs, modules]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 min-w-0">
       {/* Toast Feedback Notification */}
       {successToast && (
-        <div className="p-3.5 rounded-2xl bg-[#DCEBDD] border border-emerald-300 text-[#2E6B38] font-bold text-xs flex items-center justify-between gap-2 shadow-xs animate-fadeIn">
-          <div className="flex items-center gap-2">
+        <div className="p-3.5 rounded-ui-input bg-status-ok-bg border border-status-ok-border text-status-ok font-bold text-xs flex items-center justify-between gap-2 shadow-xs animate-ui-fade-up">
+          <div className="flex items-center gap-2 min-w-0">
             <Icon name="bell" size={15} className="shrink-0" />
-            <span>{successToast}</span>
+            <span className="break-words">{successToast}</span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {lastDeletedModule && (
-              <button
-                type="button"
+              <Button
+                variant="primary"
+                size="xs"
+                icon="restore"
                 onClick={() => handleRetrieveModule(lastDeletedModule)}
-                className="px-2.5 py-1 rounded-lg bg-[#2E6B38] hover:bg-[#23532B] text-white text-[11px] font-bold cursor-pointer inline-flex items-center gap-1"
               >
-                <Icon name="restore" size={12} />
-                <span>Retrieve / Undo</span>
-              </button>
+                Retrieve / Undo
+              </Button>
             )}
             <button
               type="button"
               onClick={() => setSuccessToast('')}
               aria-label="Dismiss notification"
-              className="text-[#2E6B38] hover:text-[#23532B] font-bold text-sm px-2 cursor-pointer inline-flex items-center justify-center"
+              className="text-status-ok hover:opacity-75 font-bold p-1 cursor-pointer inline-flex items-center justify-center bg-transparent border-none"
             >
               <Icon name="close" size={14} />
             </button>
@@ -837,262 +839,143 @@ export default function ProgramMonitoring({
       )}
 
       {/* Metrics Row: Organized summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-        <div className="bg-white p-4 rounded-2xl border border-card-border shadow-xs">
-          <div className="text-xs font-bold text-dash-ink-soft uppercase tracking-wider">
-            Total Teacher Posts
-          </div>
-          <div className="font-fraunces text-2xl font-bold text-dash-ink mt-1">
-            {totalModules}
-          </div>
-          <div className="text-[11px] text-dash-ink-soft mt-0.5 flex items-center gap-1.5">
-            <span className="font-semibold text-amber-700">{activityCount} Activities</span>
-            <span>•</span>
-            <span className="font-semibold text-sky-700">{fileCount} Files</span>
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-card-border shadow-xs">
-          <div className="text-xs font-bold text-[#2E6B38] uppercase tracking-wider">
-            Approved &amp; Verified
-          </div>
-          <div className="font-fraunces text-2xl font-bold text-[#2E6B38] mt-1">
-            {approvedModules}
-          </div>
-          <div className="text-[11px] text-dash-ink-soft mt-0.5">
-            {totalModules > 0 ? `${Math.round((approvedModules / totalModules) * 100)}% verified by MSWDO` : '0% verified by MSWDO'}
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-card-border shadow-xs">
-          <div className="text-xs font-bold text-[#8C6200] uppercase tracking-wider">
-            Pending MSWD Review
-          </div>
-          <div className="font-fraunces text-2xl font-bold text-[#8C6200] mt-1">
-            {pendingModules}
-          </div>
-          <div className="text-[11px] text-dash-ink-soft mt-0.5">Awaiting verification</div>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-card-border shadow-xs">
-          <div className="text-xs font-bold text-accent uppercase tracking-wider">
-            Active Teachers
-          </div>
-          <div className="font-fraunces text-2xl font-bold text-accent mt-1">
-            {activeTeachersCount}
-          </div>
-          <div className="text-[11px] text-dash-ink-soft mt-0.5">
-            {activeTeachersCount > 0
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <StatCard
+          label="Total Teacher Posts"
+          value={totalModules}
+          sublabel={`${activityCount} Activities • ${fileCount} Files`}
+          icon="books"
+          tone="panel"
+        />
+        <StatCard
+          label="Approved & Verified"
+          value={approvedModules}
+          sublabel={totalModules > 0 ? `${Math.round((approvedModules / totalModules) * 100)}% verified by MSWDO` : '0% verified by MSWDO'}
+          icon="check-circle"
+          tone="leaf"
+        />
+        <StatCard
+          label="Pending MSWD Review"
+          value={pendingModules}
+          sublabel="Awaiting verification"
+          icon="clock"
+          tone="gold"
+        />
+        <StatCard
+          label="Active Teachers"
+          value={activeTeachersCount}
+          sublabel={
+            activeTeachersCount > 0
               ? `Across ${new Set(modules.map((m) => m.cdc_name)).size} CDC${new Set(modules.map((m) => m.cdc_name)).size === 1 ? '' : 's'}`
-              : 'Awaiting uploads'}
-          </div>
-        </div>
+              : 'Awaiting uploads'
+          }
+          icon="teachers"
+          tone="info"
+        />
       </div>
 
       {/* Main Monitoring Card */}
-      <div className="bg-white rounded-2xl p-5 border border-card-border shadow-card space-y-4">
-        {/* Top Header & Navigation Tabs */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-[#F0E6D2]">
-          <div>
-            <div className="inline-flex items-center gap-1.5 text-[11px] font-bold text-accent bg-[#FFF5EE] px-2.5 py-0.5 rounded-full mb-1">
-              <Icon name="clipboard-check" size={13} />
-              <span>Activity &amp; File Monitoring</span>
-            </div>
-            <h3 className="font-fraunces text-lg font-bold text-dash-ink m-0">
-              Teacher Posted Activities &amp; Files Tracker
-            </h3>
-            <p className="text-xs text-dash-ink-soft mt-0.5">
-              Review and verify teaching activity worksheets, lesson guides, sensory crafts, and uploaded files submitted by teachers.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* View Mode Toggle */}
-            <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
-              <button
-                type="button"
-                onClick={() => setViewLayout('table')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${viewLayout === 'table'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900'
-                  }`}
-                title="Concise Table View"
+      <Card accentBar className="space-y-4">
+        <PageHeader
+          className="!pb-3"
+          icon="clipboard-check"
+          eyebrow="Activity & File Monitoring"
+          title="Teacher Posted Activities & Files Tracker"
+          subtitle="Review and verify teaching activity worksheets, lesson guides, sensory crafts, and uploaded files submitted by teachers."
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <Tabs
+                ariaLabel="Monitoring view layout"
+                activeKey={viewLayout}
+                onChange={setViewLayout}
+                tabs={[
+                  { key: 'table', label: 'Table', icon: 'table' },
+                  { key: 'cards', label: 'Cards', icon: 'cards' },
+                ]}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                icon="refresh"
+                loading={isLoadingSupabase}
+                onClick={loadSupabaseModules}
+                title="Sync latest teacher uploads directly from Supabase across all devices"
               >
-                <Icon name="table" size={13} />
-                <span>Concise Table</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewLayout('cards')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${viewLayout === 'cards'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900'
-                  }`}
-                title="Expanded Cards View"
+                {isLoadingSupabase ? 'Syncing...' : 'Sync Supabase'}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                icon="plus"
+                onClick={() => setUploadModalOpen(true)}
               >
-                <Icon name="cards" size={13} />
-                <span>Cards</span>
-              </button>
+                Record Post Upload
+              </Button>
             </div>
+          }
+        />
 
-            <button
-              type="button"
-              onClick={loadSupabaseModules}
-              disabled={isLoadingSupabase}
-              className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-300 shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              title="Sync latest teacher uploads directly from Supabase across all devices"
-            >
-              <Icon name="refresh" size={14} className={isLoadingSupabase ? 'animate-spin' : ''} />
-              <span>{isLoadingSupabase ? 'Syncing...' : 'Sync Supabase'}</span>
-            </button>
-
-            <button
-              onClick={() => setUploadModalOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-            >
-              <IconPlus className="w-3.5 h-3.5" />
-              <span>Record Post Upload</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Category Tabs: All, Activities, Files, Videos, Compliance */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-2">
-          <button
-            onClick={() => setActiveTab('all_posts')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${activeTab === 'all_posts'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-          >
-            <Icon name="books" size={14} />
-            <span>All Posts</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'all_posts' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
-              {totalModules}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('activities')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${activeTab === 'activities'
-              ? 'bg-amber-600 text-white shadow-xs'
-              : 'bg-amber-50 text-amber-900 hover:bg-amber-100'
-              }`}
-          >
-            <Icon name="edit" size={14} />
-            <span>Activity Worksheets</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'activities' ? 'bg-white/20 text-white' : 'bg-amber-200/60 text-amber-900'}`}>
-              {activityCount}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('files')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${activeTab === 'files'
-              ? 'bg-sky-600 text-white shadow-xs'
-              : 'bg-sky-50 text-sky-900 hover:bg-sky-100'
-              }`}
-          >
-            <Icon name="folder" size={14} />
-            <span>Files &amp; Documents</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'files' ? 'bg-white/20 text-white' : 'bg-sky-200/60 text-sky-900'}`}>
-              {fileCount}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('videos')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${activeTab === 'videos'
-              ? 'bg-purple-600 text-white shadow-xs'
-              : 'bg-purple-50 text-purple-900 hover:bg-purple-100'
-              }`}
-          >
-            <Icon name="film" size={14} />
-            <span>Video Lessons</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'videos' ? 'bg-white/20 text-white' : 'bg-purple-200/60 text-purple-900'}`}>
-              {videoCount}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('trash')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${activeTab === 'trash'
-              ? 'bg-rose-600 text-white shadow-xs'
-              : 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200'
-              }`}
-            title="View deleted activities and retrieve or permanently remove them"
-          >
-            <Icon name="restore" size={14} />
-            <span>Deleted / Retrieve</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'trash' ? 'bg-white/20 text-white' : 'bg-rose-200/70 text-rose-900'}`}>
-              {deletedCount}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('compliance')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ml-auto ${activeTab === 'compliance'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'bg-[#FAF5EC] text-dash-ink hover:bg-[#F0E8D8]'
-              }`}
-          >
-            <Icon name="bar-chart" size={14} />
-            <span>Center Compliance Tracker</span>
-          </button>
-        </div>
+        {/* Category Tabs */}
+        <Tabs
+          ariaLabel="Post categories"
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          tabs={[
+            { key: 'all_posts', label: 'All Posts', icon: 'books', count: totalModules },
+            { key: 'activities', label: 'Activity Worksheets', icon: 'edit', count: activityCount },
+            { key: 'files', label: 'Files & Documents', icon: 'folder', count: fileCount },
+            { key: 'videos', label: 'Video Lessons', icon: 'film', count: videoCount },
+            { key: 'trash', label: 'Deleted / Retrieve', icon: 'restore', count: deletedCount },
+            { key: 'compliance', label: 'Center Compliance', icon: 'bar-chart' },
+          ]}
+        />
 
         {/* Filter Toolbar (Search, Barangay, Level, Status) */}
         {activeTab !== 'compliance' && (
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1">
             <div className="relative">
-              <IconSearch className="w-4 h-4 text-[#A89F91] absolute left-3 top-1/2 -translate-y-1/2" />
+              <IconSearch className="w-4 h-4 text-ui-ink-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 placeholder="Search activity, file, teacher..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] text-xs font-semibold text-dash-ink outline-none focus:border-accent"
+                className={`${input} !pl-9 !py-2 !text-xs`}
               />
             </div>
 
-            <div>
-              <select
-                value={selectedBarangay}
-                onChange={(e) => setSelectedBarangay(e.target.value)}
-                className="w-full px-2.5 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] text-xs font-bold text-dash-ink outline-none focus:border-accent"
-              >
-                <option value="">All 22 Barangays</option>
-                {barangays.map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <select
+              value={selectedBarangay}
+              onChange={(e) => setSelectedBarangay(e.target.value)}
+              className={`${input} !py-2 !text-xs cursor-pointer`}
+            >
+              <option value="">All 22 Barangays</option>
+              {barangays.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
 
-            <div>
-              <select
-                value={selectedLevel}
-                onChange={(e) => setSelectedLevel(e.target.value)}
-                className="w-full px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-800 outline-none focus:border-slate-800"
-              >
-                <option value="all">All Curriculum Levels</option>
-                <option value="pre-k1">Pre-K 1 (3.11 years old)</option>
-                <option value="pre-k2">Pre-K 2 (4.11 years old)</option>
-              </select>
-            </div>
+            <select
+              value={selectedLevel}
+              onChange={(e) => setSelectedLevel(e.target.value)}
+              className={`${input} !py-2 !text-xs cursor-pointer`}
+            >
+              <option value="all">All Curriculum Levels</option>
+              <option value="pre-k1">Pre-K 1 (3.11 years old)</option>
+              <option value="pre-k2">Pre-K 2 (4.11 years old)</option>
+            </select>
 
-            <div>
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="w-full px-2.5 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] text-xs font-bold text-dash-ink outline-none focus:border-accent"
-              >
-                <option value="all">All Verification Statuses</option>
-                <option value="approved">Approved &amp; Verified</option>
-                <option value="pending">Pending MSWD Review</option>
-              </select>
-            </div>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className={`${input} !py-2 !text-xs cursor-pointer`}
+            >
+              <option value="all">All Verification Statuses</option>
+              <option value="approved">Approved &amp; Verified</option>
+              <option value="pending">Pending MSWD Review</option>
+            </select>
           </div>
         )}
 
@@ -1691,10 +1574,7 @@ export default function ProgramMonitoring({
             </div>
           </div>
         )}
-      </div>
-
-      {/* ======================================================== */}
-      {/* MODAL: INSPECT MODULE DETAILS & VERIFY                   */}
+      </Card>
       {/* ======================================================== */}
       {inspectingModule && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fadeIn">
