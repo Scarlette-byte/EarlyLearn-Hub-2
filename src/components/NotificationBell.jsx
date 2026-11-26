@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient.js';
+import Icon from './Icons.jsx';
 
 /**
  * NotificationBell: displays unread count badge, dropdown panel,
@@ -79,7 +80,7 @@ export default function NotificationBell({ userId }) {
         aria-label="Notifications"
         className="relative p-2 rounded-xl bg-white/80 hover:bg-white border border-[#E5DCC9] text-slate-700 cursor-pointer"
       >
-        <span aria-hidden="true">🔔</span>
+        <Icon name="bell" size={18} />
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">
             {unreadCount > 99 ? '99+' : unreadCount}
