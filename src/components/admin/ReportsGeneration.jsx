@@ -193,7 +193,7 @@ export default function ReportsGeneration({
 
           {rows.length === 0 ? (
             <EmptyState
-              icon="📊"
+              icon="bar-chart"
               title="No matching records"
               description="Adjust the school year, barangay, CDC, class, or date range filters to view data."
             />
