@@ -180,21 +180,35 @@ export function BadgeStories({ className = 'w-14 h-14' }) {
   );
 }
 
-export function CategoryBadge({ id, className = 'w-14 h-14' }) {
-  switch (id) {
+import { PlayfulIcon } from './KidIllustrations.jsx';
+import { resolveCategoryIconKey } from './Icons.jsx';
+
+export function CategoryBadge({ id, iconKey, className = 'w-14 h-14', label }) {
+  const key = id || resolveCategoryIconKey(iconKey, '');
+  switch (key) {
     case 'cat-alphabet':
+    case 'alphabet':
       return <BadgeAlphabet className={className} />;
     case 'cat-numbers':
+    case 'numbers':
       return <BadgeNumbers className={className} />;
     case 'cat-colors':
+    case 'colors':
+    case 'palette':
       return <BadgeColors className={className} />;
     case 'cat-shapes':
+    case 'shapes':
       return <BadgeShapes className={className} />;
     case 'cat-animals':
+    case 'animals':
       return <BadgeAnimals className={className} />;
     case 'cat-stories':
+    case 'stories':
+    case 'book':
       return <BadgeStories className={className} />;
-    default:
-      return <BadgeAlphabet className={className} />;
+    default: {
+      const fallbackKey = resolveCategoryIconKey(iconKey || id, 'book-open');
+      return <PlayfulIcon name={fallbackKey} size={28} className={className} label={label} />;
+    }
   }
 }
