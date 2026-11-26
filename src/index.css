@@ -3,25 +3,24 @@
 @tailwind utilities;
 
 :root {
-  --elh-brand-gold: #f4b41a;
-  --elh-brand-gold-hover: #e0a210;
+  --elh-brand-leaf: #78bd58;
+  --elh-brand-leaf-deep: #2f6f22;
+  --elh-brand-leaf-hover: #265b1b;
+  --elh-brand-gold: #ffd34e;
+  --elh-brand-gold-deep: #8a5b00;
+  --elh-brand-coral: #f46d70;
+  --elh-brand-coral-deep: #c8373d;
+  --elh-panel: #1e3a2f;
+  --elh-panel-deep: #162b23;
+  --elh-bg: #faf7f0;
   --elh-surface: #ffffff;
-  --elh-surface-muted: #faf7f0;
+  --elh-surface-muted: #fcfbf7;
   --elh-border: #e4dfd3;
+  --elh-border-strong: #c8c1b2;
   --elh-text-primary: #1f2421;
+  --elh-text-secondary: #4a544e;
   --elh-text-muted: #636e67;
   --elh-focus-ring: #2f6f22;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
 }
 
 @layer base {
@@ -29,6 +28,23 @@
   .flex > *,
   .grid > * {
     min-width: 0;
+  }
+
+  body {
+    background-color: var(--elh-bg);
+    color: var(--elh-text-primary);
+    font-family: 'Nunito', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Accessible keyboard focus ring across interactive controls */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid var(--elh-focus-ring);
+    outline-offset: 2px;
   }
 }
 
@@ -42,93 +58,76 @@ body {
   margin: 0;
 }
 
-/* Respect device safe areas (notches, home indicator) on the auth cards */
+/* Respect device safe areas (notches, home indicator) */
 .safe-x {
   margin-left: max(16px, env(safe-area-inset-left));
   margin-right: max(16px, env(safe-area-inset-right));
 }
 
-/* --- Login / Sign up scene animations (from the original static pages) --- */
-@keyframes rise {
-  from {
-    transform: translateX(-50%) translateY(40px);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(-50%) translateY(0);
-    opacity: 1;
-  }
-}
-.animate-rise {
-  animation: rise 1.6s ease-out;
-}
-
-@keyframes pop {
+/* Subtle UI animations */
+@keyframes uiFadeUp {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
-.animate-pop {
-  animation: pop 0.5s ease-out;
+
+.animate-ui-fade-up {
+  animation: uiFadeUp 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* Cloud shape: an oval body plus two rounded "puffs" via pseudo-elements */
-.cloud {
-  position: absolute;
-  background: rgba(255, 255, 255, 0.85);
-  border-radius: 50px;
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
-.cloud::before,
-.cloud::after {
-  content: '';
-  position: absolute;
-  background: rgba(255, 255, 255, 0.85);
-  border-radius: 50%;
+
+.animate-pop {
+  animation: pop 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-.cloud-1 {
-  width: 90px;
-  height: 30px;
-  top: 14%;
-  left: 10%;
+
+@keyframes pulseShimmer {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
 }
-.cloud-1::before {
-  width: 45px;
-  height: 45px;
-  top: -22px;
-  left: 8px;
+
+.animate-skeleton {
+  animation: pulseShimmer 1.6s ease-in-out infinite;
 }
-.cloud-1::after {
-  width: 35px;
-  height: 35px;
-  top: -16px;
-  left: 45px;
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
-.cloud-2 {
-  width: 70px;
-  height: 24px;
-  top: 24%;
-  right: 12%;
-}
-.cloud-2::before {
-  width: 36px;
-  height: 36px;
-  top: -18px;
-  left: 6px;
-}
-.cloud-2::after {
-  width: 28px;
-  height: 28px;
-  top: -12px;
-  left: 36px;
-}
-@media (max-width: 420px) {
-  .cloud-1,
-  .cloud-2 {
-    transform: scale(0.8);
+
+/* Preserve clean print layout for official MSWDO / Teacher report sheets */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .no-print {
+    display: none !important;
   }
 }
