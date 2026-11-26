@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react';
 import { barangays } from '../../lib/supabaseClient';
 import Icon from '../Icons.jsx';
+import { Button, Card, Modal, Badge, Tabs, StatCard, PageHeader, EmptyState } from '../ui/index.js';
+import { input } from '../../lib/ui.js';
 import {
   barangayEnrolleesData,
   enrolleePopulationSummary,
@@ -246,157 +248,70 @@ export default function DaycareCenterMonitoring({
   const grandTotalTeachers = allTeachers.length; // 84
 
   return (
-    <div className="space-y-6 font-nunito">
+    <div className="space-y-5 font-nunito min-w-0">
       {/* 3 Authentic MSWD KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-card-border shadow-xs">
-          <div className="flex items-center justify-between text-dash-ink-soft">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider">
-              Total Daycare Centers
-            </span>
-            <Icon name="school" size={18} className="text-dash-ink-soft" />
-          </div>
-          <div className="font-fraunces text-2xl sm:text-3xl font-bold text-dash-ink mt-1">
-            {totalCentersCount}
-          </div>
-          <div className="text-[11px] text-dash-ink-soft mt-0.5">
-            Across all 22 Barangays (MSWDO Roster)
-          </div>
-        </div>
-
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-card-border shadow-xs">
-          <div className="flex items-center justify-between text-accent">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider text-accent">
-              Total Enrolled Children
-            </span>
-            <Icon name="child" size={18} className="text-accent" />
-          </div>
-          <div className="font-fraunces text-2xl sm:text-3xl font-bold text-accent mt-1">
-            {grandTotalEnrollees.toLocaleString()}
-          </div>
-          <div className="text-[11px] text-dash-ink-soft mt-0.5 flex items-center gap-1.5 flex-wrap">
-            <span className="font-semibold text-slate-700">Pre-K1: {enrolleePopulationSummary.totalPreK1.toLocaleString()}</span>
-            <span>•</span>
-            <span className="font-semibold text-slate-700">Pre-K2: {enrolleePopulationSummary.totalPreK2.toLocaleString()}</span>
-            <span>•</span>
-            <span className="font-semibold text-amber-800">ITED: {enrolleePopulationSummary.totalIted}</span>
-            {enrolleePopulationSummary.total5YearsOld > 0 && (
-              <>
-                <span>•</span>
-                <span>5 Yrs: {enrolleePopulationSummary.total5YearsOld}</span>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-card-border shadow-xs">
-          <div className="flex items-center justify-between text-[#1E5B94]">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#1E5B94]">
-              Accredited CDWs / CDTs
-            </span>
-            <Icon name="teachers" size={18} className="text-[#1E5B94]" />
-          </div>
-          <div className="font-fraunces text-2xl sm:text-3xl font-bold text-[#1E5B94] mt-1">
-            {grandTotalTeachers}
-          </div>
-          <div className="text-[11px] text-dash-ink-soft mt-0.5">
-            Child Development Teachers &amp; Aides
-          </div>
-        </div>
+        <StatCard
+          label="Total Daycare Centers"
+          value={totalCentersCount}
+          sublabel="Across all 22 Barangays (MSWDO Roster)"
+          icon="school"
+          tone="leaf"
+        />
+        <StatCard
+          label="Total Enrolled Children"
+          value={grandTotalEnrollees.toLocaleString()}
+          sublabel={`Pre-K1: ${enrolleePopulationSummary.totalPreK1.toLocaleString()} • Pre-K2: ${enrolleePopulationSummary.totalPreK2.toLocaleString()} • ITED: ${enrolleePopulationSummary.totalIted}`}
+          icon="child"
+          tone="gold"
+        />
+        <StatCard
+          label="Accredited CDWs / CDTs"
+          value={grandTotalTeachers}
+          sublabel="Child Development Teachers & Aides"
+          icon="teachers"
+          tone="info"
+        />
       </div>
 
-      {/* Concise Control & Navigation Bar */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-card-border shadow-card space-y-3.5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FAF5EC] text-accent font-extrabold text-[11px] mb-1">
-              <Icon name="landmark" size={13} />
-              <span>Official MSWDO Manolo Fortich Monitoring Matrix</span>
-            </div>
-            <h3 className="font-fraunces text-xl font-bold text-dash-ink m-0">
-              Daycare Center Monitoring
-            </h3>
-            <p className="text-xs text-dash-ink-soft mt-0.5 m-0">
-              Real-time operational census covering enrollment by age group, assigned daycare teachers, and room capacity.
-            </p>
-          </div>
+      {/* Control & Navigation Bar */}
+      <Card accentBar className="space-y-3.5">
+        <PageHeader
+          className="!pb-3"
+          icon="landmark"
+          eyebrow="Official MSWDO Manolo Fortich Monitoring Matrix"
+          title="Daycare Center Monitoring"
+          subtitle="Real-time operational census covering enrollment by age group, assigned daycare teachers, and room capacity."
+          actions={
+            <Tabs
+              ariaLabel="Center view layout"
+              activeKey={viewMode}
+              onChange={setViewMode}
+              tabs={[
+                { key: 'table', label: 'Table', icon: 'table' },
+                { key: 'cards', label: 'Cards', icon: 'cards' },
+              ]}
+            />
+          }
+        />
 
-          {/* View Mode Toggle */}
-          <div className="flex items-center gap-1 bg-[#FAF5EC] p-1 rounded-xl self-start sm:self-auto border border-[#EADBCE]">
-            <button
-              type="button"
-              onClick={() => setViewMode('table')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${viewMode === 'table'
-                ? 'bg-white text-dash-ink shadow-xs'
-                : 'text-dash-ink-soft hover:text-dash-ink'
-                }`}
-            >
-              <Icon name="table" size={14} />
-              <span>Table</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('cards')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${viewMode === 'cards'
-                ? 'bg-white text-dash-ink shadow-xs'
-                : 'text-dash-ink-soft hover:text-dash-ink'
-                }`}
-            >
-              <Icon name="cards" size={14} />
-              <span>Cards</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Quick Filter Tabs for Easy Navigation */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-bold">
-          <button
-            type="button"
-            onClick={() => setActiveFilterTab('all')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${activeFilterTab === 'all'
-              ? 'bg-accent text-white shadow-xs'
-              : 'bg-[#F9F5EC] text-slate-700 hover:bg-[#F0E8D8]'
-              }`}
-          >
-            All Centers ({totalCentersCount})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveFilterTab('large')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${activeFilterTab === 'large'
-              ? 'bg-accent text-white shadow-xs'
-              : 'bg-[#F9F5EC] text-slate-700 hover:bg-[#F0E8D8]'
-              }`}
-          >
-            Large Centers (50+ Toddlers)
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveFilterTab('multi_teacher')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${activeFilterTab === 'multi_teacher'
-              ? 'bg-accent text-white shadow-xs'
-              : 'bg-[#F9F5EC] text-slate-700 hover:bg-[#F0E8D8]'
-              }`}
-          >
-            Multiple Teachers (2+ CDWs)
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveFilterTab('near_capacity')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${activeFilterTab === 'near_capacity'
-              ? 'bg-accent text-white shadow-xs'
-              : 'bg-[#F9F5EC] text-slate-700 hover:bg-[#F0E8D8]'
-              }`}
-          >
-            Near / At Capacity (85%+)
-          </button>
-        </div>
+        {/* Quick Filter Tabs */}
+        <Tabs
+          ariaLabel="Center capacity filters"
+          activeKey={activeFilterTab}
+          onChange={setActiveFilterTab}
+          tabs={[
+            { key: 'all', label: 'All Centers', count: totalCentersCount },
+            { key: 'large', label: 'Large Centers (50+ Toddlers)' },
+            { key: 'multi_teacher', label: 'Multiple Teachers (2+ CDWs)' },
+            { key: 'near_capacity', label: 'Near / At Capacity (85%+)' },
+          ]}
+        />
 
         {/* Interactive Search & Filters Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 pt-1 border-t border-[#F2ECE1]">
-          {/* Search */}
+        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 pt-2 border-t border-ui-border">
           <div className="sm:col-span-5 relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ui-ink-muted pointer-events-none">
               <Icon name="search" size={14} />
             </span>
             <input
@@ -404,16 +319,15 @@ export default function DaycareCenterMonitoring({
               placeholder="Search by center, teacher name, or barangay..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 rounded-xl border border-[#E2D8C3] bg-[#FFFDF8] text-xs font-semibold text-dash-ink outline-none focus:border-accent focus:bg-white transition-all"
+              className={`${input} !pl-9 !py-2 !text-xs`}
             />
           </div>
 
-          {/* Barangay Select */}
           <div className="sm:col-span-4">
             <select
               value={selectedBarangay}
               onChange={(e) => setSelectedBarangay(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-[#E2D8C3] bg-[#FFFDF8] text-xs font-semibold text-dash-ink outline-none focus:border-accent transition-all cursor-pointer"
+              className={`${input} !py-2 !text-xs cursor-pointer`}
             >
               <option value="ALL">All 22 Barangays of Manolo Fortich</option>
               {barangays.map((b) => (
@@ -424,12 +338,11 @@ export default function DaycareCenterMonitoring({
             </select>
           </div>
 
-          {/* Scale Select */}
           <div className="sm:col-span-3">
             <select
               value={selectedScale}
               onChange={(e) => setSelectedScale(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-[#E2D8C3] bg-[#FFFDF8] text-xs font-semibold text-dash-ink outline-none focus:border-accent transition-all cursor-pointer"
+              className={`${input} !py-2 !text-xs cursor-pointer`}
             >
               <option value="ALL">All Enrollment Sizes</option>
               <option value="LARGE">Large (50+ Children)</option>
@@ -439,11 +352,10 @@ export default function DaycareCenterMonitoring({
           </div>
         </div>
 
-        {/* Active Filter Tag Indicator */}
         {(searchTerm || selectedBarangay !== 'ALL' || selectedScale !== 'ALL' || activeFilterTab !== 'all') && (
-          <div className="flex items-center justify-between text-xs pt-1 border-t border-[#F6F0E4]">
-            <span className="text-dash-ink-soft">
-              Showing <strong>{filteredCenters.length}</strong> of {totalCentersCount} Daycare Centers
+          <div className="flex items-center justify-between text-xs pt-2 border-t border-ui-border">
+            <span className="text-ui-ink-muted">
+              Showing <strong className="text-ui-ink">{filteredCenters.length}</strong> of {totalCentersCount} Daycare Centers
             </span>
             <button
               type="button"
@@ -453,184 +365,162 @@ export default function DaycareCenterMonitoring({
                 setSelectedScale('ALL');
                 setActiveFilterTab('all');
               }}
-              className="text-accent hover:underline font-bold cursor-pointer"
+              className="text-brand-leaf-deep hover:underline font-extrabold cursor-pointer bg-transparent border-none"
             >
               Clear All Filters
             </button>
           </div>
         )}
-      </div>
+      </Card>
 
-      {/* ---------------------------------------------------------- */}
-      {/* 1. TABLE VIEW: Detailed, Compact, and Easy to Navigate     */}
-      {/* ---------------------------------------------------------- */}
+      {/* 1. TABLE VIEW */}
       {viewMode === 'table' && (
-        <div className="bg-white rounded-2xl border border-card-border shadow-card overflow-hidden">
+        <div className="bg-ui-surface rounded-ui-card border border-ui-border shadow-card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left">
               <thead>
-                <tr className="bg-[#FAF5EC] border-b border-card-border text-[11px] font-extrabold text-[#786B52] uppercase tracking-wider">
+                <tr className="bg-ui-surface-subtle border-b border-ui-border text-[11px] font-extrabold text-ui-ink-secondary uppercase tracking-wider">
                   <th className="px-4 py-3.5">Daycare Center &amp; Barangay</th>
                   <th className="px-4 py-3.5">Assigned Daycare Workers (CDWs)</th>
-                  <th className="px-4 py-3.5 min-w-[200px]">Enrollment Breakdown &amp; Capacity</th>
+                  <th className="px-4 py-3.5 min-w-[210px]">Enrollment Breakdown &amp; Capacity</th>
                   <th className="px-4 py-3.5 text-center">Attendance</th>
                   <th className="px-4 py-3.5 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#F6F1E7] text-xs text-dash-ink">
+              <tbody className="divide-y divide-ui-border/70 text-xs text-ui-ink">
                 {filteredCenters.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="p-10 text-center text-dash-ink-soft">
-                      <div className="w-10 h-10 rounded-xl bg-[#FAF5EC] border border-[#EADBCE] text-slate-400 flex items-center justify-center mx-auto mb-2">
-                        <Icon name="search" size={20} />
-                      </div>
-                      <div className="font-bold text-sm text-dash-ink">No Daycare Centers Found</div>
-                      <div className="text-xs text-slate-500 mt-0.5">
-                        Try adjusting your search keywords or barangay filter.
-                      </div>
+                    <td colSpan="5" className="p-6">
+                      <EmptyState
+                        icon="search"
+                        title="No Daycare Centers Found"
+                        description="Try adjusting your search keywords or barangay filter."
+                      />
                     </td>
                   </tr>
                 ) : (
-                  filteredCenters.map((cdc) => {
-                    return (
-                      <tr key={cdc.id} className="hover:bg-[#FFFDF9] transition-colors">
-                        {/* Daycare Center & Barangay */}
-                        <td className="px-4 py-3.5 align-middle">
-                          <div className="flex items-start gap-2.5">
-                            <span className="w-8 h-8 rounded-lg bg-[#FAF5EC] border border-[#EADBCE] text-accent flex items-center justify-center shrink-0 mt-0.5">
-                              <Icon name="school" size={16} />
-                            </span>
-                            <div>
-                              <div className="font-bold text-[13.5px] text-dash-ink leading-snug">
-                                {cdc.name}
-                              </div>
-                              <div className="flex items-center gap-1.5 mt-1 text-[11px] text-dash-ink-soft">
-                                <span className="font-bold text-slate-700 inline-flex items-center gap-1">
-                                  <Icon name="pin" size={11} className="text-accent" />
-                                  <span>Brgy. {cdc.barangay}</span>
-                                </span>
-                                <span>•</span>
-                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-semibold">
-                                  Center #{cdc.no}
-                                </span>
-                              </div>
+                  filteredCenters.map((cdc) => (
+                    <tr key={cdc.id} className="hover:bg-brand-leaf-tint/35 transition-colors">
+                      <td className="px-4 py-3.5 align-middle">
+                        <div className="flex items-start gap-2.5">
+                          <span className="w-8 h-8 rounded-xl bg-brand-leaf-tint border border-brand-leaf/30 text-brand-leaf-deep flex items-center justify-center shrink-0 mt-0.5">
+                            <Icon name="school" size={16} />
+                          </span>
+                          <div className="min-w-0">
+                            <div className="font-bold text-[13.5px] text-ui-ink leading-snug break-words">
+                              {cdc.name}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-1 text-[11px] text-ui-ink-muted flex-wrap">
+                              <span className="font-bold text-ui-ink-secondary inline-flex items-center gap-1">
+                                <Icon name="pin" size={11} className="text-brand-leaf-deep" />
+                                <span>Brgy. {cdc.barangay}</span>
+                              </span>
+                              <span>•</span>
+                              <Badge variant="neutral" size="xs">
+                                Center #{cdc.no}
+                              </Badge>
                             </div>
                           </div>
-                        </td>
+                        </div>
+                      </td>
 
-                        {/* Assigned Daycare Workers (Real Names & Badges) */}
-                        <td className="px-4 py-3.5 align-middle">
-                          {cdc.assignedTeachers.length > 0 ? (
-                            <div className="space-y-1.5">
-                              {cdc.assignedTeachers.map((t) => (
-                                <div key={t.id || t.full_name} className="flex items-center gap-2">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                                  <div>
-                                    <span className="font-bold text-slate-900 block leading-tight">
-                                      {t.full_name}
+                      <td className="px-4 py-3.5 align-middle">
+                        {cdc.assignedTeachers.length > 0 ? (
+                          <div className="space-y-1.5">
+                            {cdc.assignedTeachers.map((t) => (
+                              <div key={t.id || t.full_name} className="flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-brand-leaf shrink-0" />
+                                <div className="min-w-0">
+                                  <span className="font-bold text-ui-ink block leading-tight break-words">
+                                    {t.full_name}
+                                  </span>
+                                  <div className="flex items-center gap-1.5 text-[10.5px] text-ui-ink-muted mt-0.5 flex-wrap">
+                                    <Badge
+                                      variant={(t.designation || '').includes('Aide') ? 'gold' : 'info'}
+                                      size="xs"
+                                    >
+                                      {(t.designation || '').includes('Aide') ? 'CDW Aide' : 'CDT'}
+                                    </Badge>
+                                    <span className="inline-flex items-center gap-1">
+                                      <Icon name="phone" size={10} />
+                                      <span>{t.contact_number || 'Official Mobile'}</span>
                                     </span>
-                                    <div className="flex items-center gap-1.5 text-[10.5px] text-slate-500 mt-0.5">
-                                      <span
-                                        className={`px-1.5 py-0.2 rounded text-[9.5px] font-bold ${(t.designation || '').includes('Aide')
-                                          ? 'bg-amber-100 text-amber-800'
-                                          : 'bg-sky-100 text-sky-800'
-                                          }`}
-                                      >
-                                        {(t.designation || '').includes('Aide') ? 'CDW Aide' : 'CDT'}
-                                      </span>
-                                        <span className="inline-flex items-center gap-1">
-                                          <Icon name="phone" size={10} />
-                                          <span>{t.contact_number || 'Official Mobile'}</span>
-                                        </span>
-                                      </div>
-                                    </div>
                                   </div>
-                                ))}
+                                </div>
                               </div>
-                            ) : (
-                              <div className="text-slate-500 italic text-[11px] flex items-center gap-1.5">
-                                <Icon name="warning" size={13} className="text-amber-600 shrink-0" />
-                                <span>Assigned to Barangay Cluster CDW</span>
-                              </div>
-                            )}
-                        </td>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-ui-ink-muted italic text-[11px] flex items-center gap-1.5">
+                            <Icon name="warning" size={13} className="text-status-warn shrink-0" />
+                            <span>Assigned to Barangay Cluster CDW</span>
+                          </div>
+                        )}
+                      </td>
 
-                        {/* Real Enrollee Numbers & Progress Bar */}
-                        <td className="px-4 py-3.5 align-middle">
-                          <div className="flex items-center justify-between font-bold mb-1">
-                            <span className="text-dash-ink">
-                              <strong className="text-sm font-extrabold text-accent">{cdc.enrolled}</strong>
-                              <span className="text-slate-500 font-normal"> / {cdc.capacity} Max Cap</span>
-                            </span>
-                            <span
-                              className={`text-[11px] font-extrabold ${cdc.utilization >= 95
-                                ? 'text-red-700'
+                      <td className="px-4 py-3.5 align-middle">
+                        <div className="flex items-center justify-between font-bold mb-1">
+                          <span className="text-ui-ink">
+                            <strong className="text-sm font-extrabold text-brand-leaf-deep">{cdc.enrolled}</strong>
+                            <span className="text-ui-ink-muted font-normal"> / {cdc.capacity} Max Cap</span>
+                          </span>
+                          <span
+                            className={`text-[11px] font-extrabold ${
+                              cdc.utilization >= 95
+                                ? 'text-status-error'
                                 : cdc.utilization >= 85
-                                  ? 'text-amber-700'
-                                  : 'text-emerald-700'
-                                }`}
-                            >
-                              {cdc.utilization}% Fill
-                            </span>
-                          </div>
-
-                          {/* Progress bar */}
-                          <div className="w-full bg-[#EAE0CF] rounded-full h-2 overflow-hidden mb-1.5">
-                            <div
-                              className={`h-full rounded-full transition-all duration-300 ${cdc.utilization >= 95
-                                ? 'bg-red-500'
-                                : cdc.utilization >= 85
-                                  ? 'bg-amber-500'
-                                  : 'bg-emerald-500'
-                                }`}
-                              style={{ width: `${Math.min(cdc.utilization, 100)}%` }}
-                            />
-                          </div>
-
-                          {/* Level breakdown tags */}
-                          <div className="flex items-center gap-1 text-[10px] text-slate-600 flex-wrap">
-                            <span className="bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-semibold">
-                              ITED (0–2): {cdc.ited}
-                            </span>
-                            <span className="bg-sky-50 text-sky-800 border border-sky-200 px-1.5 py-0.5 rounded font-semibold">
-                              Pre-K1: {cdc.preK1}
-                            </span>
-                            <span className="bg-purple-50 text-purple-800 border border-purple-200 px-1.5 py-0.5 rounded font-semibold">
-                              Pre-K2: {cdc.preK2}
-                            </span>
-                            {cdc.fiveYearsOld > 0 && (
-                              <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded font-semibold">
-                                5 Yrs: {cdc.fiveYearsOld}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Attendance Summary */}
-                        <td className="px-4 py-3.5 text-center align-middle whitespace-nowrap">
-                          <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-extrabold text-xs">
-                            <Icon name="check" size={12} />
-                            <span>{cdc.attendanceRate}%</span>
-                          </div>
-                          <div className="text-[10px] text-slate-500 mt-1">
-                            ~{cdc.avgPresentPerDay} Present / Day
-                          </div>
-                        </td>
-
-                        {/* Operations Button */}
-                        <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap">
-                          <button
-                            type="button"
-                            onClick={() => setInspectingCdc(cdc)}
-                            className="px-3 py-1.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs transition-colors shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+                                  ? 'text-status-warn'
+                                  : 'text-status-ok'
+                            }`}
                           >
-                            <span>View Roster &amp; Ops</span>
-                            <span>→</span>
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
+                            {cdc.utilization}% Fill
+                          </span>
+                        </div>
+
+                        <div className="w-full bg-ui-surface-warm rounded-full h-2 overflow-hidden mb-1.5">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${
+                              cdc.utilization >= 95
+                                ? 'bg-status-error'
+                                : cdc.utilization >= 85
+                                  ? 'bg-brand-yellow'
+                                  : 'bg-brand-leaf'
+                            }`}
+                            style={{ width: `${Math.min(cdc.utilization, 100)}%` }}
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-1 text-[10px] flex-wrap">
+                          <Badge variant="gold" size="xs">ITED: {cdc.ited}</Badge>
+                          <Badge variant="primary" size="xs">Pre-K1: {cdc.preK1}</Badge>
+                          <Badge variant="info" size="xs">Pre-K2: {cdc.preK2}</Badge>
+                          {cdc.fiveYearsOld > 0 && (
+                            <Badge variant="neutral" size="xs">5 Yrs: {cdc.fiveYearsOld}</Badge>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-center align-middle whitespace-nowrap">
+                        <Badge variant="success" icon="check">
+                          {cdc.attendanceRate}%
+                        </Badge>
+                        <div className="text-[10px] text-ui-ink-muted mt-1">
+                          ~{cdc.avgPresentPerDay} Present / Day
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap">
+                        <Button
+                          variant="primary"
+                          size="xs"
+                          iconRight="arrow-right"
+                          onClick={() => setInspectingCdc(cdc)}
+                        >
+                          View Roster &amp; Ops
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
@@ -638,183 +528,180 @@ export default function DaycareCenterMonitoring({
         </div>
       )}
 
-      {/* ---------------------------------------------------------- */}
-      {/* 2. CARD GRID VIEW: Highly visual, modern cards             */}
-      {/* ---------------------------------------------------------- */}
+      {/* 2. CARD GRID VIEW */}
       {viewMode === 'cards' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredCenters.map((cdc) => (
-            <div
+            <Card
               key={cdc.id}
-              className="bg-white p-5 rounded-2xl border border-card-border shadow-xs hover:shadow-card hover:border-accent transition-all flex flex-col justify-between space-y-4"
+              className="hover:border-brand-leaf/60 hover:shadow-card-hover transition-all flex flex-col justify-between"
+              bodyClassName="flex flex-col justify-between h-full gap-4"
             >
               <div>
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-[#FAF5EC] text-accent tracking-wider">
+                  <Badge variant="primary" size="xs">
                     Center #{cdc.no} • Brgy. {cdc.barangay}
-                  </span>
-                  <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${cdc.utilization >= 95
-                      ? 'bg-red-100 text-red-800'
-                      : cdc.utilization >= 85
-                        ? 'bg-amber-100 text-amber-800'
-                        : 'bg-emerald-100 text-emerald-800'
-                      }`}
+                  </Badge>
+                  <Badge
+                    variant={
+                      cdc.utilization >= 95
+                        ? 'danger'
+                        : cdc.utilization >= 85
+                          ? 'warning'
+                          : 'success'
+                    }
+                    size="xs"
                   >
                     {cdc.status}
-                  </span>
+                  </Badge>
                 </div>
 
-                <h4 className="font-fraunces text-base font-bold text-dash-ink mb-1 leading-snug">
+                <h4 className="font-baloo text-base sm:text-lg font-extrabold text-ui-ink m-0 leading-snug">
                   {cdc.name}
                 </h4>
 
-                {/* Assigned Teachers */}
-                <div className="mt-3 pt-3 border-t border-[#F4EDE0] space-y-1">
-                  <span className="text-[10px] font-extrabold uppercase text-slate-400 block tracking-wider">
+                <div className="mt-3 pt-3 border-t border-ui-border space-y-1">
+                  <span className="text-[10px] font-extrabold uppercase text-ui-ink-muted block tracking-wider">
                     Assigned Daycare Workers
                   </span>
                   {cdc.assignedTeachers.length > 0 ? (
                     cdc.assignedTeachers.map((t) => (
-                      <div key={t.id || t.full_name} className="flex items-center justify-between text-xs">
-                        <span className="font-bold text-slate-800">{t.full_name}</span>
-                        <span className="text-[10px] text-slate-500 font-semibold">{t.contact_number}</span>
+                      <div key={t.id || t.full_name} className="flex items-center justify-between gap-2 text-xs">
+                        <span className="font-bold text-ui-ink truncate">{t.full_name}</span>
+                        <span className="text-[10px] text-ui-ink-muted font-mono shrink-0">
+                          {t.contact_number}
+                        </span>
                       </div>
                     ))
                   ) : (
-                    <div className="text-xs text-slate-400 italic">Daycare Worker Assigned</div>
+                    <div className="text-xs text-ui-ink-muted italic">Daycare Worker Assigned</div>
                   )}
                 </div>
 
-                {/* Capacity Gauge */}
-                <div className="mt-3 pt-3 border-t border-[#F4EDE0] space-y-1">
+                <div className="mt-3 pt-3 border-t border-ui-border space-y-1.5">
                   <div className="flex items-center justify-between text-xs font-bold">
-                    <span className="text-slate-700">Enrollees: {cdc.enrolled}</span>
-                    <span className="text-slate-500 font-normal">Cap: {cdc.capacity} ({cdc.utilization}%)</span>
+                    <span className="text-ui-ink">Enrollees: {cdc.enrolled}</span>
+                    <span className="text-ui-ink-muted font-normal">
+                      Cap: {cdc.capacity} ({cdc.utilization}%)
+                    </span>
                   </div>
-                  <div className="w-full bg-[#EAE0CF] rounded-full h-2 overflow-hidden">
+                  <div className="w-full bg-ui-surface-warm rounded-full h-2 overflow-hidden">
                     <div
-                      className={`h-full rounded-full ${cdc.utilization >= 95 ? 'bg-red-500' : cdc.utilization >= 85 ? 'bg-amber-500' : 'bg-emerald-500'
-                        }`}
+                      className={`h-full rounded-full ${
+                        cdc.utilization >= 95
+                          ? 'bg-status-error'
+                          : cdc.utilization >= 85
+                            ? 'bg-brand-yellow'
+                            : 'bg-brand-leaf'
+                      }`}
                       style={{ width: `${Math.min(cdc.utilization, 100)}%` }}
                     />
                   </div>
                 </div>
 
-                {/* Census age pills */}
-                <div className="flex items-center gap-1.5 text-[10px] mt-2.5 pt-2 border-t border-[#F4EDE0] flex-wrap">
-                  <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 font-bold border border-amber-200">
-                    ITED (0–2): {cdc.ited}
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-sky-50 text-sky-800 font-bold border border-sky-200">
-                    Pre-K 1: {cdc.preK1}
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-800 font-bold border border-purple-200">
-                    Pre-K 2: {cdc.preK2}
-                  </span>
+                <div className="flex items-center gap-1.5 text-[10px] mt-3 pt-2.5 border-t border-ui-border flex-wrap">
+                  <Badge variant="gold" size="xs">ITED: {cdc.ited}</Badge>
+                  <Badge variant="primary" size="xs">Pre-K 1: {cdc.preK1}</Badge>
+                  <Badge variant="info" size="xs">Pre-K 2: {cdc.preK2}</Badge>
                   {cdc.fiveYearsOld > 0 && (
-                    <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
-                      5 Yrs: {cdc.fiveYearsOld}
-                    </span>
+                    <Badge variant="neutral" size="xs">5 Yrs: {cdc.fiveYearsOld}</Badge>
                   )}
                 </div>
               </div>
 
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
+                iconRight="arrow-right"
                 onClick={() => setInspectingCdc(cdc)}
-                className="w-full py-2 rounded-xl bg-[#FAF5EC] hover:bg-accent hover:text-white text-accent font-bold text-xs transition-colors cursor-pointer text-center mt-2 border border-[#EADBCE]"
+                className="w-full"
               >
-                View Roster &amp; Ops →
-              </button>
-            </div>
+                View Roster &amp; Ops
+              </Button>
+            </Card>
           ))}
         </div>
       )}
 
-      {/* ---------------------------------------------------------- */}
-      {/* 3. OPERATIONAL DOSSIER MODAL                               */}
-      {/* ---------------------------------------------------------- */}
-      {inspectingCdc && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-7 shadow-2xl border border-card-border space-y-5 animate-pop max-h-[92vh] overflow-y-auto font-nunito">
-            {/* Modal Header */}
-            <div className="flex items-start justify-between border-b border-card-border pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10.5px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-[#FAF5EC] text-accent tracking-wider border border-[#EADBCE]">
-                    Official MSWDO Center Dossier
-                  </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
-                    Accredited Level 1
-                  </span>
-                </div>
-                <h3 className="font-fraunces text-2xl font-bold text-dash-ink mt-1.5 leading-tight">
-                  {inspectingCdc.name}
-                </h3>
-                <p className="text-xs text-dash-ink-soft m-0 mt-0.5 flex items-center gap-1">
-                  <Icon name="pin" size={13} className="text-accent shrink-0" />
-                  <span>Barangay {inspectingCdc.barangay}, Manolo Fortich, Bukidnon (Center #{inspectingCdc.no})</span>
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setInspectingCdc(null)}
-                aria-label="Close center dossier"
-                className="w-8 h-8 rounded-full bg-[#FAF5EC] text-dash-ink font-bold text-sm hover:bg-[#EFE8DC] transition-colors cursor-pointer flex items-center justify-center"
-              >
-                <Icon name="close" size={15} />
-              </button>
+      {/* 3. OPERATIONAL DOSSIER MODAL */}
+      <Modal
+        open={Boolean(inspectingCdc)}
+        onClose={() => setInspectingCdc(null)}
+        icon="school"
+        badge={
+          inspectingCdc && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant="primary" size="xs">Official MSWDO Center Dossier</Badge>
+              <Badge variant="success" size="xs">Accredited Level 1</Badge>
             </div>
-
-            {/* Census Numbers Grid */}
+          )
+        }
+        title={inspectingCdc?.name}
+        subtitle={
+          inspectingCdc
+            ? `Barangay ${inspectingCdc.barangay}, Manolo Fortich, Bukidnon (Center #${inspectingCdc.no})`
+            : ''
+        }
+        maxWidth="max-w-2xl"
+        footer={
+          <div className="w-full flex items-center justify-between gap-3 flex-wrap">
+            <span className="text-[11px] text-ui-ink-muted">
+              Official Record: Municipal Social Welfare &amp; Development Office
+            </span>
+            <Button variant="primary" size="sm" onClick={() => setInspectingCdc(null)}>
+              Close Dossier
+            </Button>
+          </div>
+        }
+      >
+        {inspectingCdc && (
+          <div className="space-y-4">
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-center">
-              <div className="p-3 bg-[#FAF5EC] rounded-xl border border-[#EADBCE]">
-                <span className="text-dash-ink-soft block text-[11px] font-bold">Total Enrollees</span>
-                <b className="font-fraunces text-2xl text-accent block mt-0.5">
+              <div className="p-3 bg-brand-leaf-tint rounded-xl border border-brand-leaf/30">
+                <span className="text-ui-ink-secondary block text-[11px] font-bold">Total Enrollees</span>
+                <b className="font-baloo text-2xl text-brand-leaf-deep block mt-0.5">
                   {inspectingCdc.enrolled}
                 </b>
-                <span className="text-[9.5px] text-slate-500 font-semibold">MSWDO Census</span>
+                <span className="text-[9.5px] text-ui-ink-muted font-semibold">MSWDO Census</span>
               </div>
-              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
-                <span className="text-amber-800 block text-[11px] font-bold">ITED (0–2)</span>
-                <b className="font-fraunces text-2xl text-amber-900 block mt-0.5">
+              <div className="p-3 bg-brand-yellow-tint rounded-xl border border-brand-yellow/50">
+                <span className="text-brand-yellow-deep block text-[11px] font-bold">ITED (0–2)</span>
+                <b className="font-baloo text-2xl text-ui-ink block mt-0.5">
                   {inspectingCdc.ited}
                 </b>
-                <span className="text-[9.5px] text-amber-700 font-semibold">Infant &amp; Toddler</span>
+                <span className="text-[9.5px] text-brand-yellow-deep font-semibold">Infant &amp; Toddler</span>
               </div>
-              <div className="p-3 bg-sky-50 rounded-xl border border-sky-100">
-                <span className="text-sky-800 block text-[11px] font-bold">Pre-K 1 (3–3.11)</span>
-                <b className="font-fraunces text-2xl text-sky-900 block mt-0.5">
+              <div className="p-3 bg-status-info-bg rounded-xl border border-status-info-border">
+                <span className="text-status-info block text-[11px] font-bold">Pre-K 1 (3–3.11)</span>
+                <b className="font-baloo text-2xl text-status-info block mt-0.5">
                   {inspectingCdc.preK1}
                 </b>
-                <span className="text-[9.5px] text-sky-700 font-semibold">Toddler Group</span>
+                <span className="text-[9.5px] text-status-info font-semibold">Toddler Group</span>
               </div>
-              <div className="p-3 bg-purple-50 rounded-xl border border-purple-100">
-                <span className="text-purple-800 block text-[11px] font-bold">Pre-K 2 (4–4.11)</span>
-                <b className="font-fraunces text-2xl text-purple-900 block mt-0.5">
+              <div className="p-3 bg-brand-coral-tint rounded-xl border border-brand-coral/35">
+                <span className="text-brand-coral-deep block text-[11px] font-bold">Pre-K 2 (4–4.11)</span>
+                <b className="font-baloo text-2xl text-brand-coral-deep block mt-0.5">
                   {inspectingCdc.preK2}
                 </b>
-                <span className="text-[9.5px] text-purple-700 font-semibold">
+                <span className="text-[9.5px] text-brand-coral-deep font-semibold">
                   {inspectingCdc.fiveYearsOld > 0 ? `+ ${inspectingCdc.fiveYearsOld} (5 Yrs Old)` : 'Nursery Class'}
                 </span>
               </div>
-              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 col-span-2 sm:col-span-1">
-                <span className="text-emerald-800 block text-[11px] font-bold">Attendance</span>
-                <b className="font-fraunces text-2xl text-emerald-900 block mt-0.5">
+              <div className="p-3 bg-status-ok-bg rounded-xl border border-status-ok-border col-span-2 sm:col-span-1">
+                <span className="text-status-ok block text-[11px] font-bold">Attendance</span>
+                <b className="font-baloo text-2xl text-status-ok block mt-0.5">
                   {inspectingCdc.attendanceRate}%
                 </b>
-                <span className="text-[9.5px] text-emerald-700 font-semibold">~{inspectingCdc.avgPresentPerDay} daily</span>
+                <span className="text-[9.5px] text-status-ok font-semibold">~{inspectingCdc.avgPresentPerDay} daily</span>
               </div>
             </div>
 
-            {/* Assigned Teachers Section */}
-            <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 m-0">
+            <div className="p-4 rounded-2xl bg-ui-surface-subtle border border-ui-border space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="font-extrabold text-xs uppercase tracking-wider text-ui-ink-secondary m-0">
                   Assigned Daycare Workers &amp; Educators ({inspectingCdc.assignedTeachers.length})
                 </h4>
-                <span className="text-[11px] text-accent font-bold">MSWDO Accredited</span>
+                <Badge variant="primary" size="xs">MSWDO Accredited</Badge>
               </div>
 
               {inspectingCdc.assignedTeachers.length > 0 ? (
@@ -822,107 +709,91 @@ export default function DaycareCenterMonitoring({
                   {inspectingCdc.assignedTeachers.map((t) => (
                     <div
                       key={t.id || t.full_name}
-                      className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1"
+                      className="p-3 rounded-xl bg-ui-surface border border-ui-border space-y-1"
                     >
-                      <div className="font-bold text-xs text-slate-900">{t.full_name}</div>
-                      <div className="text-[10px] text-accent font-semibold">{t.designation || 'CDT'}</div>
-                      <div className="text-[10px] text-slate-500 flex items-center gap-1">
+                      <div className="font-bold text-xs text-ui-ink">{t.full_name}</div>
+                      <div className="text-[10px] text-brand-leaf-deep font-bold">{t.designation || 'CDT'}</div>
+                      <div className="text-[10px] text-ui-ink-muted flex items-center gap-1">
                         <Icon name="phone" size={11} />
                         <span>{t.contact_number || 'Official Mobile'}</span>
                       </div>
-                      <div className="text-[10px] text-slate-400 flex items-center gap-1">
-                        <Icon name="mail" size={11} />
-                        <span>{t.email || `${t.full_name.toLowerCase().replace(/\s+/g, '.')}@earlylearn.ph`}</span>
+                      <div className="text-[10px] text-ui-ink-muted flex items-center gap-1 truncate">
+                        <Icon name="mail" size={11} className="shrink-0" />
+                        <span className="truncate">
+                          {t.email || `${t.full_name.toLowerCase().replace(/\s+/g, '.')}@earlylearn.ph`}
+                        </span>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-slate-500 italic m-0">
+                <p className="text-xs text-ui-ink-muted italic m-0">
                   Worker assignment is currently managed by the Barangay Mother Center cluster coordinator.
                 </p>
               )}
             </div>
 
-            {/* Daily Operational Shifts */}
-            <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-2.5 text-xs">
-              <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 m-0">
+            <div className="p-4 rounded-2xl bg-ui-surface-subtle border border-ui-border space-y-2.5 text-xs">
+              <h4 className="font-extrabold text-xs uppercase tracking-wider text-ui-ink-secondary m-0">
                 Center Daily Schedule &amp; Learning Shifts
               </h4>
-              <div className={`grid grid-cols-1 ${inspectingCdc.ited > 0 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-2 text-slate-700`}>
+              <div className={`grid grid-cols-1 ${inspectingCdc.ited > 0 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-2`}>
                 {inspectingCdc.ited > 0 && (
-                  <div className="p-2.5 rounded-xl bg-amber-50/60 border border-amber-200">
-                    <span className="font-bold text-amber-800 flex items-center gap-1.5">
+                  <div className="p-2.5 rounded-xl bg-brand-yellow-tint border border-brand-yellow/50">
+                    <span className="font-bold text-brand-yellow-deep flex items-center gap-1.5">
                       <Icon name="baby" size={14} />
                       <span>ITED Program (0–2)</span>
                     </span>
-                    <span className="text-[11px] text-slate-600">Early Dev Care • {inspectingCdc.ited} Enrolled</span>
+                    <span className="text-[11px] text-ui-ink-secondary">Early Dev Care • {inspectingCdc.ited} Enrolled</span>
                   </div>
                 )}
-                <div className="p-2.5 rounded-xl bg-[#FFFDF8] border border-[#EADBCE]">
-                  <span className="font-bold text-accent flex items-center gap-1.5">
+                <div className="p-2.5 rounded-xl bg-ui-surface border border-ui-border">
+                  <span className="font-bold text-brand-leaf-deep flex items-center gap-1.5">
                     <Icon name="sun" size={14} />
                     <span>Morning Shift (Pre-K 1)</span>
                   </span>
-                  <span className="text-[11px] text-slate-600">8:00 AM – 10:30 AM • 3–3.11 Year Olds ({inspectingCdc.preK1})</span>
+                  <span className="text-[11px] text-ui-ink-secondary">8:00 AM – 10:30 AM • 3–3.11 Year Olds ({inspectingCdc.preK1})</span>
                 </div>
-                <div className="p-2.5 rounded-xl bg-[#FFFDF8] border border-[#EADBCE]">
-                  <span className="font-bold text-purple-700 flex items-center gap-1.5">
+                <div className="p-2.5 rounded-xl bg-ui-surface border border-ui-border">
+                  <span className="font-bold text-status-info flex items-center gap-1.5">
                     <Icon name="cloud-sun" size={14} />
                     <span>Afternoon Shift (Pre-K 2)</span>
                   </span>
-                  <span className="text-[11px] text-slate-600">1:00 PM – 3:30 PM • 4–4.11 Year Olds ({inspectingCdc.preK2})</span>
+                  <span className="text-[11px] text-ui-ink-secondary">1:00 PM – 3:30 PM • 4–4.11 Year Olds ({inspectingCdc.preK2})</span>
                 </div>
               </div>
             </div>
 
-            {/* Enrolled Toddlers Roster if any registered in portal */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+              <div className="flex items-center justify-between text-xs font-bold text-ui-ink">
                 <span>Active Online Student Portal Accounts</span>
-                <span className="text-slate-500 font-normal">
+                <span className="text-ui-ink-muted font-normal">
                   {(registeredLearnersByCdc[inspectingCdc.name.toLowerCase()] || []).length} registered
                 </span>
               </div>
-              <div className="max-h-36 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100 text-xs">
+              <div className="max-h-36 overflow-y-auto rounded-xl border border-ui-border divide-y divide-ui-border/70 text-xs bg-ui-surface">
                 {(registeredLearnersByCdc[inspectingCdc.name.toLowerCase()] || []).length === 0 ? (
-                  <div className="p-4 text-center text-slate-400 italic">
+                  <div className="p-4 text-center text-ui-ink-muted italic">
                     Registered through official municipal enrollment census ({inspectingCdc.enrolled} toddlers documented).
                   </div>
                 ) : (
                   registeredLearnersByCdc[inspectingCdc.name.toLowerCase()].map((l) => (
-                    <div key={l.id} className="p-2.5 flex items-center justify-between hover:bg-slate-50">
-                      <div>
-                        <div className="font-bold text-slate-900">{l.full_name}</div>
-                        <div className="text-[10.5px] text-slate-500">
+                    <div key={l.id} className="p-2.5 flex items-center justify-between gap-2 hover:bg-ui-surface-subtle">
+                      <div className="min-w-0">
+                        <div className="font-bold text-ui-ink truncate">{l.full_name}</div>
+                        <div className="text-[10.5px] text-ui-ink-muted truncate">
                           Parent: {l.parent_name || 'N/A'} • Contact: {l.parent_contact || 'N/A'}
                         </div>
                       </div>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
-                        Enrolled
-                      </span>
+                      <Badge variant="success" size="xs">Enrolled</Badge>
                     </div>
                   ))
                 )}
               </div>
             </div>
-
-            {/* Footer Buttons */}
-            <div className="pt-3 flex items-center justify-between border-t border-card-border text-xs">
-              <span className="text-[11px] text-slate-500">
-                Official Record: Municipal Social Welfare and Development Office
-              </span>
-              <button
-                type="button"
-                onClick={() => setInspectingCdc(null)}
-                className="px-5 py-2.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold transition-colors cursor-pointer shadow-xs"
-              >
-                Close Dossier
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </div>
   );
 }
