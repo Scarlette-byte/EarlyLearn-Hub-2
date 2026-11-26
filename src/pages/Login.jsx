@@ -88,6 +88,8 @@ export default function Login() {
     confirmPassword: false,
   });
   const [shakeCount, setShakeCount] = useState(0);
+  const [rememberMe, setRememberMe] = useState(true);
+  const [showForgotHelp, setShowForgotHelp] = useState(false);
 
   function handleKeyCapCheck(e) {
     if (typeof e.getModifierState === 'function') {
@@ -539,172 +541,92 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen min-h-[100dvh] bg-ui-bg text-ui-ink font-nunito flex flex-col lg:grid lg:grid-cols-12 relative overflow-x-hidden selection:bg-brand-yellow/40 selection:text-ui-ink">
-      {/* =================================================================== */}
-      {/* LEFT BRAND PANEL (Desktop Split Layout — Official MSWDO/ECCD Identity) */}
-      {/* =================================================================== */}
-      <aside
-        aria-label="Program information"
-        className="hidden lg:flex lg:col-span-5 xl:col-span-5 relative overflow-hidden bg-ui-panel text-white flex-col justify-between p-10 xl:p-12 border-r border-white/10"
+    <div className="min-h-screen min-h-[100dvh] bg-gradient-to-br from-brand-forest-deep via-brand-forest to-[#0d3523] text-ui-ink font-nunito flex flex-col items-center justify-center p-3 sm:p-6 lg:p-8 relative overflow-x-hidden selection:bg-brand-yellow/40 selection:text-ui-ink">
+      {/* Subtle ambient background glow */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
+        <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-brand-leaf/15 blur-3xl" />
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 rounded-full bg-brand-yellow/10 blur-3xl" />
+      </div>
+
+      {/* Centered Wide Rounded Card */}
+      <motion.div
+        key={passwordChangeState ? 'forced-password-card' : 'signin-card'}
+        variants={containerVariants}
+        initial="hidden"
+        animate={
+          shakeCount > 0 && !prefersReducedMotion
+            ? {
+                opacity: 1,
+                x: [0, -7, 7, -5, 5, -2, 2, 0],
+                transition: { duration: 0.36 },
+              }
+            : 'visible'
+        }
+        className="relative z-10 w-full max-w-4xl bg-ui-surface rounded-3xl shadow-2xl border border-white/15 overflow-hidden grid grid-cols-1 lg:grid-cols-12"
       >
-        {/* Subtle Animated Warm Brand Shapes (Disabled when reduced-motion is preferred) */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
-          <div
-            className="absolute inset-0 opacity-[0.07]"
-            style={{
-              backgroundImage:
-                'radial-gradient(circle at 1px 1px, rgba(255, 251, 234, 0.8) 1px, transparent 0)',
-              backgroundSize: '26px 26px',
-            }}
-          />
-          <motion.div
-            animate={
-              prefersReducedMotion
-                ? undefined
-                : { y: [0, -14, 0], x: [0, 8, 0], scale: [1, 1.03, 1] }
-            }
-            transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut' }}
-            className="absolute -top-24 -left-20 w-80 h-80 rounded-full bg-brand-leaf/20 blur-3xl"
-          />
-          <motion.div
-            animate={
-              prefersReducedMotion
-                ? undefined
-                : { y: [0, 16, 0], x: [0, -10, 0], scale: [1, 1.04, 1] }
-            }
-            transition={{ duration: 13, repeat: Infinity, ease: 'easeInOut' }}
-            className="absolute top-1/3 -right-24 w-72 h-72 rounded-full bg-brand-yellow/15 blur-3xl"
-          />
-          <motion.div
-            animate={
-              prefersReducedMotion
-                ? undefined
-                : { y: [0, -12, 0], scale: [1, 1.05, 1] }
-            }
-            transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
-            className="absolute -bottom-24 left-12 w-80 h-80 rounded-full bg-brand-coral/15 blur-3xl"
-          />
-
-          {/* Soft Geometric Pineapple-Crown & Sunburst Rings */}
-          <svg
-            viewBox="0 0 360 360"
-            className="absolute -bottom-28 -right-24 w-80 h-80 text-white/[0.04]"
-            fill="none"
-          >
-            <circle cx="180" cy="180" r="150" stroke="currentColor" strokeWidth="2" strokeDasharray="8 8" />
-            <circle cx="180" cy="180" r="108" stroke="currentColor" strokeWidth="1.5" />
-            <circle cx="180" cy="180" r="64" fill="currentColor" />
-          </svg>
-        </div>
-
-        {/* Top Official Government Program Header */}
-        <motion.div
-          initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: 'easeOut' }}
-          className="relative z-10 space-y-6"
+        {/* ================================================================= */}
+        {/* LEFT HALF: BRAND-GRADIENT PANEL WITH OVERLAPPING SPHERES           */}
+        {/* ================================================================= */}
+        <aside
+          aria-label="Program information"
+          className="lg:col-span-6 relative overflow-hidden bg-gradient-to-br from-brand-forest via-brand-leaf-deep to-brand-forest-deep text-white flex flex-col justify-between p-6 sm:p-8 lg:p-10 min-h-[210px] lg:min-h-[560px]"
         >
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/15 backdrop-blur-xs">
-            <span className="w-2 h-2 rounded-full bg-brand-yellow shrink-0" />
-            <span className="text-[11px] font-extrabold uppercase tracking-wider text-brand-cream">
-              LGU Manolo Fortich • MSWDO ECCD Portal
-            </span>
+          {/* Overlapping Gradient Circles / Spheres */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
+            {/* Big circle forming a curved edge into the white half */}
+            <motion.div
+              animate={prefersReducedMotion ? undefined : { y: [0, -10, 0], scale: [1, 1.02, 1] }}
+              transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
+              className="hidden lg:block absolute -right-28 top-1/2 -translate-y-1/2 w-80 h-80 rounded-full bg-gradient-to-br from-brand-leaf/45 to-brand-forest-deep/80 shadow-inner"
+            />
+            {/* Glossy sphere lower center */}
+            <motion.div
+              animate={prefersReducedMotion ? undefined : { y: [0, 12, 0], x: [0, -6, 0] }}
+              transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+              className="absolute bottom-6 left-1/2 -translate-x-1/2 w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-gradient-to-tr from-brand-forest-deep via-brand-leaf/60 to-brand-yellow/35 opacity-80 shadow-lg"
+            />
+            {/* Partial circle bottom-left */}
+            <motion.div
+              animate={prefersReducedMotion ? undefined : { y: [0, -8, 0], x: [0, 6, 0] }}
+              transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
+              className="absolute -bottom-16 -left-16 w-48 h-48 sm:w-56 sm:h-56 rounded-full bg-gradient-to-tr from-brand-yellow/25 to-brand-leaf/35"
+            />
           </div>
 
-          <div className="pt-1">
-            <PineappleLogo variant="horizontal" size={50} theme="dark" />
+          {/* Brand Content */}
+          <div className="relative z-10 space-y-4">
+            <PineappleLogo variant="horizontal" size={42} theme="dark" />
           </div>
 
-          <div className="space-y-3 max-w-md pt-2">
-            <h2 className="font-baloo text-3xl xl:text-[34px] font-extrabold leading-[1.15] text-white m-0 tracking-tight">
-              Nurturing every young learner across our barangays.
+          <div className="relative z-10 space-y-2.5 my-4 lg:my-auto">
+            <h2 className="font-baloo text-3xl sm:text-4xl font-black uppercase tracking-wider text-white m-0 leading-none">
+              WELCOME
             </h2>
-            <p className="text-sm xl:text-[15px] text-white/80 leading-relaxed m-0 font-medium">
-              Official digital platform for Child Development Centers, Day Care Teachers, and Parents under the Municipal Social Welfare and Development Office.
+            <p className="text-xs sm:text-sm font-extrabold uppercase tracking-[0.18em] text-brand-yellow m-0">
+              EarlyLearn Hub
+            </p>
+            <p className="text-xs sm:text-sm text-white/85 leading-relaxed m-0 max-w-sm pt-1">
+              Official digital platform for Child Development Centers, Day Care Teachers, and Parents under the MSWDO Manolo Fortich ECCD program.
             </p>
           </div>
-        </motion.div>
 
-        {/* Middle Trust & Program Pillars */}
-        <motion.div
-          initial={prefersReducedMotion ? false : { opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.08, ease: 'easeOut' }}
-          className="relative z-10 space-y-3 my-8"
-        >
-          {TRUST_HIGHLIGHTS.map((item) => (
-            <div
-              key={item.title}
-              className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-white/[0.06] border border-white/10 backdrop-blur-xs"
-            >
-              <div className="w-9 h-9 rounded-xl bg-brand-yellow/20 border border-brand-yellow/30 text-brand-yellow flex items-center justify-center shrink-0 mt-0.5">
-                <Icon name={item.icon} size={18} />
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs font-extrabold text-white tracking-wide">
-                  {item.title}
-                </div>
-                <p className="text-xs text-white/75 m-0 mt-0.5 leading-snug">
-                  {item.desc}
-                </p>
-              </div>
-            </div>
-          ))}
-        </motion.div>
-
-        {/* Bottom Civic Footer */}
-        <div className="relative z-10 pt-4 border-t border-white/10 flex items-center justify-between gap-4 text-xs text-white/70">
-          <span className="font-semibold">Municipality of Manolo Fortich, Bukidnon</span>
-          <span className="inline-flex items-center gap-1.5 text-brand-yellow font-bold shrink-0">
-            <Icon name="shield" size={14} />
-            <span>ECCD Information System</span>
-          </span>
-        </div>
-      </aside>
-
-      {/* =================================================================== */}
-      {/* RIGHT MAIN AREA (Clean Form Card — Full-Width Single Column Mobile) */}
-      {/* =================================================================== */}
-      <main className="flex-1 lg:col-span-7 xl:col-span-7 flex flex-col justify-between relative px-4 py-6 sm:px-8 sm:py-10 lg:px-12">
-        {/* Subtle Warm Background Wash on Form Side */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
-          <div className="absolute -top-28 right-0 w-80 h-80 rounded-full bg-brand-yellow/15 blur-3xl" />
-          <div className="absolute -bottom-28 left-0 w-80 h-80 rounded-full bg-brand-leaf/10 blur-3xl" />
-        </div>
-
-        {/* Mobile Compact Brand Header (Hidden on Desktop where Left Panel is visible) */}
-        <header className="lg:hidden relative z-10 flex flex-col items-center text-center pt-1 pb-4">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-leaf-tint border border-brand-leaf/30 text-brand-leaf-deep text-[11px] font-extrabold uppercase tracking-wider mb-3">
-            <Icon name="landmark" size={13} />
-            <span>LGU Manolo Fortich • MSWDO ECCD</span>
+          <div className="relative z-10 hidden lg:flex items-center gap-2 text-[11px] text-white/75 font-semibold pt-4 border-t border-white/15">
+            <Icon name="shield" size={14} className="text-brand-yellow shrink-0" />
+            <span>Municipality of Manolo Fortich • MSWDO ECCD</span>
           </div>
-          <PineappleLogo variant="horizontal" size={40} />
-        </header>
+        </aside>
 
-        {/* Centered Form Card Container */}
-        <div className="relative z-10 w-full max-w-[460px] mx-auto my-auto">
-          <motion.div
-            key={passwordChangeState ? 'forced-password-card' : 'signin-card'}
-            variants={containerVariants}
-            initial="hidden"
-            animate={
-              shakeCount > 0 && !prefersReducedMotion
-                ? {
-                    opacity: 1,
-                    x: [0, -7, 7, -5, 5, -2, 2, 0],
-                    transition: { duration: 0.36 },
-                  }
-                : 'visible'
-            }
-            className="bg-ui-surface w-full rounded-auth-card shadow-auth-card border border-ui-border p-6 sm:p-9 relative overflow-hidden"
-          >
-            {/* Top Brand Accent Bar */}
-            <div
-              aria-hidden="true"
-              className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-brand-leaf-deep via-brand-yellow to-brand-coral"
-            />
+        {/* ================================================================= */}
+        {/* RIGHT HALF: WHITE FORM PANEL                                       */}
+        {/* ================================================================= */}
+        <main className="lg:col-span-6 bg-ui-surface p-6 sm:p-9 lg:p-10 relative overflow-hidden flex flex-col justify-center">
+          {/* Partial brand-colored circle in the bottom-right corner */}
+          <div
+            aria-hidden="true"
+            className="absolute -bottom-16 -right-16 w-40 h-40 rounded-full bg-gradient-to-tl from-brand-forest/20 via-brand-leaf/15 to-transparent pointer-events-none"
+          />
 
-            {/* Success Overlay Banner Transition on Login / Password Update */}
+          <div className="relative z-10 w-full">
             <AnimatePresence mode="wait">
               {passwordChangeState ? (
                 /* ========================================================= */
@@ -965,15 +887,11 @@ export default function Login() {
                 >
                   {/* Card Heading */}
                   <motion.div variants={itemVariants} className="mb-6">
-                    <div className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-leaf-tint border border-brand-leaf/30 text-brand-leaf-deep text-[11px] font-extrabold uppercase tracking-wider mb-3">
-                      <Icon name="shield" size={13} />
-                      <span>Authorized Portal Sign-In</span>
-                    </div>
                     <h1 className="font-baloo font-extrabold text-2xl sm:text-[28px] text-ui-ink m-0 leading-tight">
-                      Welcome Back
+                      Sign in
                     </h1>
-                    <p className="text-sm text-ui-ink-secondary m-0 mt-1 leading-relaxed">
-                      Sign in with your MSWDO, CDC Teacher, or Parent credentials.
+                    <p className="text-xs sm:text-sm text-ui-ink-secondary m-0 mt-1 leading-relaxed">
+                      Enter your MSWDO, CDC Teacher, or Parent credentials.
                     </p>
                   </motion.div>
 
@@ -1121,11 +1039,10 @@ export default function Login() {
                           type="button"
                           onClick={() => setShowPassword((v) => !v)}
                           disabled={loading}
-                          className="absolute inset-y-0 right-0 px-3.5 flex items-center text-ui-ink-muted hover:text-ui-ink rounded-r-ui-input focus:outline-none focus-visible:ring-2 focus-visible:ring-ui-focus cursor-pointer bg-transparent border-none"
+                          className="absolute inset-y-0 right-0 px-3.5 flex items-center text-[11px] font-extrabold uppercase tracking-wider text-brand-forest hover:text-brand-forest-deep rounded-r-ui-input focus:outline-none focus-visible:ring-2 focus-visible:ring-ui-focus cursor-pointer bg-transparent border-none"
                           aria-label={showPassword ? 'Hide password' : 'Show password'}
-                          title={showPassword ? 'Hide password' : 'Show password'}
                         >
-                          <Icon name={showPassword ? 'eye-off' : 'eye'} size={17} />
+                          {showPassword ? 'HIDE' : 'SHOW'}
                         </button>
                       </div>
 
@@ -1158,15 +1075,50 @@ export default function Login() {
                       </AnimatePresence>
                     </motion.div>
 
+                    {/* Remember me + Forgot password */}
+                    <motion.div variants={itemVariants} className="flex items-center justify-between gap-2 text-xs pt-0.5">
+                      <label className="inline-flex items-center gap-2 cursor-pointer select-none text-ui-ink-secondary font-semibold">
+                        <input
+                          type="checkbox"
+                          checked={rememberMe}
+                          onChange={(e) => setRememberMe(e.target.checked)}
+                          className="w-4 h-4 rounded border-ui-border text-brand-forest focus:ring-brand-forest cursor-pointer"
+                        />
+                        <span>Remember me</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowForgotHelp((v) => !v)}
+                        className="font-bold text-brand-forest hover:text-brand-forest-deep hover:underline bg-transparent border-none p-0 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ui-focus rounded"
+                      >
+                        Forgot password?
+                      </button>
+                    </motion.div>
+
+                    <AnimatePresence>
+                      {showForgotHelp && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="p-3 rounded-xl bg-ui-surface-subtle border border-ui-border text-xs text-ui-ink-secondary leading-relaxed"
+                        >
+                          Parents may request a password reset from their assigned{' '}
+                          <span className="font-bold text-ui-ink">Day Care Teacher</span>; teachers and staff may contact the{' '}
+                          <span className="font-bold text-ui-ink">MSWDO Administrator</span>.
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
                     {/* Submit Button */}
-                    <motion.div variants={itemVariants} className="pt-1.5">
+                    <motion.div variants={itemVariants} className="pt-1">
                       <button
                         type="submit"
                         disabled={loading || isSuccess}
-                        className={`w-full py-3.5 px-5 min-h-12 rounded-ui-btn border-none font-baloo text-base font-bold tracking-wide text-white cursor-pointer transition-all active:scale-[0.99] shadow-sm hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ui-focus focus-visible:ring-offset-2 disabled:opacity-65 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                        className={`w-full py-3.5 px-5 min-h-12 rounded-xl border-none font-baloo text-base font-bold tracking-wide text-white cursor-pointer transition-all active:scale-[0.99] shadow-sm hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ui-focus focus-visible:ring-offset-2 disabled:opacity-65 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
                           isSuccess
                             ? 'bg-status-ok'
-                            : 'bg-brand-leaf-deep hover:bg-brand-leaf-hover'
+                            : 'bg-brand-forest hover:bg-brand-forest-deep'
                         }`}
                       >
                         {loading ? (
@@ -1180,56 +1132,48 @@ export default function Login() {
                             <span>Signed In — Opening Dashboard...</span>
                           </>
                         ) : (
-                          <>
-                            <span>Sign In</span>
-                            <Icon name="arrow-right" size={17} />
-                          </>
+                          <span>Sign in</span>
                         )}
                       </button>
                     </motion.div>
 
-                    {/* Forgot Password / Assistance Help Box */}
-                    <motion.div
-                      variants={itemVariants}
-                      className="p-3.5 rounded-ui-input bg-ui-surface-subtle border border-ui-border text-xs text-ui-ink-secondary leading-relaxed flex items-start gap-2.5"
-                    >
-                      <Icon name="help-circle" size={16} className="text-brand-yellow-deep shrink-0 mt-0.5" />
-                      <div>
-                        <span className="font-extrabold text-ui-ink">Forgot your password?</span>{' '}
-                        Parents may request a password reset from their assigned{' '}
-                        <span className="font-bold text-ui-ink">Day Care Teacher</span>; teachers and staff may contact the{' '}
-                        <span className="font-bold text-ui-ink">MSWDO Administrator</span>.
-                      </div>
+                    {/* Or Divider */}
+                    <motion.div variants={itemVariants} className="flex items-center gap-3 py-1">
+                      <div className="h-px flex-1 bg-ui-border" />
+                      <span className="text-xs font-bold text-ui-ink-muted uppercase">Or</span>
+                      <div className="h-px flex-1 bg-ui-border" />
+                    </motion.div>
+
+                    {/* Outlined Secondary Button: Register as a parent */}
+                    <motion.div variants={itemVariants}>
+                      <Link
+                        to="/signup"
+                        className="w-full py-3 px-5 rounded-xl border border-ui-border bg-white hover:bg-ui-surface-subtle text-ui-ink font-baloo text-sm font-bold flex items-center justify-center gap-2 no-underline transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ui-focus"
+                      >
+                        <span>Register as a parent</span>
+                      </Link>
                     </motion.div>
                   </form>
 
-                  {/* Parent Registration Call-to-Action */}
+                  {/* Don't have an account? Sign Up */}
                   <motion.div
                     variants={itemVariants}
-                    className="mt-6 pt-5 border-t border-ui-border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                    className="mt-5 text-center text-xs text-ui-ink-secondary font-semibold"
                   >
-                    <span className="text-ui-ink-secondary font-semibold">
-                      New parent or guardian?
-                    </span>
+                    Don&apos;t have an account?{' '}
                     <Link
                       to="/signup"
-                      className="inline-flex items-center gap-1.5 font-extrabold text-brand-coral-deep hover:text-brand-leaf-deep no-underline hover:underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-ui-focus py-0.5"
+                      className="font-extrabold text-brand-forest hover:text-brand-forest-deep no-underline hover:underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-ui-focus"
                     >
-                      <span>Create a Parent Account</span>
-                      <Icon name="arrow-right" size={14} />
+                      Sign Up
                     </Link>
                   </motion.div>
                 </motion.div>
               )}
             </AnimatePresence>
-          </motion.div>
-        </div>
-
-        {/* Subtle Mobile/Footer Program Note */}
-        <footer className="relative z-10 text-center text-[11.5px] text-ui-ink-muted pt-6">
-          EarlyLearn Hub • Municipal Social Welfare &amp; Development Office — Manolo Fortich
-        </footer>
-      </main>
+          </div>
+        </main>
+      </motion.div>
     </div>
   );
 }
