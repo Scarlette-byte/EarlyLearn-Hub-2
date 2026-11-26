@@ -44,7 +44,7 @@ import {
   delBtn,
   ageTag,
 } from '../lib/ui.js';
-import {
+import Icon, {
   IconOverview,
   IconUsers,
   IconTeachers,
@@ -52,6 +52,8 @@ import {
   IconCategories,
   IconMaterials,
   IconApprovals,
+  CATEGORY_ICON_OPTIONS,
+  resolveCategoryIconKey,
 } from '../components/Icons.jsx';
 
 const TABS = [
@@ -87,7 +89,7 @@ export default function AdminDashboard({ profile }) {
 
   // Categories tab
   const [categories, setCategories] = useState([]);
-  const [newCatIcon, setNewCatIcon] = useState('');
+  const [newCatIcon, setNewCatIcon] = useState('book');
   const [newCatName, setNewCatName] = useState('');
   const [catMsg, setCatMsg] = useState({ text: '', type: '' });
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -173,7 +175,7 @@ export default function AdminDashboard({ profile }) {
         .order('full_name');
 
       if (error || !data) {
-        setUsersMsg({ text: '❌ ' + (error?.message || 'Failed to load users'), type: 'error' });
+        setUsersMsg({ text: error?.message || 'Failed to load users', type: 'error' });
         return;
       }
       const cleanData = data.filter((u) => {
@@ -202,18 +204,19 @@ export default function AdminDashboard({ profile }) {
   }, []);
 
   async function addCategory() {
-    if (!newCatIcon.trim() || !newCatName.trim()) {
-      setCatMsg({ text: '⚠️ Please enter both an icon and a name', type: 'error' });
+    const cleanIconKey = resolveCategoryIconKey(newCatIcon, 'book');
+    if (!cleanIconKey || !newCatName.trim()) {
+      setCatMsg({ text: 'Please select an icon key and enter a category name', type: 'error' });
       return;
     }
     const { error } = await supabase
       .from('categories')
-      .insert({ icon: newCatIcon.trim(), name: newCatName.trim() });
+      .insert({ icon: cleanIconKey, name: newCatName.trim() });
     if (error) {
-      setCatMsg({ text: '❌ ' + error.message, type: 'error' });
+      setCatMsg({ text: error.message, type: 'error' });
     } else {
-      setCatMsg({ text: '✅ Added!', type: 'ok' });
-      setNewCatIcon('');
+      setCatMsg({ text: 'Category added!', type: 'ok' });
+      setNewCatIcon('book');
       setNewCatName('');
       loadCategories();
     }
@@ -235,7 +238,7 @@ export default function AdminDashboard({ profile }) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      setCatContentsMsg('❌ ' + error.message);
+      setCatContentsMsg(error.message);
       setCatContents([]);
       return;
     }
@@ -573,35 +576,54 @@ export default function AdminDashboard({ profile }) {
               Select a category to inspect its learning materials.
             </p>
             <div className="flex gap-3 flex-wrap">
-              {categories.map((c) => (
-                <div
-                  key={c.id}
-                  onClick={() => showCategoryContents(c)}
-                  className="bg-[#FFFDF8] border border-card-border rounded-2xl px-3.5 pt-4.5 pb-3.5 text-center w-[108px] relative cursor-pointer"
-                >
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteCategory(c.id);
-                    }}
-                    className="absolute top-1.5 right-2 cursor-pointer text-[#ccc] text-xs border-none bg-transparent hover:text-danger"
+              {categories.map((c) => {
+                const iconKey = resolveCategoryIconKey(c.icon, 'book');
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => showCategoryContents(c)}
+                    className="bg-[#FFFDF8] border border-card-border rounded-2xl px-3.5 pt-4.5 pb-3.5 text-center w-[116px] relative cursor-pointer hover:border-accent transition-colors"
                   >
-                    ✕
-                  </button>
-                  <div className="text-[34px]">{c.icon}</div>
-                  <div className="text-[13px] font-bold mt-2 text-[#4A4030]">{c.name}</div>
-                  <div className="h-[3px] w-5 bg-gold rounded mx-auto mt-1.5" />
-                </div>
-              ))}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteCategory(c.id);
+                      }}
+                      aria-label={`Delete ${c.name}`}
+                      title={`Delete ${c.name}`}
+                      className="absolute top-1.5 right-2 cursor-pointer text-[#ccc] text-xs border-none bg-transparent hover:text-danger p-0.5"
+                    >
+                      <Icon name="close" size={14} />
+                    </button>
+                    <div className="w-11 h-11 rounded-xl bg-[#FAF5EC] border border-[#EADBCE] text-accent flex items-center justify-center mx-auto">
+                      <Icon name={iconKey} size={22} label={c.name} />
+                    </div>
+                    <div className="text-[13px] font-bold mt-2 text-[#4A4030] truncate">{c.name}</div>
+                    <div className="text-[10px] font-mono text-[#9c9078] mt-0.5">{iconKey}</div>
+                    <div className="h-[3px] w-5 bg-gold rounded mx-auto mt-1.5" />
+                  </div>
+                );
+              })}
             </div>
-            <div className="flex gap-2.5 mt-4 flex-wrap">
-              <input
-                type="text"
-                placeholder="Icon (e.g. 🚗)"
-                value={newCatIcon}
-                onChange={(e) => setNewCatIcon(e.target.value)}
-                className={`${input} w-[110px]`}
-              />
+            <div className="flex items-center gap-2.5 mt-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="w-9 h-9 rounded-xl bg-[#FAF5EC] border border-[#EADBCE] text-accent flex items-center justify-center shrink-0">
+                  <Icon name={resolveCategoryIconKey(newCatIcon, 'book')} size={18} />
+                </span>
+                <select
+                  aria-label="Category icon key"
+                  value={newCatIcon}
+                  onChange={(e) => setNewCatIcon(e.target.value)}
+                  className={`${input} w-[180px]`}
+                >
+                  {CATEGORY_ICON_OPTIONS.map((opt) => (
+                    <option key={opt.key} value={opt.key}>
+                      {opt.label} ({opt.key})
+                    </option>
+                  ))}
+                </select>
+              </div>
               <input
                 type="text"
                 placeholder="Category name"
@@ -614,14 +636,18 @@ export default function AdminDashboard({ profile }) {
               </button>
             </div>
             {catMsg.text && (
-              <p className={catMsg.type === 'error' ? msgError : msgOk}>{catMsg.text}</p>
+              <p className={`${catMsg.type === 'error' ? msgError : msgOk} flex items-center gap-1.5`}>
+                <Icon name={catMsg.type === 'error' ? 'alert-circle' : 'check-circle'} size={15} />
+                <span>{catMsg.text}</span>
+              </p>
             )}
           </div>
 
           {selectedCategory && (
             <div className={cardBox}>
-              <h3 className={cardBoxTitle}>
-                {selectedCategory.icon} {selectedCategory.name} — Uploaded Materials
+              <h3 className={`${cardBoxTitle} flex items-center gap-2`}>
+                <Icon name={resolveCategoryIconKey(selectedCategory.icon, 'book')} size={18} className="text-accent" />
+                <span>{selectedCategory.name} — Uploaded Materials</span>
               </h3>
               {catContentsMsg ? (
                 <p className="text-[13px] text-dash-ink-soft">{catContentsMsg}</p>
