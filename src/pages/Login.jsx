@@ -14,6 +14,8 @@ import {
 import { validatePassword, PASSWORD_MIN_LENGTH } from '../lib/passwordPolicy.js';
 import PasswordStrengthMeter from '../components/PasswordStrengthMeter.jsx';
 import PineappleLogo from '../components/PineappleLogo.jsx';
+import Icon from '../components/Icons.jsx';
+import { PlayfulIcon } from '../components/KidIllustrations.jsx';
 
 async function checkMustChangePassword(user, effectiveRole) {
   if (!user) return false;
@@ -106,8 +108,8 @@ export default function Login() {
               setMsg({
                 text:
                   approvalInfo.approval_status === 'rejected'
-                    ? '❌ Your registration was declined by the assigned teacher. Please coordinate with your Child Development Center.'
-                    : `⏳ Your parent account is pending approval from ${teacherLabel}. Please wait for your teacher to approve your registration.`,
+                    ? 'Your registration was declined by the assigned teacher. Please coordinate with your Child Development Center.'
+                    : `Your parent account is pending approval from ${teacherLabel}. Please wait for your teacher to approve your registration.`,
                 type: 'error',
               });
               setCheckingSession(false);
@@ -138,7 +140,7 @@ export default function Login() {
     const { authEmail } = normalizeAuthIdentifier(trimmedInput);
     if (!authEmail && !trimmedInput) {
       setMsg({
-        text: '⚠️ Please enter your Teacher ID, mobile phone number, or email address.',
+        text: 'Please enter your Teacher ID, mobile phone number, or email address.',
         type: 'error',
       });
       return;
@@ -189,7 +191,7 @@ export default function Login() {
 
     if (!authSuccessData) {
       setMsg({
-        text: '❌ ' + (lastError?.message || 'Invalid login credentials. Please check your username/ID and password.'),
+        text: lastError?.message || 'Invalid login credentials. Please check your username/ID and password.',
         type: 'error',
       });
       setLoading(false);
@@ -223,7 +225,7 @@ export default function Login() {
       await supabase.auth.signOut();
       setLoading(false);
       setMsg({
-        text: '❌ Account role claim (app_metadata.role) is not configured on the server. Please contact the MSWDO administrator.',
+        text: 'Account role claim (app_metadata.role) is not configured on the server. Please contact the MSWDO administrator.',
         type: 'error',
       });
       return;
@@ -277,7 +279,7 @@ export default function Login() {
       setNewPassword('');
       setConfirmPassword('');
       setMsg({
-        text: '🔐 Temporary password detected. Please set a new password to continue.',
+        text: 'Temporary password detected. Please set a new password to continue.',
         type: 'error',
       });
       setLoading(false);
@@ -293,7 +295,7 @@ export default function Login() {
           setLoading(false);
           const teacherLabel = approvalInfo.adviser_name || 'your assigned Day Care Teacher';
           setMsg({
-            text: `⏳ Your parent account is pending approval from ${teacherLabel}. Please wait for your teacher to approve your registration.`,
+            text: `Your parent account is pending approval from ${teacherLabel}. Please wait for your teacher to approve your registration.`,
             type: 'error',
           });
           return;
@@ -302,7 +304,7 @@ export default function Login() {
           await supabase.auth.signOut();
           setLoading(false);
           setMsg({
-            text: '❌ Your registration was declined by the assigned teacher. Please coordinate with your Child Development Center.',
+            text: 'Your registration was declined by the assigned teacher. Please coordinate with your Child Development Center.',
             type: 'error',
           });
           return;
@@ -315,7 +317,7 @@ export default function Login() {
     }
 
     const roleTag = effectiveRole === 'superadmin' ? ' • Superadmin' : '';
-    setMsg({ text: `✅ Welcome, ${profile.full_name || activeUser.email}!${roleTag}`, type: 'ok' });
+    setMsg({ text: `Welcome, ${profile.full_name || activeUser.email}!${roleTag}`, type: 'ok' });
 
     setTimeout(() => {
       navigate(getRoleDashboardPath(effectiveRole), { replace: true });
@@ -336,17 +338,17 @@ export default function Login() {
       ],
     });
     if (!pwCheck.valid) {
-      setMsg({ text: `⚠️ ${pwCheck.errors[0]}`, type: 'error' });
+      setMsg({ text: pwCheck.errors[0], type: 'error' });
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setMsg({ text: '⚠️ New password and confirmation do not match.', type: 'error' });
+      setMsg({ text: 'New password and confirmation do not match.', type: 'error' });
       return;
     }
 
     if (passwordChangeState.currentPassword && newPassword === passwordChangeState.currentPassword) {
-      setMsg({ text: '⚠️ Please choose a new password different from your temporary password.', type: 'error' });
+      setMsg({ text: 'Please choose a new password different from your temporary password.', type: 'error' });
       return;
     }
 
@@ -358,7 +360,7 @@ export default function Login() {
     });
 
     if (updateErr) {
-      setMsg({ text: '❌ Failed to update password: ' + updateErr.message, type: 'error' });
+      setMsg({ text: 'Failed to update password: ' + updateErr.message, type: 'error' });
       setChangingPassword(false);
       return;
     }
@@ -377,7 +379,7 @@ export default function Login() {
     } catch {}
 
     setChangingPassword(false);
-    setMsg({ text: '✅ Password updated! Redirecting to your dashboard...', type: 'ok' });
+    setMsg({ text: 'Password updated! Redirecting to your dashboard...', type: 'ok' });
 
     const dest = getRoleDashboardPath(passwordChangeState.effectiveRole);
     setTimeout(() => {
@@ -408,10 +410,18 @@ export default function Login() {
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-[#FFD34E]/25 blur-3xl" />
         <div className="absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-[#78BD58]/20 blur-3xl" />
-        <span className="absolute top-[12%] left-[10%] text-amber-300 text-3xl select-none opacity-70">⭐</span>
-        <span className="absolute top-[24%] right-[12%] text-amber-300 text-2xl select-none opacity-60">✨</span>
-        <span className="absolute bottom-[16%] left-[8%] text-emerald-400 text-3xl select-none opacity-50">🌱</span>
-        <span className="absolute bottom-[20%] right-[10%] text-rose-300 text-2xl select-none opacity-50">🎈</span>
+        <span className="absolute top-[12%] left-[10%] select-none opacity-70">
+          <PlayfulIcon name="star" size={28} blob={false} />
+        </span>
+        <span className="absolute top-[24%] right-[12%] select-none opacity-60">
+          <PlayfulIcon name="sparkles" size={24} blob={false} />
+        </span>
+        <span className="absolute bottom-[16%] left-[8%] select-none opacity-55">
+          <PlayfulIcon name="seedling" size={28} blob={false} />
+        </span>
+        <span className="absolute bottom-[20%] right-[10%] select-none opacity-55">
+          <PlayfulIcon name="balloon" size={26} blob={false} />
+        </span>
       </div>
 
       <div className="animate-pop safe-x relative z-10 bg-white w-full max-w-[400px] my-6 p-7 sm:p-9 rounded-[32px] shadow-[0_16px_50px_rgba(43,36,28,0.08)] border border-[#F4EEDF] text-center">
@@ -504,13 +514,14 @@ export default function Login() {
 
               {msg.text && (
                 <p
-                  className={`mt-3 text-xs font-bold text-center min-h-[18px] leading-snug p-2.5 rounded-xl ${
+                  className={`mt-3 text-xs font-bold text-center min-h-[18px] leading-snug p-2.5 rounded-xl flex items-center justify-center gap-1.5 ${
                     msg.type === 'error'
                       ? 'bg-rose-50 text-[#F46D70] border border-rose-200'
                       : 'bg-emerald-50 text-[#78BD58] border border-emerald-200'
                   }`}
                 >
-                  {msg.text}
+                  <Icon name={msg.type === 'error' ? 'alert-circle' : 'check-circle'} size={15} className="shrink-0" />
+                  <span>{msg.text}</span>
                 </p>
               )}
             </form>
@@ -533,8 +544,8 @@ export default function Login() {
                   Teacher ID, Mobile Number, or Email
                 </label>
                 <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 text-sm">
-                    👤
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Icon name="user" size={16} />
                   </span>
                   <input
                     id="identifier"
@@ -546,8 +557,9 @@ export default function Login() {
                     className="w-full pl-10 pr-4 py-2.5 rounded-2xl border-2 border-[#EBE7DF] bg-[#FFFDF9] font-nunito text-sm outline-none transition-colors focus:border-[#78BD58] focus:bg-white text-slate-800"
                   />
                 </div>
-                <p className="text-[11px] text-[#7A6B52] mt-1 m-0">
-                  💡 Teachers: use Teacher ID. Parents: use registered mobile or email.
+                <p className="text-[11px] text-[#7A6B52] mt-1 m-0 flex items-center gap-1">
+                  <Icon name="lightbulb" size={13} className="text-amber-500 shrink-0" />
+                  <span>Teachers: use Teacher ID. Parents: use registered mobile or email.</span>
                 </p>
               </div>
 
@@ -559,8 +571,8 @@ export default function Login() {
                   Password
                 </label>
                 <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 text-sm">
-                    🔒
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Icon name="lock" size={16} />
                   </span>
                   <input
                     id="password"
@@ -574,10 +586,11 @@ export default function Login() {
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 text-xs cursor-pointer bg-transparent border-none"
-                    aria-label="Toggle password visibility"
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer bg-transparent border-none"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    title={showPassword ? 'Hide password' : 'Show password'}
                   >
-                    {showPassword ? '🙈' : '👁️'}
+                    <Icon name={showPassword ? 'eye-off' : 'eye'} size={16} />
                   </button>
                 </div>
               </div>
@@ -592,13 +605,14 @@ export default function Login() {
 
               {msg.text && (
                 <p
-                  className={`mt-3 text-xs font-bold text-center min-h-[18px] leading-snug p-2.5 rounded-xl ${
+                  className={`mt-3 text-xs font-bold text-center min-h-[18px] leading-snug p-2.5 rounded-xl flex items-center justify-center gap-1.5 ${
                     msg.type === 'error'
                       ? 'bg-rose-50 text-[#F46D70] border border-rose-200'
                       : 'bg-emerald-50 text-[#78BD58] border border-emerald-200'
                   }`}
                 >
-                  {msg.text}
+                  <Icon name={msg.type === 'error' ? 'alert-circle' : 'check-circle'} size={15} className="shrink-0" />
+                  <span>{msg.text}</span>
                 </p>
               )}
             </form>
