@@ -1,4 +1,4 @@
-import { IconClose } from '../Icons.jsx';
+import Icon, { IconClose } from '../Icons.jsx';
 
 export default function TeacherUploadModal({
   isOpen,
@@ -79,7 +79,8 @@ export default function TeacherUploadModal({
             <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 flex items-center justify-between gap-2">
               <div>
                 <div className="font-bold flex items-center gap-1.5">
-                  <span>🎯 MSWD Assigned Topic: {uploadSubTheme || uploadWeek}</span>
+                  <Icon name="target" size={14} className="shrink-0" />
+                  <span>MSWD Assigned Topic: {uploadSubTheme || uploadWeek}</span>
                 </div>
                 <div className="text-[11px] text-amber-800 mt-0.5">
                   {activeAssignmentDeadline ? `Deadline: ${activeAssignmentDeadline}` : 'Flexible schedule'} • MSWD will review and approve before you post to students.
@@ -95,16 +96,17 @@ export default function TeacherUploadModal({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="font-bold text-slate-800 flex items-center gap-1.5">
-                <span>📎</span>
+                <Icon name="paperclip" size={14} className="text-slate-600" />
                 <span>Upload File (Choose File &amp; Drag File)</span>
               </label>
               {uploadFileName && (
                 <button
                   type="button"
                   onClick={handleRemoveSelectedFile}
-                  className="text-[11px] text-rose-600 hover:text-rose-700 font-bold hover:underline cursor-pointer"
+                  className="text-[11px] text-rose-600 hover:text-rose-700 font-bold hover:underline cursor-pointer inline-flex items-center gap-1"
                 >
-                  ✕ Remove File
+                  <Icon name="close" size={12} />
+                  <span>Remove File</span>
                 </button>
               )}
             </div>
@@ -124,18 +126,21 @@ export default function TeacherUploadModal({
             {/* Applicable File Size Limits Indicator */}
             <div className="mb-2.5 p-2.5 rounded-xl bg-amber-50/90 border border-amber-200 text-[11px] text-amber-950 flex flex-wrap items-center justify-between gap-2">
               <span className="font-bold flex items-center gap-1 text-amber-900">
-                <span>📌</span>
+                <Icon name="push-pin" size={13} />
                 <span>Applicable File Size Limits:</span>
               </span>
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="px-2 py-0.5 rounded-md bg-white border border-amber-200 font-bold text-slate-800">
-                  🖼️ Images: Max 10 MB
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-amber-200 font-bold text-slate-800">
+                  <Icon name="image" size={12} className="text-emerald-600" />
+                  <span>Images: Max 10 MB</span>
                 </span>
-                <span className="px-2 py-0.5 rounded-md bg-white border border-amber-200 font-bold text-slate-800">
-                  📁 Files/Docs (PDF/Word/PPT): Max 15 MB
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-amber-200 font-bold text-slate-800">
+                  <Icon name="folder" size={12} className="text-amber-600" />
+                  <span>Files/Docs (PDF/Word/PPT): Max 15 MB</span>
                 </span>
-                <span className="px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200 font-bold text-purple-900">
-                  🎬 Videos (MP4/WebM/MOV): Max 50 MB
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 border border-purple-200 font-bold text-purple-900">
+                  <Icon name="film" size={12} className="text-purple-700" />
+                  <span>Videos (MP4/WebM/MOV): Max 50 MB</span>
                 </span>
               </div>
             </div>
@@ -172,8 +177,8 @@ export default function TeacherUploadModal({
                     : 'border-slate-300 bg-slate-50/80 hover:bg-slate-100 hover:border-slate-400'
                 }`}
               >
-                <div className="w-10 h-10 rounded-xl bg-white shadow-xs border border-slate-200 flex items-center justify-center text-xl text-accent">
-                  {isDraggingFile ? '📥' : '☁️'}
+                <div className="w-10 h-10 rounded-xl bg-white shadow-xs border border-slate-200 flex items-center justify-center text-accent">
+                  <Icon name={isDraggingFile ? 'download' : 'cloud-upload'} size={20} />
                 </div>
                 <div>
                   <p className="font-bold text-slate-800 text-xs m-0">
@@ -193,7 +198,7 @@ export default function TeacherUploadModal({
                   }}
                   className="mt-1 px-3.5 py-1 rounded-lg bg-white border border-slate-300 hover:border-slate-400 text-slate-800 font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
-                  <span>📁</span>
+                  <Icon name="folder-open" size={14} className="text-amber-600" />
                   <span>Choose File / Image / Video</span>
                 </button>
               </div>
@@ -208,8 +213,8 @@ export default function TeacherUploadModal({
                         className="w-11 h-11 object-cover rounded-lg border border-emerald-200 shadow-xs shrink-0"
                       />
                     ) : ['MP4', 'WEBM', 'MOV', 'OGG', 'M4V', 'VIDEO'].includes(uploadFileType) ? (
-                      <div className="w-11 h-11 rounded-lg bg-purple-700 text-white font-bold text-xs flex flex-col items-center justify-center shrink-0 shadow-xs">
-                        <span className="text-sm">🎬</span>
+                      <div className="w-11 h-11 rounded-lg bg-purple-700 text-white font-bold text-xs flex flex-col items-center justify-center shrink-0 shadow-xs gap-0.5">
+                        <Icon name="film" size={15} />
                         <span className="text-[9px]">{uploadFileType}</span>
                       </div>
                     ) : (
@@ -224,7 +229,10 @@ export default function TeacherUploadModal({
                       <div className="text-[11px] text-emerald-800 font-medium flex items-center gap-2 mt-0.5">
                         <span>{uploadFileSize}</span>
                         <span>•</span>
-                        <span className="font-bold text-emerald-700">✓ Within size limit &amp; ready to upload</span>
+                        <span className="font-bold text-emerald-700 inline-flex items-center gap-1">
+                          <Icon name="check" size={12} />
+                          <span>Within size limit &amp; ready to upload</span>
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -355,7 +363,10 @@ export default function TeacherUploadModal({
           {mswdTopicChoices.length > 0 ? (
             <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
               <div className="text-[10.5px] font-bold text-slate-600 flex items-center justify-between">
-                <span>📌 Quick Select MSWD Assigned Topic ({mswdTopicChoices.length}):</span>
+                <span className="inline-flex items-center gap-1">
+                  <Icon name="push-pin" size={12} />
+                  <span>Quick Select MSWD Assigned Topic ({mswdTopicChoices.length}):</span>
+                </span>
                 <span className="text-emerald-700">Provided by MSWD</span>
               </div>
               <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
@@ -379,8 +390,8 @@ export default function TeacherUploadModal({
               </div>
             </div>
           ) : (
-            <div className="p-2.5 rounded-xl bg-amber-50/80 border border-amber-200 text-[11px] text-amber-900 flex items-center gap-2">
-              <span>📋</span>
+            <div className="p-2.5 rounded-xl bg-amber-50/80 border border-amber-200 text-[11px] text-amber-900 flex items-start gap-2">
+              <Icon name="clipboard" size={15} className="mt-0.5 shrink-0" />
               <span>
                 <b>MSWD Topic Required:</b> Curriculum guide choices are hidden because MSWD decides and assigns the specific topics for teachers. Once MSWD assigns a topic, it will appear in <b>3. ECCD Week &amp; Theme</b> above.
               </span>
@@ -394,10 +405,10 @@ export default function TeacherUploadModal({
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
-                { type: 'activity', label: '✏️ Activity', desc: 'Worksheet / task' },
-                { type: 'file', label: '📁 File / PDF', desc: 'Document / guide' },
-                { type: 'video', label: '🎬 Video', desc: 'Video demonstration' },
-                { type: 'image', label: '🖼️ Picture', desc: 'Visual card / craft' },
+                { type: 'activity', icon: 'edit', label: 'Activity', desc: 'Worksheet / task' },
+                { type: 'file', icon: 'folder', label: 'File / PDF', desc: 'Document / guide' },
+                { type: 'video', icon: 'film', label: 'Video', desc: 'Video demonstration' },
+                { type: 'image', icon: 'image', label: 'Picture', desc: 'Visual card / craft' },
               ].map((t) => (
                 <button
                   key={t.type}
@@ -409,7 +420,10 @@ export default function TeacherUploadModal({
                       : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                   }`}
                 >
-                  <div>{t.label}</div>
+                  <div className="inline-flex items-center justify-center gap-1">
+                    <Icon name={t.icon} size={13} />
+                    <span>{t.label}</span>
+                  </div>
                   <div className="text-[10px] text-slate-400">{t.desc}</div>
                 </button>
               ))}
