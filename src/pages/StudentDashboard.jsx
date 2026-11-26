@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabaseClient';
 import { fetchStudentDashboardSummary } from '../lib/dashboardService.js';
 import { BILINGUAL_CATEGORIES, playAudioWord } from '../lib/studentLearningData.js';
 import { CategoryBadge } from '../components/Category3DBadges.jsx';
+import Icon, { resolveCategoryIconKey } from '../components/Icons.jsx';
+import { PlayfulIcon, KidIllustration, CountingVisual } from '../components/KidIllustrations.jsx';
 import PineappleLogo from '../components/PineappleLogo.jsx';
 import {
   getDefaultTeacherForBarangay,
@@ -611,13 +613,13 @@ export default function StudentDashboard({ profile }) {
                     })
                     : 'Recent'),
                 teacherChecked: isTeacherChecked,
-                status: isTeacherChecked ? 'Checked by Teacher ✅' : 'Submitted • Waiting for Teacher',
+                status: isTeacherChecked ? 'Checked by Teacher' : 'Submitted • Waiting for Teacher',
               });
             } else {
               const existingUp = dbUploadsByTitle.get(normUploadKey);
               if (isTeacherChecked) {
                 existingUp.teacherChecked = true;
-                existingUp.status = 'Checked by Teacher ✅';
+                existingUp.status = 'Checked by Teacher';
               }
               if (!existingUp.mediaUrl && meta?.file_url) {
                 existingUp.mediaUrl = meta.file_url;
@@ -888,7 +890,7 @@ export default function StudentDashboard({ profile }) {
             category_name: meta.sub_theme || meta.theme || m.categories?.name || 'Class Activity',
             type: 'activity',
             module_type: meta.module_type || m.type || 'activity',
-            icon: m.categories?.icon || '✏️',
+            icon: resolveCategoryIconKey(m.categories?.icon, 'pencil'),
             content_text: cleanDescription || 'Teacher-assigned learning activity.',
             content_url: m.content_url || null,
             file_name: meta.file_name || '',
@@ -948,7 +950,7 @@ export default function StudentDashboard({ profile }) {
             category_name: m.sub_theme || m.theme || m.category_name || 'Class Activity',
             type: 'activity',
             module_type: m.module_type || m.type || 'activity',
-            icon: '✏️',
+            icon: 'pencil',
             content_text: m.description || m.content_text || 'Teacher-guided early childhood activity.',
             content_url: m.content_url || null,
             file_name: m.file_name || '',
@@ -1079,7 +1081,7 @@ export default function StudentDashboard({ profile }) {
     setActivityFileSize(existingSub?.file_size || '');
     setDoneMsg(
       existingSub
-        ? { text: '✅ You already submitted this activity. You can update your answer or file anytime!', error: false }
+        ? { text: 'You already submitted this activity. You can update your answer or file anytime!', error: false }
         : { text: '', error: false }
     );
     setSubmitted(Boolean(existingSub));
@@ -1091,7 +1093,7 @@ export default function StudentDashboard({ profile }) {
     if (!file) return;
     const validation = validateActivityFile(file);
     if (!validation.valid) {
-      setDoneMsg({ text: `⚠️ ${validation.error}`, error: true });
+      setDoneMsg({ text: validation.error, error: true });
       e.target.value = '';
       return;
     }
@@ -1131,7 +1133,7 @@ export default function StudentDashboard({ profile }) {
     const trimmed = answer.trim();
     if (!trimmed && !activityFilePreview) {
       setDoneMsg({
-        text: '⚠️ Please write your answer/comment OR attach a file/image before submitting.',
+        text: 'Please write your answer/comment OR attach a file/image before submitting.',
         error: true,
       });
       return;
@@ -1245,7 +1247,7 @@ export default function StudentDashboard({ profile }) {
       fileSize: activityFileSize || '',
       uploadedAt: uploadedAtStr,
       teacherChecked: wasChecked,
-      status: wasChecked ? 'Checked by Teacher ✅' : 'Submitted • Waiting for Teacher',
+      status: wasChecked ? 'Checked by Teacher' : 'Submitted • Waiting for Teacher',
     };
 
     const updatedUploads = [
@@ -1262,7 +1264,7 @@ export default function StudentDashboard({ profile }) {
 
     setSubmittingAnswer(false);
     setDoneMsg({
-      text: '🎉 Nice! Your answer and file have been saved and submitted to your teacher across all devices!',
+      text: 'Nice! Your answer and file have been saved and submitted to your teacher across all devices!',
       error: false,
     });
     setSubmitted(true);
@@ -1274,7 +1276,7 @@ export default function StudentDashboard({ profile }) {
     if (file) {
       const validation = validateActivityFile(file);
       if (!validation.valid) {
-        setUploadMsg({ text: `⚠️ ${validation.error}`, type: 'error' });
+        setUploadMsg({ text: validation.error, type: 'error' });
         e.target.value = '';
         return;
       }
@@ -1312,7 +1314,7 @@ export default function StudentDashboard({ profile }) {
   async function handleStudentUploadSubmit(e) {
     e.preventDefault();
     if (!uploadTitle.trim()) {
-      setUploadMsg({ text: '⚠️ Please provide a title for your activity.', type: 'error' });
+      setUploadMsg({ text: 'Please provide a title for your activity.', type: 'error' });
       return;
     }
 
@@ -1387,7 +1389,7 @@ export default function StudentDashboard({ profile }) {
     }
 
     setUploading(false);
-    setUploadMsg({ text: '🎉 Activity uploaded successfully! Your teacher will review it.', type: 'ok' });
+    setUploadMsg({ text: 'Activity uploaded successfully! Your teacher will review it.', type: 'ok' });
 
     setTimeout(() => {
       setIsUploadModalOpen(false);
@@ -1462,33 +1464,33 @@ export default function StudentDashboard({ profile }) {
   }
 
   function getActivityIcon(title = '', isVid = false) {
-    if (isVid) return '🎬';
+    if (isVid) return <PlayfulIcon name="video" size={26} blob={false} label="Video lesson" />;
     const lower = (title || '').toLowerCase();
     if (lower.includes('name') || lower.includes('birthday') || lower.includes('kaadlawan') || lower.includes('cake')) {
-      return '🎂';
+      return <PlayfulIcon name="cake" size={26} blob={false} label="Birthday or name activity" />;
     }
     if (lower.includes('color') || lower.includes('drawing') || lower.includes('art') || lower.includes('kolor')) {
-      return '🎨';
+      return <PlayfulIcon name="palette" size={26} blob={false} label="Art and colors activity" />;
     }
     if (lower.includes('family') || lower.includes('pamilya') || lower.includes('ginikanan')) {
-      return '👨‍👩‍👧';
+      return <PlayfulIcon name="family" size={26} blob={false} label="Family activity" />;
     }
     if (lower.includes('letter') || lower.includes('alphabet') || lower.includes('letra') || lower.includes('alpabeto')) {
-      return '🔤';
+      return <PlayfulIcon name="alphabet" size={26} blob={false} label="Alphabet activity" />;
     }
     if (lower.includes('number') || lower.includes('count') || lower.includes('numero') || lower.includes('ihap')) {
-      return '🔢';
+      return <PlayfulIcon name="numbers" size={26} blob={false} label="Numbers activity" />;
     }
     if (lower.includes('shape') || lower.includes('porma')) {
-      return '🔶';
+      return <PlayfulIcon name="shapes" size={26} blob={false} label="Shapes activity" />;
     }
     if (lower.includes('body') || lower.includes('lawas')) {
-      return '🖐️';
+      return <PlayfulIcon name="hand" size={26} blob={false} label="Body parts activity" />;
     }
     if (lower.includes('animal') || lower.includes('mananap')) {
-      return '🐶';
+      return <PlayfulIcon name="animals" size={26} blob={false} label="Animals activity" />;
     }
-    return '📝';
+    return <PlayfulIcon name="note" size={26} blob={false} label="Learning activity" />;
   }
 
   return (
@@ -1553,7 +1555,9 @@ export default function StudentDashboard({ profile }) {
             <svg className="w-16 h-8 overflow-visible" viewBox="0 0 70 30" fill="none">
               <path d="M5 25 C 20 20, 35 10, 55 15" stroke="#B8B2D1" strokeWidth="1.5" strokeDasharray="3 3" />
             </svg>
-            <span className="text-sm -rotate-12 transform">✈️</span>
+            <span className="-rotate-12 transform">
+              <PlayfulIcon name="paper-plane" size={18} blob={false} />
+            </span>
           </div>
           <div className="h-10 bg-gradient-to-r from-[#D7F5DF] to-[#E8F8EC] rounded-t-3xl border-t border-[#C7ECD1]/60 w-full" />
         </div>
@@ -1579,14 +1583,15 @@ export default function StudentDashboard({ profile }) {
             className="p-2 rounded-xl bg-[#F3EFFC] text-[#7C5CE9] font-bold text-xs flex items-center gap-1 cursor-pointer shrink-0"
           >
             <span>{NAV_ITEMS.find((n) => n.key === navTab)?.label || 'Menu'}</span>
-            <span className="text-[10px]">▼</span>
+            <Icon name="chevron-right" className={`w-3.5 h-3.5 transition-transform ${mobileNavOpen ? '-rotate-90' : 'rotate-90'}`} />
           </button>
           <button
             onClick={handleLogout}
-            className="p-2 rounded-xl border border-purple-100 text-rose-600 hover:bg-rose-50 text-xs font-bold shrink-0"
+            className="p-2 rounded-xl border border-purple-100 text-rose-600 hover:bg-rose-50 text-xs font-bold shrink-0 flex items-center justify-center"
             title="Log Out"
+            aria-label="Log Out"
           >
-            🚪
+            <PlayfulIcon name="logout" size={16} blob={false} />
           </button>
         </div>
       </header>
@@ -1633,16 +1638,17 @@ export default function StudentDashboard({ profile }) {
             {/* 2. WELCOME GREETING SECTION */}
             <div className="flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#FFE0EC] to-[#FFD1DF] border-2 border-white shadow-xs flex items-center justify-center text-2xl shrink-0">
-                  👩‍🦰
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#FFE0EC] to-[#FFD1DF] border-2 border-white shadow-xs flex items-center justify-center shrink-0">
+                  <PlayfulIcon name="avatar-parent" size={26} blob={false} label="Parent profile" />
                 </div>
                 <div className="text-left">
                   <h1 className="font-baloo text-xl sm:text-2xl font-black text-[#1E1B4B] m-0 flex items-center gap-1.5">
                     <span>Hi, {greetingName}!</span>
-                    <span className="text-amber-400 text-lg">✨</span>
+                    <PlayfulIcon name="sparkles" size={20} blob={false} />
                   </h1>
                   <p className="text-xs sm:text-[13px] text-[#6B658A] font-semibold m-0 mt-0.5 flex items-center gap-1">
-                    Choose what you&apos;d like to do today <span className="text-[#8B5CF6]">💜</span>
+                    <span>Choose what you&apos;d like to do today</span>
+                    <PlayfulIcon name="hearts" size={16} blob={false} />
                   </p>
                 </div>
               </div>
@@ -1669,8 +1675,8 @@ export default function StudentDashboard({ profile }) {
                   {/* 1. CHILD INFORMATION CARD */}
                   <div className="bg-[#FFF0F4] rounded-[26px] p-5 sm:p-5.5 border border-[#FFE0EA] shadow-2xs relative overflow-hidden flex items-center justify-between">
                     <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
-                      <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-white border-2 border-[#FFCCD8] shadow-xs flex items-center justify-center text-3xl shrink-0 overflow-hidden">
-                        <span role="img" aria-label="child avatar" className="text-3xl sm:text-4xl">👧</span>
+                      <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-white border-2 border-[#FFCCD8] shadow-xs flex items-center justify-center shrink-0 overflow-hidden">
+                        <PlayfulIcon name="avatar-child" size={38} blob={false} label="Child avatar" />
                       </div>
                       <div className="min-w-0">
                         <span className="inline-block px-3 py-0.5 rounded-full bg-[#FFDDE6] text-[#C93B6D] text-[11px] font-black tracking-wide uppercase">
@@ -1680,12 +1686,12 @@ export default function StudentDashboard({ profile }) {
                           {greetingName}
                         </h2>
                         <p className="text-xs sm:text-[13px] font-bold text-[#7A748A] m-0 flex items-center gap-1.5 truncate">
-                          <span className="text-sm shrink-0">🏫</span>
+                          <PlayfulIcon name="school" size={16} blob={false} />
                           <span className="truncate">{adviserInfo.cdcName || 'EarlyLearn Child Development Center'}</span>
                         </p>
                         {adviserInfo.adviserName && (
                           <p className="text-xs sm:text-[12px] font-bold text-[#7A748A] m-0 flex items-center gap-1.5 truncate mt-0.5">
-                            <span className="text-sm shrink-0">👩‍🏫</span>
+                            <PlayfulIcon name="teacher" size={16} blob={false} />
                             <span className="truncate">Teacher Adviser: {adviserInfo.adviserName}</span>
                           </p>
                         )}
@@ -1693,8 +1699,8 @@ export default function StudentDashboard({ profile }) {
                     </div>
 
                     {/* Cute floating hearts doodle */}
-                    <div className="text-2xl sm:text-3xl select-none opacity-80 hidden sm:block shrink-0 animate-pulse pl-2">
-                      💕
+                    <div className="select-none opacity-80 hidden sm:block shrink-0 animate-pulse pl-2">
+                      <PlayfulIcon name="heart" size={28} blob={false} />
                     </div>
                   </div>
 
@@ -1702,8 +1708,8 @@ export default function StudentDashboard({ profile }) {
                   <div className="bg-[#EEF5FF] rounded-[26px] p-5 border border-[#DCE9FA] shadow-2xs relative space-y-3">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-11 h-11 rounded-2xl bg-[#D6E6FF] flex items-center justify-center text-xl shrink-0 shadow-xs">
-                          📢
+                        <div className="w-11 h-11 rounded-2xl bg-[#D6E6FF] flex items-center justify-center shrink-0 shadow-xs">
+                          <PlayfulIcon name="megaphone" size={24} blob={false} label="Teacher announcements" />
                         </div>
                         <div className="min-w-0">
                           <h3 className="font-baloo text-base sm:text-lg font-black text-[#1E293B] m-0 truncate">
@@ -1752,7 +1758,7 @@ export default function StudentDashboard({ profile }) {
                     {/* Header with Title and Upload button */}
                     <div className="flex items-center justify-between flex-wrap gap-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-xl">📋</span>
+                        <PlayfulIcon name="clipboard" size={20} />
                         <h3 className="font-baloo text-lg sm:text-xl font-black text-[#2D2A3E] m-0">
                           My Activities
                         </h3>
@@ -1763,7 +1769,7 @@ export default function StudentDashboard({ profile }) {
                         onClick={() => setIsUploadModalOpen(true)}
                         className="px-4 py-2 rounded-full bg-[#7C5CE9] hover:bg-[#6C4CE0] text-white text-xs font-extrabold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
                       >
-                        <span>📤</span>
+                        <Icon name="upload" className="w-3.5 h-3.5 shrink-0" />
                         <span>+ Upload My Activity</span>
                       </button>
                     </div>
@@ -1778,7 +1784,7 @@ export default function StudentDashboard({ profile }) {
                             : 'text-[#6B658A] hover:text-[#2D2A3E]'
                           }`}
                       >
-                        <span>☁️</span>
+                        <Icon name="cloud" className="w-3.5 h-3.5 shrink-0" />
                         <span>Teacher&apos;s Uploads ({teacherActivities.length})</span>
                       </button>
                       <button
@@ -1789,7 +1795,7 @@ export default function StudentDashboard({ profile }) {
                             : 'text-[#6B658A] hover:text-[#2D2A3E]'
                           }`}
                       >
-                        <span>✅</span>
+                        <Icon name="check-circle" className="w-3.5 h-3.5 shrink-0" />
                         <span>My Submitted Works ({studentUploads.length})</span>
                       </button>
                     </div>
@@ -1799,7 +1805,9 @@ export default function StudentDashboard({ profile }) {
                       <div>
                         {teacherActivities.length === 0 ? (
                           <div className="p-7 rounded-[22px] bg-[#FAF8FE] border border-[#EDE8F5] text-center space-y-2">
-                            <div className="text-3xl">🎈</div>
+                            <div className="flex justify-center">
+                              <PlayfulIcon name="balloon" size={28} label="No activities yet" />
+                            </div>
                             <div className="font-baloo font-bold text-base text-[#2D2A3E]">
                               No Teacher Activities at the Moment
                             </div>
@@ -1826,7 +1834,7 @@ export default function StudentDashboard({ profile }) {
                                   className="p-3.5 sm:p-4 rounded-[22px] bg-[#FAF8FE] border border-[#EDE8F5] flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition-all hover:border-[#D4C5F7] hover:bg-white"
                                 >
                                   <div className="flex items-center gap-3.5 min-w-0">
-                                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white border border-[#E5DEFA] flex items-center justify-center text-3xl shrink-0 shadow-2xs">
+                                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white border border-[#E5DEFA] flex items-center justify-center shrink-0 shadow-2xs">
                                       {actIcon}
                                     </div>
                                     <div className="min-w-0">
@@ -1838,16 +1846,19 @@ export default function StudentDashboard({ profile }) {
                                       </div>
                                       <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                                         {isChecked ? (
-                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                            Checked by Teacher ✅
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                            <span>Checked by Teacher</span>
+                                            <Icon name="check-circle" className="w-3 h-3 text-emerald-700 shrink-0" />
                                           </span>
                                         ) : isDone ? (
-                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-[#5B3EBD] border border-purple-200">
-                                            Submitted ✅
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-[#5B3EBD] border border-purple-200">
+                                            <span>Submitted</span>
+                                            <Icon name="check-circle" className="w-3 h-3 text-[#5B3EBD] shrink-0" />
                                           </span>
                                         ) : (
-                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-200">
-                                            Pending ✏️
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-200">
+                                            <span>Pending</span>
+                                            <Icon name="pencil" className="w-3 h-3 text-amber-700 shrink-0" />
                                           </span>
                                         )}
                                       </div>
@@ -1860,7 +1871,8 @@ export default function StudentDashboard({ profile }) {
                                       onClick={() => openMaterial(act, 'home')}
                                       className="px-3 py-1.5 rounded-full bg-[#EDE8F9] hover:bg-[#E0D7F7] text-[#5B3EBD] font-extrabold text-xs transition-colors cursor-pointer flex items-center gap-1"
                                     >
-                                      <span>👁️</span> <span>View Lesson</span>
+                                      <Icon name="eye" className="w-3.5 h-3.5 shrink-0" />
+                                      <span>View Lesson</span>
                                     </button>
                                     {isVid && (
                                       <button
@@ -1868,7 +1880,8 @@ export default function StudentDashboard({ profile }) {
                                         onClick={() => openMaterial(act, 'home')}
                                         className="px-3 py-1.5 rounded-full bg-[#FFF0F4] hover:bg-[#FFE0EB] text-[#E11D48] font-extrabold text-xs transition-colors cursor-pointer flex items-center gap-1"
                                       >
-                                        <span>▶️</span> <span>Watch &amp; Play</span>
+                                        <Icon name="play" className="w-3.5 h-3.5 shrink-0" />
+                                        <span>Watch &amp; Play</span>
                                       </button>
                                     )}
                                     <button
@@ -1892,7 +1905,9 @@ export default function StudentDashboard({ profile }) {
                       <div>
                         {studentUploads.length === 0 ? (
                           <div className="p-7 rounded-[22px] bg-[#FAF8FE] border border-[#EDE8F5] text-center space-y-2">
-                            <div className="text-3xl">🎨</div>
+                            <div className="flex justify-center">
+                              <PlayfulIcon name="palette" size={28} label="No uploaded works yet" />
+                            </div>
                             <div className="font-baloo font-bold text-base text-[#2D2A3E]">
                               No Uploaded Works Yet
                             </div>
@@ -1944,22 +1959,22 @@ export default function StudentDashboard({ profile }) {
                                       ) : u.mediaUrl && isVid ? (
                                         <div
                                           onClick={openPreview}
-                                          className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-purple-100 text-purple-800 border border-purple-200 flex flex-col items-center justify-center shrink-0 font-extrabold text-[10px] cursor-pointer hover:bg-purple-200 shadow-2xs"
+                                          className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-purple-100 text-purple-800 border border-purple-200 flex flex-col items-center justify-center gap-0.5 shrink-0 font-extrabold text-[10px] cursor-pointer hover:bg-purple-200 shadow-2xs"
                                         >
-                                          <span className="text-xl">🎬</span>
+                                          <PlayfulIcon name="video" size={22} blob={false} />
                                           <span>{u.fileType || 'VIDEO'}</span>
                                         </div>
                                       ) : u.mediaUrl ? (
                                         <div
                                           onClick={openPreview}
-                                          className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-blue-50 text-blue-700 border border-blue-200 flex flex-col items-center justify-center shrink-0 font-extrabold text-[10px] cursor-pointer hover:bg-blue-100 shadow-2xs"
+                                          className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-blue-50 text-blue-700 border border-blue-200 flex flex-col items-center justify-center gap-0.5 shrink-0 font-extrabold text-[10px] cursor-pointer hover:bg-blue-100 shadow-2xs"
                                         >
-                                          <span className="text-xl">📄</span>
+                                          <PlayfulIcon name="file" size={22} blob={false} />
                                           <span>{u.fileType || 'FILE'}</span>
                                         </div>
                                       ) : (
-                                        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center text-2xl shrink-0 font-bold shadow-2xs">
-                                          🖼️
+                                        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center shrink-0 font-bold shadow-2xs">
+                                          <PlayfulIcon name="image" size={26} blob={false} />
                                         </div>
                                       )}
 
@@ -1969,12 +1984,14 @@ export default function StudentDashboard({ profile }) {
                                             {u.title}
                                           </h4>
                                           {u.teacherChecked || (u.status || '').toLowerCase().includes('checked') ? (
-                                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                              Checked by Teacher ✅
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                              <span>Checked by Teacher</span>
+                                              <Icon name="check-circle" className="w-3 h-3 text-emerald-700 shrink-0" />
                                             </span>
                                           ) : (
-                                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-200">
-                                              Waiting for Teacher ⏳
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-200">
+                                              <span>Waiting for Teacher</span>
+                                              <Icon name="clock" className="w-3 h-3 text-amber-700 shrink-0" />
                                             </span>
                                           )}
                                         </div>
@@ -1994,16 +2011,18 @@ export default function StudentDashboard({ profile }) {
                                         <button
                                           type="button"
                                           onClick={openPreview}
-                                          className="px-3 py-1.5 rounded-full bg-[#EDE8F9] hover:bg-[#E0D7F7] text-[#5B3EBD] text-xs font-extrabold cursor-pointer"
+                                          className="px-3 py-1.5 rounded-full bg-[#EDE8F9] hover:bg-[#E0D7F7] text-[#5B3EBD] text-xs font-extrabold cursor-pointer flex items-center gap-1"
                                         >
-                                          {isVid ? '▶️ Play' : '👁️ View'}
+                                          <Icon name={isVid ? 'play' : 'eye'} className="w-3.5 h-3.5 shrink-0" />
+                                          <span>{isVid ? 'Play' : 'View'}</span>
                                         </button>
                                         <button
                                           type="button"
                                           onClick={() => handleOpenOrDownloadFile(u.mediaUrl, u.fileName || 'student-upload', 'download')}
-                                          className="px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold cursor-pointer"
+                                          className="px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold cursor-pointer flex items-center gap-1"
                                         >
-                                          ⬇️ Download
+                                          <Icon name="download" className="w-3.5 h-3.5 shrink-0" />
+                                          <span>Download</span>
                                         </button>
                                       </div>
                                     )}
@@ -2023,7 +2042,7 @@ export default function StudentDashboard({ profile }) {
                   <div className="bg-white rounded-[26px] p-5 sm:p-6 border border-[#EDE8F5] shadow-2xs space-y-4">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-amber-400 text-xl">⭐</span>
+                        <PlayfulIcon name="star" size={20} />
                         <h3 className="font-baloo text-base sm:text-lg font-black text-[#2D2A3E] m-0">
                           My Child&apos;s Progress
                         </h3>
@@ -2054,7 +2073,7 @@ export default function StudentDashboard({ profile }) {
 
                     {/* Completion count */}
                     <div className="flex items-center gap-2 text-xs sm:text-[13px] font-bold text-[#554D69]">
-                      <span>🏆</span>
+                      <PlayfulIcon name="trophy" size={18} blob={false} />
                       <span>
                         {totalCompletedCount} of {totalTasksCount} activities completed!
                       </span>
@@ -2065,7 +2084,7 @@ export default function StudentDashboard({ profile }) {
                   <div className="bg-[#FFFDF9] rounded-[26px] p-5 sm:p-6 border border-[#F5EEDD] shadow-2xs space-y-4">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xl">📖</span>
+                        <PlayfulIcon name="book-open" size={20} />
                         <h3 className="font-baloo text-base sm:text-lg font-black text-[#2D2A3E] m-0">
                           Explore &amp; Learn
                         </h3>
@@ -2127,7 +2146,9 @@ export default function StudentDashboard({ profile }) {
                         onClick={() => openCategory(categories.find((c) => c.id === 'cat-colors') || categories[2])}
                         className="bg-[#F0FDF4] border border-[#DCFCE7] hover:border-[#BBF7D0] rounded-[22px] p-4 flex flex-col justify-between text-left transition-all hover:scale-[1.02] shadow-2xs group cursor-pointer"
                       >
-                        <div className="text-3xl sm:text-4xl">🎨</div>
+                        <div>
+                          <PlayfulIcon name="palette" size={32} blob={false} label="Colors" />
+                        </div>
                         <div className="mt-3">
                           <h5 className="font-baloo font-black text-base text-[#2D2A3E] m-0">Colors</h5>
                           <p className="text-[11px] text-[#7A748A] font-bold m-0 mt-0.5">Discover colors!</p>
@@ -2143,10 +2164,10 @@ export default function StudentDashboard({ profile }) {
                         onClick={() => openCategory(categories.find((c) => c.id === 'cat-shapes') || categories[3])}
                         className="bg-[#F5F3FF] border border-[#EDE9FE] hover:border-[#DDD6FE] rounded-[22px] p-4 flex flex-col justify-between text-left transition-all hover:scale-[1.02] shadow-2xs group cursor-pointer"
                       >
-                        <div className="text-2xl sm:text-3xl flex items-center gap-1">
-                          <span>🔺</span>
-                          <span>🟡</span>
-                          <span>🟦</span>
+                        <div className="flex items-center gap-1">
+                          <KidIllustration name="shape-triangle" className="w-7 h-7" />
+                          <KidIllustration name="shape-circle" className="w-7 h-7" />
+                          <KidIllustration name="shape-square" className="w-7 h-7" />
                         </div>
                         <div className="mt-3">
                           <h5 className="font-baloo font-black text-base text-[#2D2A3E] m-0">Shapes</h5>
@@ -2171,7 +2192,7 @@ export default function StudentDashboard({ profile }) {
                     onClick={() => setNavTab('home')}
                     className="px-4 py-2 rounded-full bg-white hover:bg-purple-50 text-[#5B3EBD] font-extrabold text-xs border border-purple-100 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
                   >
-                    <span>⬅</span>
+                    <Icon name="arrow-left" className="w-3.5 h-3.5 shrink-0" />
                     <span>Back to Home</span>
                   </button>
                   <span className="text-xs font-bold text-[#7A748A]">
@@ -2182,8 +2203,8 @@ export default function StudentDashboard({ profile }) {
                 {/* Child Information Card */}
                 <div className="bg-[#FFF0F4] rounded-[26px] p-6 border border-[#FFE0EA] shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="w-20 h-20 rounded-full bg-white border-2 border-[#FFCCD8] shadow-xs flex items-center justify-center text-4xl shrink-0">
-                      👧
+                    <div className="w-20 h-20 rounded-full bg-white border-2 border-[#FFCCD8] shadow-xs flex items-center justify-center shrink-0">
+                      <PlayfulIcon name="avatar-child" size={44} blob={false} label="Child avatar" />
                     </div>
                     <div>
                       <span className="inline-block px-3 py-0.5 rounded-full bg-[#FFDDE6] text-[#C93B6D] text-[11px] font-black tracking-wide uppercase">
@@ -2194,10 +2215,12 @@ export default function StudentDashboard({ profile }) {
                       </h2>
                       <div className="text-xs sm:text-[13px] font-bold text-[#7A748A] space-y-0.5">
                         <div className="flex items-center gap-1.5">
-                          <span>🏫</span> <span>{adviserInfo.cdcName}</span>
+                          <PlayfulIcon name="school" size={16} blob={false} />
+                          <span>{adviserInfo.cdcName}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                          <span>👩‍🏫</span> <span>Teacher Adviser: {adviserInfo.adviserName}</span>
+                          <PlayfulIcon name="teacher" size={16} blob={false} />
+                          <span>Teacher Adviser: {adviserInfo.adviserName}</span>
                         </div>
                       </div>
                     </div>
@@ -2215,13 +2238,14 @@ export default function StudentDashboard({ profile }) {
                 <div className="bg-white rounded-[26px] p-5 sm:p-6 border border-[#EDE8F5] shadow-2xs space-y-4">
                   <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-[#F1EDF9]">
                     <div className="flex items-center gap-2">
-                      <span className="text-xl">🌱</span>
+                      <PlayfulIcon name="seedling" size={20} />
                       <h3 className="font-baloo text-lg sm:text-xl font-black text-[#2D2A3E] m-0">
                         My Child&apos;s Developmental Progress
                       </h3>
                     </div>
-                    <span className="text-[11px] font-black text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                      👩‍🏫 Teacher Evaluation • Read-Only
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-black text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                      <PlayfulIcon name="teacher" size={15} blob={false} />
+                      <span>Teacher Evaluation • Read-Only</span>
                     </span>
                   </div>
 
@@ -2254,8 +2278,9 @@ export default function StudentDashboard({ profile }) {
                         </div>
 
                         <div className="sm:text-right text-xs text-[#554D69]">
-                          <div className="font-bold text-[#2D2A3E]">
-                            📅 Assessed: {myChildAssessment.date || myChildAssessment.assessment_date || 'Recent'}
+                          <div className="font-bold text-[#2D2A3E] inline-flex items-center gap-1.5">
+                            <PlayfulIcon name="calendar" size={15} blob={false} />
+                            <span>Assessed: {myChildAssessment.date || myChildAssessment.assessment_date || 'Recent'}</span>
                           </div>
                           {myChildAssessment.teacher_name && (
                             <div className="text-[11px] text-[#7A748A] mt-0.5">
@@ -2270,25 +2295,25 @@ export default function StudentDashboard({ profile }) {
                         {[
                           {
                             label: 'Cognitive',
-                            icon: '🧩',
+                            icon: 'puzzle',
                             desc: 'Sorting, counting, shapes & problem solving',
                             status: myChildAssessment.cognitive_status || 'Developing as Expected',
                           },
                           {
                             label: 'Physical/Motor',
-                            icon: '🏃',
+                            icon: 'run',
                             desc: 'Balance, fine motor grip, tracing & play',
                             status: myChildAssessment.physical_status || 'Developing as Expected',
                           },
                           {
                             label: 'Social-Emotional',
-                            icon: '🤝',
+                            icon: 'handshake',
                             desc: 'Sharing, routines, greeting circle & empathy',
                             status: myChildAssessment.social_status || 'Developing as Expected',
                           },
                           {
                             label: 'Language',
-                            icon: '🗣️',
+                            icon: 'chat',
                             desc: 'Vocabulary, rhymes, listening & speech',
                             status: myChildAssessment.language_status || 'Developing as Expected',
                           },
@@ -2305,8 +2330,8 @@ export default function StudentDashboard({ profile }) {
                               className="p-3.5 rounded-2xl bg-[#FAF8FE] border border-[#EDE8F5] flex flex-col justify-between gap-2"
                             >
                               <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-1.5 font-baloo font-bold text-sm text-[#2D2A3E]">
-                                  <span>{dom.icon}</span>
+                                <div className="flex items-center gap-2 font-baloo font-bold text-sm text-[#2D2A3E]">
+                                  <PlayfulIcon name={dom.icon} size={18} />
                                   <span>{dom.label}</span>
                                 </div>
                                 <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-black border shrink-0 ${badgeClass}`}>
@@ -2324,7 +2349,7 @@ export default function StudentDashboard({ profile }) {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                           <div className="p-4 rounded-2xl bg-[#FFFDF9] border border-[#F5EEDD] space-y-1">
                             <div className="text-xs font-black text-[#2D2A3E] flex items-center gap-1.5">
-                              <span>📋</span>
+                              <PlayfulIcon name="clipboard" size={16} blob={false} />
                               <span>Teacher&apos;s Observations</span>
                             </div>
                             <p className="text-xs text-[#554D69] leading-relaxed m-0">
@@ -2335,7 +2360,7 @@ export default function StudentDashboard({ profile }) {
 
                           <div className="p-4 rounded-2xl bg-[#F0FDF4] border border-[#DCFCE7] space-y-1">
                             <div className="text-xs font-black text-[#15803D] flex items-center gap-1.5">
-                              <span>💡</span>
+                              <PlayfulIcon name="lightbulb" size={16} blob={false} />
                               <span>Recommendations for Home</span>
                             </div>
                             <p className="text-xs text-[#15803D] leading-relaxed m-0">
@@ -2348,7 +2373,9 @@ export default function StudentDashboard({ profile }) {
                     </div>
                   ) : (
                     <div className="p-8 rounded-2xl bg-[#FAF8FE] border border-[#EDE8F5] text-center space-y-2">
-                      <div className="text-3xl">🌱</div>
+                      <div className="flex justify-center">
+                        <PlayfulIcon name="seedling" size={28} label="Developmental progress" />
+                      </div>
                       <div className="font-baloo font-bold text-base text-[#2D2A3E]">
                         No Developmental Assessment Recorded Yet
                       </div>
@@ -2371,7 +2398,7 @@ export default function StudentDashboard({ profile }) {
                     onClick={() => setNavTab('home')}
                     className="px-4 py-2 rounded-full bg-white hover:bg-purple-50 text-[#5B3EBD] font-extrabold text-xs border border-purple-100 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
                   >
-                    <span>⬅</span>
+                    <Icon name="arrow-left" className="w-3.5 h-3.5 shrink-0" />
                     <span>Back to Home</span>
                   </button>
                   <button
@@ -2379,7 +2406,7 @@ export default function StudentDashboard({ profile }) {
                     onClick={() => setIsUploadModalOpen(true)}
                     className="px-4 py-2 rounded-full bg-[#7C5CE9] hover:bg-[#6C4CE0] text-white text-xs font-extrabold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
                   >
-                    <span>📤</span>
+                    <Icon name="upload" className="w-3.5 h-3.5 shrink-0" />
                     <span>+ Upload My Activity</span>
                   </button>
                 </div>
@@ -2394,7 +2421,7 @@ export default function StudentDashboard({ profile }) {
                           : 'text-[#6B658A] hover:text-[#2D2A3E]'
                         }`}
                     >
-                      <span>☁️</span>
+                      <Icon name="cloud" className="w-3.5 h-3.5 shrink-0" />
                       <span>Teacher&apos;s Uploads ({teacherActivities.length})</span>
                     </button>
                     <button
@@ -2405,7 +2432,7 @@ export default function StudentDashboard({ profile }) {
                           : 'text-[#6B658A] hover:text-[#2D2A3E]'
                         }`}
                     >
-                      <span>✅</span>
+                      <Icon name="check-circle" className="w-3.5 h-3.5 shrink-0" />
                       <span>My Submitted Works ({studentUploads.length})</span>
                     </button>
                   </div>
@@ -2435,7 +2462,7 @@ export default function StudentDashboard({ profile }) {
                                 className="p-4 rounded-[22px] bg-[#FAF8FE] border border-[#EDE8F5] flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition-all hover:bg-white hover:border-[#D4C5F7]"
                               >
                                 <div className="flex items-center gap-3.5 min-w-0">
-                                  <div className="w-16 h-16 rounded-2xl bg-white border border-[#E5DEFA] flex items-center justify-center text-3xl shrink-0 shadow-2xs">
+                                  <div className="w-16 h-16 rounded-2xl bg-white border border-[#E5DEFA] flex items-center justify-center shrink-0 shadow-2xs">
                                     {actIcon}
                                   </div>
                                   <div className="min-w-0">
@@ -2447,16 +2474,19 @@ export default function StudentDashboard({ profile }) {
                                     </div>
                                     <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                                       {isChecked ? (
-                                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                          Checked by Teacher ✅
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                          <span>Checked by Teacher</span>
+                                          <Icon name="check-circle" className="w-3 h-3 text-emerald-700 shrink-0" />
                                         </span>
                                       ) : isDone ? (
-                                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-[#5B3EBD] border border-purple-200">
-                                          Submitted ✅
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-[#5B3EBD] border border-purple-200">
+                                          <span>Submitted</span>
+                                          <Icon name="check-circle" className="w-3 h-3 text-[#5B3EBD] shrink-0" />
                                         </span>
                                       ) : (
-                                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-200">
-                                          Pending ✏️
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-200">
+                                          <span>Pending</span>
+                                          <Icon name="pencil" className="w-3 h-3 text-amber-700 shrink-0" />
                                         </span>
                                       )}
                                     </div>
@@ -2469,7 +2499,8 @@ export default function StudentDashboard({ profile }) {
                                     onClick={() => openMaterial(act, 'home')}
                                     className="px-3.5 py-1.5 rounded-full bg-[#EDE8F9] hover:bg-[#E0D7F7] text-[#5B3EBD] font-extrabold text-xs transition-colors cursor-pointer flex items-center gap-1"
                                   >
-                                    <span>👁️</span> <span>View Lesson</span>
+                                    <Icon name="eye" className="w-3.5 h-3.5 shrink-0" />
+                                    <span>View Lesson</span>
                                   </button>
                                   {isVid && (
                                     <button
@@ -2477,7 +2508,8 @@ export default function StudentDashboard({ profile }) {
                                       onClick={() => openMaterial(act, 'home')}
                                       className="px-3.5 py-1.5 rounded-full bg-[#FFF0F4] hover:bg-[#FFE0EB] text-[#E11D48] font-extrabold text-xs transition-colors cursor-pointer flex items-center gap-1"
                                     >
-                                      <span>▶️</span> <span>Watch &amp; Play</span>
+                                      <Icon name="play" className="w-3.5 h-3.5 shrink-0" />
+                                      <span>Watch &amp; Play</span>
                                     </button>
                                   )}
                                   <button
@@ -2543,22 +2575,22 @@ export default function StudentDashboard({ profile }) {
                                     ) : u.mediaUrl && isVid ? (
                                       <div
                                         onClick={openPreview}
-                                        className="w-16 h-16 rounded-2xl bg-purple-100 text-purple-800 border border-purple-200 flex flex-col items-center justify-center shrink-0 font-extrabold text-[10px] cursor-pointer shadow-2xs hover:bg-purple-200"
+                                        className="w-16 h-16 rounded-2xl bg-purple-100 text-purple-800 border border-purple-200 flex flex-col items-center justify-center gap-0.5 shrink-0 font-extrabold text-[10px] cursor-pointer shadow-2xs hover:bg-purple-200"
                                       >
-                                        <span className="text-xl">🎬</span>
+                                        <PlayfulIcon name="video" size={22} blob={false} />
                                         <span>{u.fileType || 'VIDEO'}</span>
                                       </div>
                                     ) : u.mediaUrl ? (
                                       <div
                                         onClick={openPreview}
-                                        className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-700 border border-blue-200 flex flex-col items-center justify-center shrink-0 font-extrabold text-[10px] cursor-pointer shadow-2xs hover:bg-blue-100"
+                                        className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-700 border border-blue-200 flex flex-col items-center justify-center gap-0.5 shrink-0 font-extrabold text-[10px] cursor-pointer shadow-2xs hover:bg-blue-100"
                                       >
-                                        <span className="text-xl">📄</span>
+                                        <PlayfulIcon name="file" size={22} blob={false} />
                                         <span>{u.fileType || 'FILE'}</span>
                                       </div>
                                     ) : (
-                                      <div className="w-16 h-16 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center text-2xl shrink-0 font-bold shadow-2xs">
-                                        🖼️
+                                      <div className="w-16 h-16 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center shrink-0 font-bold shadow-2xs">
+                                        <PlayfulIcon name="image" size={26} blob={false} />
                                       </div>
                                     )}
 
@@ -2568,12 +2600,14 @@ export default function StudentDashboard({ profile }) {
                                           {u.title}
                                         </h4>
                                         {u.teacherChecked || (u.status || '').toLowerCase().includes('checked') ? (
-                                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                            Checked by Teacher ✅
+                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                            <span>Checked by Teacher</span>
+                                            <Icon name="check-circle" className="w-3 h-3 text-emerald-700 shrink-0" />
                                           </span>
                                         ) : (
-                                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-200">
-                                            Waiting for Teacher ⏳
+                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 border border-amber-200">
+                                            <span>Waiting for Teacher</span>
+                                            <Icon name="clock" className="w-3 h-3 text-amber-700 shrink-0" />
                                           </span>
                                         )}
                                       </div>
@@ -2593,16 +2627,18 @@ export default function StudentDashboard({ profile }) {
                                       <button
                                         type="button"
                                         onClick={openPreview}
-                                        className="px-3.5 py-1.5 rounded-full bg-[#EDE8F9] hover:bg-[#E0D7F7] text-[#5B3EBD] text-xs font-extrabold cursor-pointer"
+                                        className="px-3.5 py-1.5 rounded-full bg-[#EDE8F9] hover:bg-[#E0D7F7] text-[#5B3EBD] text-xs font-extrabold cursor-pointer flex items-center gap-1"
                                       >
-                                        {isVid ? '▶️ Play' : '👁️ View'}
+                                        <Icon name={isVid ? 'play' : 'eye'} className="w-3.5 h-3.5 shrink-0" />
+                                        <span>{isVid ? 'Play' : 'View'}</span>
                                       </button>
                                       <button
                                         type="button"
                                         onClick={() => handleOpenOrDownloadFile(u.mediaUrl, u.fileName || 'student-upload', 'download')}
-                                        className="px-3.5 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold cursor-pointer"
+                                        className="px-3.5 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold cursor-pointer flex items-center gap-1"
                                       >
-                                        ⬇️ Download
+                                        <Icon name="download" className="w-3.5 h-3.5 shrink-0" />
+                                        <span>Download</span>
                                       </button>
                                     </div>
                                   )}
@@ -2626,7 +2662,7 @@ export default function StudentDashboard({ profile }) {
                     onClick={() => setNavTab('home')}
                     className="px-4 py-2 rounded-full bg-white hover:bg-purple-50 text-[#5B3EBD] font-extrabold text-xs border border-purple-100 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
                   >
-                    <span>⬅</span>
+                    <Icon name="arrow-left" className="w-3.5 h-3.5 shrink-0" />
                     <span>Back to Home</span>
                   </button>
                   <span className="text-xs font-bold text-[#7A748A]">
@@ -2636,13 +2672,16 @@ export default function StudentDashboard({ profile }) {
 
                 <div className="bg-white rounded-[26px] p-5 sm:p-6 border border-[#EDE8F5] shadow-2xs space-y-4">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-baloo text-xl font-black text-[#2D2A3E] m-0">
-                        📚 Early Childhood Learning Topics
-                      </h3>
-                      <p className="text-xs text-[#7A748A] font-bold m-0 mt-0.5">
-                        Interactive lessons, audio pronunciation, flashcards &amp; stories
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <PlayfulIcon name="books" size={22} />
+                      <div>
+                        <h3 className="font-baloo text-xl font-black text-[#2D2A3E] m-0">
+                          Early Childhood Learning Topics
+                        </h3>
+                        <p className="text-xs text-[#7A748A] font-bold m-0 mt-0.5">
+                          Interactive lessons, audio pronunciation, flashcards &amp; stories
+                        </p>
+                      </div>
                     </div>
                     <span className="text-xs font-black text-[#5B3EBD] bg-purple-50 px-3 py-1 rounded-full border border-purple-200 hidden sm:inline-block">
                       Pre-K 1 &amp; Pre-K 2
@@ -2689,7 +2728,7 @@ export default function StudentDashboard({ profile }) {
                     onClick={() => setNavTab('home')}
                     className="px-4 py-2 rounded-full bg-white hover:bg-purple-50 text-[#5B3EBD] font-extrabold text-xs border border-purple-100 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
                   >
-                    <span>⬅</span>
+                    <Icon name="arrow-left" className="w-3.5 h-3.5 shrink-0" />
                     <span>Back to Home</span>
                   </button>
                   <span className="text-xs font-bold text-[#7A748A]">
@@ -2699,8 +2738,8 @@ export default function StudentDashboard({ profile }) {
 
                 <div className="bg-[#EEF5FF] rounded-[26px] p-5 sm:p-6 border border-[#DCE9FA] shadow-2xs space-y-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-[#D6E6FF] flex items-center justify-center text-2xl shrink-0 shadow-xs">
-                      📢
+                    <div className="w-12 h-12 rounded-2xl bg-[#D6E6FF] flex items-center justify-center shrink-0 shadow-xs">
+                      <PlayfulIcon name="megaphone" size={26} blob={false} label="Teacher announcements" />
                     </div>
                     <div>
                       <h3 className="font-baloo text-xl font-black text-[#1E293B] m-0">
@@ -2727,8 +2766,9 @@ export default function StudentDashboard({ profile }) {
                             <h4 className="font-baloo font-bold text-base text-[#1E293B] m-0">
                               {ann.title}
                             </h4>
-                            <span className="text-xs font-bold text-[#64748B]">
-                              📅 {ann.created_at ? new Date(ann.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent'}
+                            <span className="inline-flex items-center gap-1 text-xs font-bold text-[#64748B]">
+                              <PlayfulIcon name="calendar" size={14} blob={false} />
+                              <span>{ann.created_at ? new Date(ann.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent'}</span>
                             </span>
                           </div>
                           <p className="text-xs sm:text-[13px] text-[#475569] leading-relaxed m-0 whitespace-pre-wrap">
@@ -2754,7 +2794,7 @@ export default function StudentDashboard({ profile }) {
                     onClick={() => setNavTab('home')}
                     className="px-4 py-2 rounded-full bg-white hover:bg-purple-50 text-[#5B3EBD] font-extrabold text-xs border border-purple-100 shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
                   >
-                    <span>⬅</span>
+                    <Icon name="arrow-left" className="w-3.5 h-3.5 shrink-0" />
                     <span>Back to Home</span>
                   </button>
                   <span className="text-xs font-bold text-[#7A748A]">
@@ -2764,9 +2804,7 @@ export default function StudentDashboard({ profile }) {
 
                 <div className="bg-white rounded-[26px] p-6 border border-[#EDE8F5] shadow-2xs space-y-5">
                   <div className="flex items-center gap-3 pb-4 border-b border-[#F1EDF9]">
-                    <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-700 flex items-center justify-center text-2xl font-bold border border-purple-200">
-                      ⚙️
-                    </div>
+                    <PlayfulIcon name="settings" size={24} />
                     <div>
                       <h3 className="font-baloo text-xl font-black text-[#2D2A3E] m-0">
                         Student &amp; Parent Profile
@@ -2830,7 +2868,8 @@ export default function StudentDashboard({ profile }) {
               onClick={() => setView('home')}
               className="border-none bg-white rounded-2xl px-4.5 py-2.5 font-extrabold text-sm text-[#3a3226] cursor-pointer shadow-flat flex items-center gap-1.5 hover:bg-gray-50 transition-colors"
             >
-              ⬅ Back to Home
+              <Icon name="arrow-left" className="w-4 h-4 shrink-0" />
+              <span>Back to Home</span>
             </button>
 
             {/* Category Header Banner */}
@@ -2856,7 +2895,7 @@ export default function StudentDashboard({ profile }) {
                   className="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-[#8C6200] font-baloo font-bold text-xs flex items-center gap-1.5 border border-amber-200 transition-colors cursor-pointer"
                   title="Pronounce Category"
                 >
-                  <span>🔊</span>
+                  <PlayfulIcon name="speaker" size={16} blob={false} />
                   <span>Listen / Paminaw</span>
                 </button>
                 <span className="text-xs font-bold text-[#6b5c42] bg-[#F7F2E7] px-3 py-1.5 rounded-xl">
@@ -2868,7 +2907,7 @@ export default function StudentDashboard({ profile }) {
             {/* Instruction Banner for Toddlers & Parents */}
             <div className="bg-[#FFFDF8] rounded-2xl px-4 py-2.5 border border-[#F0E4CE] flex items-center justify-between text-xs text-[#6b5c42]">
               <div className="flex items-center gap-2">
-                <span>💡</span>
+                <PlayfulIcon name="lightbulb" size={16} blob={false} />
                 <span>Tap any card to view large flashcard • Pindota ang kard aron makita sa dako</span>
               </div>
               <span className="text-[11px] font-bold text-accent">English &amp; Bisaya</span>
@@ -2892,8 +2931,8 @@ export default function StudentDashboard({ profile }) {
                           {item.phonetic}
                         </span>
                       </div>
-                      <div className="text-5xl my-2 transform group-hover:scale-110 transition-transform">
-                        {item.icon}
+                      <div className="my-2 flex justify-center transform group-hover:scale-110 transition-transform">
+                        <KidIllustration name={item.icon} className="w-16 h-16" label={item.english} />
                       </div>
                       <div className="font-baloo font-bold text-lg text-[#3a3226] leading-tight">
                         {item.english}
@@ -2917,7 +2956,8 @@ export default function StudentDashboard({ profile }) {
                           className="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10.5px] font-extrabold flex items-center gap-1 transition-colors"
                           title="Listen in English"
                         >
-                          🔊 EN
+                          <Icon name="volume" className="w-3 h-3 shrink-0" />
+                          <span>EN</span>
                         </button>
                         <button
                           type="button"
@@ -2928,7 +2968,8 @@ export default function StudentDashboard({ profile }) {
                           className="px-2 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10.5px] font-extrabold flex items-center gap-1 transition-colors"
                           title="Paminaw sa Bisaya"
                         >
-                          🔊 BSY
+                          <Icon name="volume" className="w-3 h-3 shrink-0" />
+                          <span>BSY</span>
                         </button>
                       </div>
                     </div>
@@ -2961,10 +3002,11 @@ export default function StudentDashboard({ profile }) {
                               e.stopPropagation();
                               playAudioWord(item.english, 'en-US');
                             }}
-                            className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold"
+                            className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold flex items-center gap-1"
                             title="English"
                           >
-                            🔊 EN
+                            <Icon name="volume" className="w-3 h-3 shrink-0" />
+                            <span>EN</span>
                           </button>
                           <button
                             type="button"
@@ -2972,14 +3014,22 @@ export default function StudentDashboard({ profile }) {
                               e.stopPropagation();
                               playAudioWord(item.bisaya, 'fil-PH');
                             }}
-                            className="p-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 text-[11px] font-bold"
+                            className="p-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 text-[11px] font-bold flex items-center gap-1"
                             title="Bisaya"
                           >
-                            🔊 BSY
+                            <Icon name="volume" className="w-3 h-3 shrink-0" />
+                            <span>BSY</span>
                           </button>
                         </div>
                       </div>
-                      <div className="text-xl my-1 tracking-wider">{item.visual}</div>
+                      <div className="my-1.5 flex justify-start">
+                        <CountingVisual
+                          iconKey={item.visualIcon}
+                          count={item.visualCount}
+                          itemSize="w-6 h-6"
+                          label={item.countText}
+                        />
+                      </div>
                       <div className="text-xs text-[#6b5c42] font-semibold">
                         {item.countText}
                       </div>
@@ -3003,10 +3053,10 @@ export default function StudentDashboard({ profile }) {
                   >
                     <div>
                       <div
-                        className="w-16 h-16 rounded-full mx-auto border-4 border-white shadow-md flex items-center justify-center text-2xl group-hover:scale-105 transition-transform"
+                        className="w-16 h-16 rounded-full mx-auto border-4 border-white shadow-md flex items-center justify-center group-hover:scale-105 transition-transform overflow-hidden"
                         style={{ backgroundColor: item.colorHex, color: item.textColor || '#FFFFFF' }}
                       >
-                        {item.icon}
+                        <KidIllustration name={item.icon} className="w-11 h-11" label={item.english} />
                       </div>
                       <div className="mt-2.5">
                         <div className="font-baloo font-bold text-base text-[#3a3226] leading-tight">
@@ -3028,9 +3078,10 @@ export default function StudentDashboard({ profile }) {
                           e.stopPropagation();
                           playAudioWord(item.english, 'en-US');
                         }}
-                        className="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10.5px] font-extrabold"
+                        className="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10.5px] font-extrabold flex items-center gap-1"
                       >
-                        🔊 EN
+                        <Icon name="volume" className="w-3 h-3 shrink-0" />
+                        <span>EN</span>
                       </button>
                       <button
                         type="button"
@@ -3038,9 +3089,10 @@ export default function StudentDashboard({ profile }) {
                           e.stopPropagation();
                           playAudioWord(item.bisaya, 'fil-PH');
                         }}
-                        className="px-2 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10.5px] font-extrabold"
+                        className="px-2 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10.5px] font-extrabold flex items-center gap-1"
                       >
-                        🔊 BSY
+                        <Icon name="volume" className="w-3 h-3 shrink-0" />
+                        <span>BSY</span>
                       </button>
                     </div>
                   </div>
@@ -3058,8 +3110,8 @@ export default function StudentDashboard({ profile }) {
                     className="group bg-white rounded-2xl p-4 shadow-soft border border-[#F0E4CE] text-center space-y-2 cursor-pointer hover:border-leaf hover:translate-y-[-2px] transition-all flex flex-col justify-between"
                   >
                     <div>
-                      <div className="text-5xl my-1 group-hover:scale-110 transition-transform">
-                        {item.icon}
+                      <div className="my-1 flex justify-center group-hover:scale-110 transition-transform">
+                        <KidIllustration name={item.icon} className="w-16 h-16" label={item.english} />
                       </div>
                       <div className="font-baloo font-bold text-base text-[#3a3226]">
                         {item.english}
@@ -3079,9 +3131,10 @@ export default function StudentDashboard({ profile }) {
                           e.stopPropagation();
                           playAudioWord(item.english, 'en-US');
                         }}
-                        className="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10.5px] font-extrabold"
+                        className="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10.5px] font-extrabold flex items-center gap-1"
                       >
-                        🔊 EN
+                        <Icon name="volume" className="w-3 h-3 shrink-0" />
+                        <span>EN</span>
                       </button>
                       <button
                         type="button"
@@ -3089,9 +3142,10 @@ export default function StudentDashboard({ profile }) {
                           e.stopPropagation();
                           playAudioWord(item.bisaya, 'fil-PH');
                         }}
-                        className="px-2 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10.5px] font-extrabold"
+                        className="px-2 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10.5px] font-extrabold flex items-center gap-1"
                       >
-                        🔊 BSY
+                        <Icon name="volume" className="w-3 h-3 shrink-0" />
+                        <span>BSY</span>
                       </button>
                     </div>
                   </div>
@@ -3109,8 +3163,8 @@ export default function StudentDashboard({ profile }) {
                     className="group bg-white rounded-2xl p-4 shadow-soft border border-[#F0E4CE] text-center space-y-1.5 cursor-pointer hover:border-purple hover:translate-y-[-2px] transition-all flex flex-col justify-between"
                   >
                     <div>
-                      <div className="text-5xl my-1 group-hover:scale-110 transition-transform">
-                        {item.icon}
+                      <div className="my-1 flex justify-center group-hover:scale-110 transition-transform">
+                        <KidIllustration name={item.icon} className="w-16 h-16" label={item.english} />
                       </div>
                       <div className="font-baloo font-bold text-base text-[#3a3226]">
                         {item.english}
@@ -3133,9 +3187,10 @@ export default function StudentDashboard({ profile }) {
                           e.stopPropagation();
                           playAudioWord(item.english, 'en-US');
                         }}
-                        className="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10.5px] font-extrabold"
+                        className="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10.5px] font-extrabold flex items-center gap-1"
                       >
-                        🔊 EN
+                        <Icon name="volume" className="w-3 h-3 shrink-0" />
+                        <span>EN</span>
                       </button>
                       <button
                         type="button"
@@ -3143,9 +3198,10 @@ export default function StudentDashboard({ profile }) {
                           e.stopPropagation();
                           playAudioWord(item.bisaya, 'fil-PH');
                         }}
-                        className="px-2 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10.5px] font-extrabold"
+                        className="px-2 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10.5px] font-extrabold flex items-center gap-1"
                       >
-                        🔊 BSY
+                        <Icon name="volume" className="w-3 h-3 shrink-0" />
+                        <span>BSY</span>
                       </button>
                     </div>
                   </div>
@@ -3164,40 +3220,44 @@ export default function StudentDashboard({ profile }) {
                           window.speechSynthesis?.cancel();
                           setSelectedStory(null);
                         }}
-                        className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-xs font-bold text-[#3a3226] cursor-pointer"
+                        className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-xs font-bold text-[#3a3226] cursor-pointer flex items-center gap-1.5"
                       >
-                        ⬅ Back to Stories List
+                        <Icon name="arrow-left" className="w-3.5 h-3.5 shrink-0" />
+                        <span>Back to Stories List</span>
                       </button>
 
                       {/* Language filter for reader */}
                       <div className="flex items-center gap-1 p-1 bg-amber-50 rounded-xl border border-amber-200">
                         <button
                           onClick={() => setStoryLanguageTab('both')}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${storyLanguageTab === 'both' ? 'bg-white text-dash-ink shadow-xs' : 'text-[#8C6200]'
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${storyLanguageTab === 'both' ? 'bg-white text-dash-ink shadow-xs' : 'text-[#8C6200]'
                             }`}
                         >
-                          ✨ Both
+                          <PlayfulIcon name="sparkles" size={14} blob={false} />
+                          <span>Both</span>
                         </button>
                         <button
                           onClick={() => setStoryLanguageTab('en')}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${storyLanguageTab === 'en' ? 'bg-white text-dash-ink shadow-xs' : 'text-[#8C6200]'
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${storyLanguageTab === 'en' ? 'bg-white text-dash-ink shadow-xs' : 'text-[#8C6200]'
                             }`}
                         >
-                          📖 English
+                          <PlayfulIcon name="book-open" size={14} blob={false} />
+                          <span>English</span>
                         </button>
                         <button
                           onClick={() => setStoryLanguageTab('bis')}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${storyLanguageTab === 'bis' ? 'bg-white text-dash-ink shadow-xs' : 'text-[#8C6200]'
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${storyLanguageTab === 'bis' ? 'bg-white text-dash-ink shadow-xs' : 'text-[#8C6200]'
                             }`}
                         >
-                          🌺 Bisaya
+                          <PlayfulIcon name="hibiscus" size={14} blob={false} />
+                          <span>Bisaya</span>
                         </button>
                       </div>
                     </div>
 
                     {/* Story Header */}
                     <div className="flex items-center gap-3.5 pb-2 border-b border-gray-100">
-                      <span className="text-5xl">{selectedStory.icon}</span>
+                      <KidIllustration name={selectedStory.icon} className="w-16 h-16 shrink-0" label={selectedStory.english} />
                       <div>
                         <div className="text-[11px] font-bold text-accent uppercase tracking-wider">
                           {selectedStory.theme}
@@ -3217,21 +3277,21 @@ export default function StudentDashboard({ profile }) {
                         onClick={() => playAudioWord(selectedStory.storyEnglish, 'en-US')}
                         className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-blue-200"
                       >
-                        <span>🔊</span>
+                        <PlayfulIcon name="speaker" size={15} blob={false} />
                         <span>Read in English</span>
                       </button>
                       <button
                         onClick={() => playAudioWord(selectedStory.storyBisaya, 'fil-PH')}
                         className="px-3 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-700 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer border border-orange-200"
                       >
-                        <span>🌺</span>
+                        <PlayfulIcon name="hibiscus" size={15} blob={false} />
                         <span>Paminaw sa Bisaya</span>
                       </button>
                       <button
                         onClick={() => window.speechSynthesis?.cancel()}
                         className="px-2.5 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
                       >
-                        <span>⏹️</span>
+                        <PlayfulIcon name="stop" size={15} blob={false} />
                         <span>Stop Audio</span>
                       </button>
                     </div>
@@ -3240,8 +3300,8 @@ export default function StudentDashboard({ profile }) {
                     <div className="space-y-3 pt-2 text-sm leading-relaxed">
                       {(storyLanguageTab === 'both' || storyLanguageTab === 'en') && (
                         <div className="bg-amber-50/70 p-4.5 rounded-2xl border border-amber-200">
-                          <div className="text-xs font-extrabold text-accent uppercase mb-1.5 flex items-center gap-1">
-                            <span>📖</span>
+                          <div className="text-xs font-extrabold text-accent uppercase mb-1.5 flex items-center gap-1.5">
+                            <PlayfulIcon name="book-open" size={15} blob={false} />
                             <span>English Story</span>
                           </div>
                           <p className="m-0 text-[#3a3226] font-medium leading-relaxed text-[15px]">
@@ -3252,8 +3312,8 @@ export default function StudentDashboard({ profile }) {
 
                       {(storyLanguageTab === 'both' || storyLanguageTab === 'bis') && (
                         <div className="bg-orange-50/70 p-4.5 rounded-2xl border border-orange-200">
-                          <div className="text-xs font-extrabold text-coral-deep uppercase mb-1.5 flex items-center gap-1">
-                            <span>🌺</span>
+                          <div className="text-xs font-extrabold text-coral-deep uppercase mb-1.5 flex items-center gap-1.5">
+                            <PlayfulIcon name="hibiscus" size={15} blob={false} />
                             <span>Sugilanon sa Bisaya</span>
                           </div>
                           <p className="m-0 text-[#3a3226] font-medium leading-relaxed text-[15px]">
@@ -3264,7 +3324,7 @@ export default function StudentDashboard({ profile }) {
                     </div>
 
                     <div className="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-200 text-xs font-bold text-emerald-800 flex items-center gap-2">
-                      <span className="text-lg">💡</span>
+                      <PlayfulIcon name="lightbulb" size={18} blob={false} />
                       <span>{selectedStory.lesson}</span>
                     </div>
                   </div>
@@ -3277,7 +3337,7 @@ export default function StudentDashboard({ profile }) {
                         className="bg-white rounded-2xl p-4.5 shadow-soft border border-[#F0E4CE] flex items-start justify-between gap-3 cursor-pointer hover:border-orange hover:translate-y-[-2px] transition-all"
                       >
                         <div className="flex items-start gap-3.5">
-                          <span className="text-4xl shrink-0 mt-0.5">{story.icon}</span>
+                          <KidIllustration name={story.icon} className="w-14 h-14 shrink-0 mt-0.5" label={story.english} />
                           <div>
                             <div className="text-[10.5px] font-bold text-accent uppercase">
                               {story.theme}
@@ -3293,8 +3353,9 @@ export default function StudentDashboard({ profile }) {
                             </div>
                           </div>
                         </div>
-                        <span className="text-xs font-bold text-accent bg-orange-50 px-2.5 py-1 rounded-lg shrink-0 mt-1">
-                          Read →
+                        <span className="inline-flex items-center gap-1 text-xs font-bold text-accent bg-orange-50 px-2.5 py-1 rounded-lg shrink-0 mt-1">
+                          <span>Read</span>
+                          <Icon name="arrow-right" className="w-3 h-3 shrink-0" />
                         </span>
                       </div>
                     ))}
@@ -3376,7 +3437,8 @@ export default function StudentDashboard({ profile }) {
                 onClick={() => setView(backTarget)}
                 className="border-none bg-white rounded-2xl px-4.5 py-2.5 font-extrabold text-sm text-[#3a3226] cursor-pointer shadow-flat mb-4 flex items-center gap-1.5"
               >
-                ⬅ Back
+                <Icon name="arrow-left" className="w-4 h-4 shrink-0" />
+                <span>Back</span>
               </button>
               <div className="bg-white rounded-[24px] p-5 sm:p-7 text-left shadow-soft border border-[#F0E4CE]">
                 <div className="flex items-center gap-2 mb-2 text-xs font-bold text-accent flex-wrap">
@@ -3402,13 +3464,13 @@ export default function StudentDashboard({ profile }) {
                     )}
 
                     {/* ==================================================== */}
-                    {/* 📎 TEACHER'S UPLOADED FILE / VIDEO / LEARNING MATERIAL */}
+                    {/* TEACHER'S UPLOADED FILE / VIDEO / LEARNING MATERIAL  */}
                     {/* ==================================================== */}
                     {(teacherFileUrl || teacherFileName || isTeacherVideo) && (
                       <div className="rounded-2xl border-2 border-[#E2ECF8] bg-[#F5F9FF] p-4 sm:p-5 space-y-3">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <div className="text-xs font-extrabold text-blue-900 uppercase tracking-wide flex items-center gap-1.5">
-                            <span>{isTeacherVideo ? '🎬' : '📎'}</span>
+                            <PlayfulIcon name={isTeacherVideo ? 'video' : 'paperclip'} size={16} blob={false} />
                             <span>
                               {isTeacherVideo
                                 ? "Teacher's Video Lesson — Click Play to Watch!"
@@ -3459,15 +3521,16 @@ export default function StudentDashboard({ profile }) {
                             <div className="rounded-xl bg-purple-950/90 text-white p-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-2 border-purple-300">
                               <div className="text-left">
                                 <div className="font-bold text-xs text-purple-200 flex items-center gap-1.5">
-                                  <span>🎬</span>
+                                  <Icon name="video" className="w-4 h-4 shrink-0 text-purple-300" />
                                   <span>{teacherFileName || currentMaterial.title}</span>
                                 </div>
                                 <div className="text-[11px] text-purple-300 mt-0.5">
                                   Select the teacher&apos;s video file once to cache and play it directly inside the dashboard without downloading:
                                 </div>
                               </div>
-                              <label className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-extrabold cursor-pointer shrink-0 transition-colors">
-                                📂 Load Teacher Video
+                              <label className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-extrabold cursor-pointer shrink-0 transition-colors flex items-center gap-1.5">
+                                <Icon name="folder-open" className="w-4 h-4 shrink-0" />
+                                <span>Load Teacher Video</span>
                                 <input
                                   type="file"
                                   accept="video/*,.mp4,.webm,.mov,.m4v"
@@ -3505,8 +3568,12 @@ export default function StudentDashboard({ profile }) {
                         {/* File Attachment Action Bar (View & Download) */}
                         <div className="bg-white rounded-xl p-3 border border-blue-200/80 flex items-center justify-between gap-3 flex-wrap">
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center text-xl shrink-0">
-                              {isTeacherImage ? '🖼️' : isTeacherVideo ? '🎬' : isTeacherPdf ? '📕' : '📄'}
+                            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                              <PlayfulIcon
+                                name={isTeacherImage ? 'image' : isTeacherVideo ? 'video' : isTeacherPdf ? 'pdf' : 'file'}
+                                size={22}
+                                blob={false}
+                              />
                             </div>
                             <div className="min-w-0">
                               <div className="font-bold text-sm text-[#3a3226] truncate">
@@ -3532,7 +3599,7 @@ export default function StudentDashboard({ profile }) {
                                 }
                                 className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold cursor-pointer transition-colors flex items-center gap-1"
                               >
-                                <span>{isTeacherVideo ? '▶️' : '👁️'}</span>
+                                <Icon name={isTeacherVideo ? 'play' : 'eye'} className="w-3.5 h-3.5 shrink-0" />
                                 <span>{isTeacherVideo ? 'Watch in New Tab' : 'View File'}</span>
                               </button>
                               <button
@@ -3546,7 +3613,7 @@ export default function StudentDashboard({ profile }) {
                                 }
                                 className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-extrabold cursor-pointer transition-colors flex items-center gap-1"
                               >
-                                <span>⬇️</span>
+                                <Icon name="download" className="w-3.5 h-3.5 shrink-0" />
                                 <span>Download</span>
                               </button>
                             </div>
@@ -3568,14 +3635,20 @@ export default function StudentDashboard({ profile }) {
                             }`}
                         >
                           <div className="flex items-center gap-2.5">
-                            <span className="text-2xl">
-                              {isActivityCheckedByTeacher(currentMaterial) ? '👩‍🏫' : '⏳'}
-                            </span>
+                            <PlayfulIcon
+                              name={isActivityCheckedByTeacher(currentMaterial) ? 'teacher' : 'clock'}
+                              size={22}
+                            />
                             <div>
-                              <div className="text-xs font-black uppercase tracking-wide">
-                                {isActivityCheckedByTeacher(currentMaterial)
-                                  ? 'Checked by Teacher ✅'
-                                  : 'Submitted • Waiting for Teacher Check'}
+                              <div className="text-xs font-black uppercase tracking-wide inline-flex items-center gap-1">
+                                <span>
+                                  {isActivityCheckedByTeacher(currentMaterial)
+                                    ? 'Checked by Teacher'
+                                    : 'Submitted • Waiting for Teacher Check'}
+                                </span>
+                                {isActivityCheckedByTeacher(currentMaterial) && (
+                                  <Icon name="check-circle" className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                                )}
                               </div>
                               <div className="text-[11.5px] font-semibold opacity-90">
                                 {isActivityCheckedByTeacher(currentMaterial)
@@ -3588,15 +3661,16 @@ export default function StudentDashboard({ profile }) {
                       )}
 
                       {/* ==================================================== */}
-                      {/* 📤 STUDENT FILE / IMAGE / VIDEO UPLOAD FOR ACTIVITY  */}
+                      {/* STUDENT FILE / IMAGE / VIDEO UPLOAD FOR ACTIVITY     */}
                       {/* ==================================================== */}
                       <div className="rounded-2xl border-2 border-dashed border-[#E5D5B5] bg-[#FFFDF7] p-4">
                         <label className="block text-xs font-extrabold text-[#6b5c42] mb-1.5 flex items-center gap-1.5">
-                          <span>📤</span>
+                          <PlayfulIcon name="upload" size={16} blob={false} />
                           <span>Upload Your Work (Image, File, or Video — Photo, PDF, Word, MP4 Video):</span>
                         </label>
-                        <div className="mb-2.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-900">
-                          📏 Applicable File Size Limits: 🖼️ Images: Max 10 MB • 📁 Files/Docs (PDF/Word): Max 15 MB • 🎬 Videos (MP4/WebM/MOV): Max 50 MB
+                        <div className="mb-2.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-900 flex items-start gap-1.5">
+                          <Icon name="ruler" className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-700" />
+                          <span>Applicable File Size Limits: Images: Max 10 MB • Files/Docs (PDF/Word): Max 15 MB • Videos (MP4/WebM/MOV): Max 50 MB</span>
                         </div>
                         <p className="text-[11.5px] text-[#7a7a7a] m-0 mb-2.5">
                           Take a photo, record a short video, or choose any image/document file to send to your teacher. You can view/play it anytime before and after Teacher checks it!
@@ -3630,9 +3704,11 @@ export default function StudentDashboard({ profile }) {
 
                             <div className="flex items-center justify-between gap-2 flex-wrap">
                               <div className="flex items-center gap-2 min-w-0">
-                                <span className="text-xl shrink-0">
-                                  {isStudentFileImage ? '🖼️' : isStudentFileVideo ? '🎬' : '📄'}
-                                </span>
+                                <PlayfulIcon
+                                  name={isStudentFileImage ? 'image' : isStudentFileVideo ? 'video' : 'file'}
+                                  size={20}
+                                  blob={false}
+                                />
                                 <div className="min-w-0">
                                   <div className="text-xs font-extrabold text-[#3a3226] truncate">
                                     {activityFileName || 'Attached_Activity_File'}
@@ -3654,9 +3730,10 @@ export default function StudentDashboard({ profile }) {
                                       'view'
                                     )
                                   }
-                                  className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-extrabold cursor-pointer"
+                                  className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-extrabold cursor-pointer flex items-center gap-1"
                                 >
-                                  👁️ View
+                                  <Icon name="eye" className="w-3 h-3 shrink-0" />
+                                  <span>View</span>
                                 </button>
                                 <button
                                   type="button"
@@ -3668,9 +3745,10 @@ export default function StudentDashboard({ profile }) {
                                     setActivityFileSize('');
                                     setSubmitted(false);
                                   }}
-                                  className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-extrabold cursor-pointer"
+                                  className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-extrabold cursor-pointer flex items-center gap-1"
                                 >
-                                  ✕ Remove
+                                  <Icon name="close" className="w-3 h-3 shrink-0" />
+                                  <span>Remove</span>
                                 </button>
                               </div>
                             </div>
@@ -3697,13 +3775,16 @@ export default function StudentDashboard({ profile }) {
                         <button
                           onClick={submitAnswer}
                           disabled={submittingAnswer}
-                          className="border-none bg-[#4CAF7D] hover:bg-[#3d9a69] text-white px-6 py-3 rounded-2xl font-extrabold text-[15px] cursor-pointer shadow-[0_4px_0_rgba(0,0,0,0.1)] active:translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+                          className="border-none bg-[#4CAF7D] hover:bg-[#3d9a69] text-white px-6 py-3 rounded-2xl font-extrabold text-[15px] cursor-pointer shadow-[0_4px_0_rgba(0,0,0,0.1)] active:translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed transition-all flex items-center gap-2"
                         >
-                          {submittingAnswer
-                            ? 'Submitting...'
-                            : submitted
-                              ? 'Update Submission ✅'
-                              : 'Submit ✅'}
+                          {!submittingAnswer && <Icon name="check-circle" className="w-4 h-4 shrink-0" />}
+                          <span>
+                            {submittingAnswer
+                              ? 'Submitting...'
+                              : submitted
+                                ? 'Update Submission'
+                                : 'Submit'}
+                          </span>
                         </button>
                         {submitted && (
                           <button
@@ -3716,10 +3797,16 @@ export default function StudentDashboard({ profile }) {
                       </div>
                       {doneMsg.text && (
                         <div
-                          className={`mt-3 font-extrabold text-sm ${doneMsg.error ? 'text-[#C9553F]' : 'text-[#3D7048]'
+                          className={`mt-3 font-extrabold text-sm flex items-start gap-2 ${doneMsg.error ? 'text-[#C9553F]' : 'text-[#3D7048]'
                             }`}
                         >
-                          {doneMsg.text}
+                          <PlayfulIcon
+                            name={doneMsg.error ? 'warning' : 'celebrate'}
+                            size={18}
+                            blob={false}
+                            className="mt-0.5"
+                          />
+                          <span>{doneMsg.text}</span>
                         </div>
                       )}
                     </div>
@@ -3737,8 +3824,8 @@ export default function StudentDashboard({ profile }) {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-xs">
             <div className="bg-white w-full max-w-md rounded-3xl p-6 text-left shadow-2xl border border-[#F0E4CE] space-y-4 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">📸</span>
+                <div className="flex items-center gap-2.5">
+                  <PlayfulIcon name="camera" size={22} />
                   <div>
                     <h3 className="font-baloo text-lg font-bold text-[#3a3226] m-0">
                       Upload My Activity or Artwork
@@ -3749,10 +3836,12 @@ export default function StudentDashboard({ profile }) {
                   </div>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setIsUploadModalOpen(false)}
-                  className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-dash-ink font-bold text-xs"
+                  className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-dash-ink font-bold text-xs flex items-center justify-center cursor-pointer"
+                  aria-label="Close modal"
                 >
-                  ✕
+                  <Icon name="close" className="w-3.5 h-3.5" />
                 </button>
               </div>
 
@@ -3780,13 +3869,13 @@ export default function StudentDashboard({ profile }) {
                     onChange={(e) => setUploadCategory(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold text-[#3a3226] outline-none focus:border-coral"
                   >
-                    <option value="Colors / Mga Kolor">🎨 Colors / Mga Kolor</option>
-                    <option value="Alphabet / Alpabeto">🔤 Alphabet / Alpabeto</option>
-                    <option value="Numbers / Mga Numero">🔢 Numbers / Mga Numero</option>
-                    <option value="Shapes / Mga Porma">🔺 Shapes / Mga Porma</option>
-                    <option value="Animals / Mga Hayop">🐶 Animals / Mga Hayop</option>
-                    <option value="Stories / Mga Sugilanon">📖 Stories / Mga Sugilanon</option>
-                    <option value="General Artwork / Buhat">🖍️ General Artwork / Buhat</option>
+                    <option value="Colors / Mga Kolor">Colors / Mga Kolor</option>
+                    <option value="Alphabet / Alpabeto">Alphabet / Alpabeto</option>
+                    <option value="Numbers / Mga Numero">Numbers / Mga Numero</option>
+                    <option value="Shapes / Mga Porma">Shapes / Mga Porma</option>
+                    <option value="Animals / Mga Hayop">Animals / Mga Hayop</option>
+                    <option value="Stories / Mga Sugilanon">Stories / Mga Sugilanon</option>
+                    <option value="General Artwork / Buhat">General Artwork / Buhat</option>
                   </select>
                 </div>
 
@@ -3794,8 +3883,9 @@ export default function StudentDashboard({ profile }) {
                   <label className="block font-bold text-[#3a3226] mb-1">
                     Attach Image, File, or Video (Photo, PDF, Word, Worksheet, MP4 Video)
                   </label>
-                  <div className="mb-2 px-2.5 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-[10.5px] font-bold text-amber-900">
-                    📏 Applicable File Size Limits: 🖼️ Images: Max 10 MB • 📁 Files/Docs: Max 15 MB • 🎬 Videos (MP4/WebM/MOV): Max 50 MB
+                  <div className="mb-2 px-2.5 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-[10.5px] font-bold text-amber-900 flex items-start gap-1.5">
+                    <Icon name="ruler" className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-700" />
+                    <span>Applicable File Size Limits: Images: Max 10 MB • Files/Docs: Max 15 MB • Videos (MP4/WebM/MOV): Max 50 MB</span>
                   </div>
                   <input
                     type="file"
@@ -3832,7 +3922,7 @@ export default function StudentDashboard({ profile }) {
                           />
                         ) : (
                           <div className="flex items-center gap-2 p-2 bg-white rounded-xl border border-gray-200">
-                            <span className="text-2xl">📄</span>
+                            <PlayfulIcon name="file" size={22} blob={false} />
                             <div className="min-w-0 flex-1">
                               <div className="text-xs font-bold text-[#3a3226] truncate">
                                 {uploadFileName || 'Attached File'}
@@ -3843,9 +3933,10 @@ export default function StudentDashboard({ profile }) {
                             </div>
                           </div>
                         )}
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10.5px] font-bold text-slate-600 truncate">
-                            {isModalVid ? '🎬' : '📎'} {uploadFileName}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="inline-flex items-center gap-1 text-[10.5px] font-bold text-slate-600 truncate">
+                            <Icon name={isModalVid ? 'video' : 'paperclip'} className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">{uploadFileName}</span>
                           </span>
                           <button
                             type="button"
@@ -3856,9 +3947,10 @@ export default function StudentDashboard({ profile }) {
                               setUploadFileType('');
                               setUploadFileSize('');
                             }}
-                            className="px-2 py-1 bg-rose-100 text-rose-700 rounded-lg text-[10px] font-bold cursor-pointer"
+                            className="px-2 py-1 bg-rose-100 text-rose-700 rounded-lg text-[10px] font-bold cursor-pointer flex items-center gap-1 shrink-0"
                           >
-                            ✕ Remove
+                            <Icon name="close" className="w-3 h-3 shrink-0" />
+                            <span>Remove</span>
                           </button>
                         </div>
                       </div>
@@ -3868,7 +3960,7 @@ export default function StudentDashboard({ profile }) {
 
                 <div>
                   <label className="block font-bold text-[#3a3226] mb-1">
-                    Learner's Note or Story (Optional)
+                    Learner&apos;s Note or Story (Optional)
                   </label>
                   <textarea
                     rows={2}
@@ -3881,12 +3973,17 @@ export default function StudentDashboard({ profile }) {
 
                 {uploadMsg.text && (
                   <div
-                    className={`p-2.5 rounded-xl text-xs font-bold ${uploadMsg.type === 'error'
+                    className={`p-2.5 rounded-xl text-xs font-bold flex items-center gap-2 ${uploadMsg.type === 'error'
                       ? 'bg-rose-50 text-rose-700'
                       : 'bg-emerald-50 text-emerald-800'
                       }`}
                   >
-                    {uploadMsg.text}
+                    <PlayfulIcon
+                      name={uploadMsg.type === 'error' ? 'warning' : 'celebrate'}
+                      size={16}
+                      blob={false}
+                    />
+                    <span>{uploadMsg.text}</span>
                   </div>
                 )}
 
@@ -3894,16 +3991,17 @@ export default function StudentDashboard({ profile }) {
                   <button
                     type="button"
                     onClick={() => setIsUploadModalOpen(false)}
-                    className="px-4 py-2 rounded-xl border border-gray-300 hover:bg-gray-100 font-bold text-xs"
+                    className="px-4 py-2 rounded-xl border border-gray-300 hover:bg-gray-100 font-bold text-xs cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={uploading}
-                    className="px-5 py-2.5 rounded-xl bg-coral hover:bg-coral-deep text-white font-baloo font-bold text-sm shadow-bump cursor-pointer disabled:opacity-60 transition-all"
+                    className="px-5 py-2.5 rounded-xl bg-coral hover:bg-coral-deep text-white font-baloo font-bold text-sm shadow-bump cursor-pointer disabled:opacity-60 transition-all flex items-center gap-1.5"
                   >
-                    {uploading ? 'Uploading...' : 'Submit to Teacher 🚀'}
+                    <span>{uploading ? 'Uploading...' : 'Submit to Teacher'}</span>
+                    {!uploading && <Icon name="rocket" className="w-4 h-4 shrink-0" />}
                   </button>
                 </div>
               </form>
@@ -3935,14 +4033,20 @@ export default function StudentDashboard({ profile }) {
                 <div className="flex items-start justify-between gap-2 pb-2 border-b border-gray-100">
                   <div>
                     <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${studentPreviewModal.checked
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black ${studentPreviewModal.checked
                         ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                         : 'bg-amber-50 text-amber-800 border border-amber-200'
                         }`}
                     >
-                      {studentPreviewModal.checked
-                        ? '👩‍🏫 Checked by Teacher ✅'
-                        : '⏳ Waiting for Teacher Check'}
+                      <Icon
+                        name={studentPreviewModal.checked ? 'check-circle' : 'clock'}
+                        className="w-3 h-3 shrink-0"
+                      />
+                      <span>
+                        {studentPreviewModal.checked
+                          ? 'Checked by Teacher'
+                          : 'Waiting for Teacher Check'}
+                      </span>
                     </span>
                     <h3 className="font-baloo text-lg font-bold text-[#3a3226] m-0 mt-1">
                       {studentPreviewModal.title}
@@ -3951,9 +4055,10 @@ export default function StudentDashboard({ profile }) {
                   <button
                     type="button"
                     onClick={() => setStudentPreviewModal(null)}
-                    className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-dash-ink font-bold text-xs cursor-pointer"
+                    className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 text-dash-ink font-bold text-xs cursor-pointer flex items-center justify-center"
+                    aria-label="Close preview"
                   >
-                    ✕
+                    <Icon name="close" className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
@@ -3992,30 +4097,33 @@ export default function StudentDashboard({ profile }) {
                         className="w-full h-[380px] rounded-xl bg-white"
                       />
                     ) : (
-                      <div className="p-4 text-center bg-white rounded-xl border border-gray-200">
-                        <div className="text-2xl">📄</div>
+                      <div className="p-4 text-center bg-white rounded-xl border border-gray-200 flex flex-col items-center">
+                        <PlayfulIcon name="file" size={26} blob={false} />
                         <div className="text-xs font-bold text-[#3a3226] mt-1">{fName}</div>
                       </div>
                     )}
 
                     <div className="flex items-center justify-between gap-2 pt-1">
-                      <span className="text-[11px] font-bold text-slate-600 truncate">
-                        📎 {fName} {studentPreviewModal.fileSize ? `(${studentPreviewModal.fileSize})` : ''}
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 truncate">
+                        <Icon name="paperclip" className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{fName} {studentPreviewModal.fileSize ? `(${studentPreviewModal.fileSize})` : ''}</span>
                       </span>
                       <div className="flex items-center gap-2 shrink-0">
                         <button
                           type="button"
                           onClick={() => handleOpenOrDownloadFile(studentPreviewModal.fileUrl, fName, 'view')}
-                          className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold cursor-pointer"
+                          className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold cursor-pointer flex items-center gap-1"
                         >
-                          🔍 Open in New Tab
+                          <Icon name="search" className="w-3.5 h-3.5 shrink-0" />
+                          <span>Open in New Tab</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => handleOpenOrDownloadFile(studentPreviewModal.fileUrl, fName, 'download')}
-                          className="px-3 py-1.5 rounded-xl bg-white border border-gray-300 text-slate-700 text-xs font-extrabold cursor-pointer"
+                          className="px-3 py-1.5 rounded-xl bg-white border border-gray-300 text-slate-700 text-xs font-extrabold cursor-pointer flex items-center gap-1"
                         >
-                          ⬇️ Download
+                          <Icon name="download" className="w-3.5 h-3.5 shrink-0" />
+                          <span>Download</span>
                         </button>
                       </div>
                     </div>
@@ -4027,7 +4135,7 @@ export default function StudentDashboard({ profile }) {
         })()}
 
         {/* ======================================================== */}
-        {/* 🎴 INTERACTIVE BIG FLASHCARD MODAL (Toddler Learning)   */}
+        {/* INTERACTIVE BIG FLASHCARD MODAL (Toddler Learning)       */}
         {/* ======================================================== */}
         {activeFlashcardIndex !== null && currentCategory?.items?.[activeFlashcardIndex] && (() => {
           const item = currentCategory.items[activeFlashcardIndex];
@@ -4053,8 +4161,9 @@ export default function StudentDashboard({ profile }) {
                     type="button"
                     onClick={() => setActiveFlashcardIndex(null)}
                     className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold flex items-center justify-center cursor-pointer transition-colors"
+                    aria-label="Close flashcard"
                   >
-                    ✕
+                    <Icon name="close" className="w-4 h-4" />
                   </button>
                 </div>
 
@@ -4075,21 +4184,28 @@ export default function StudentDashboard({ profile }) {
 
                   {item.colorHex && (
                     <div
-                      className="w-24 h-24 mx-auto rounded-full border-4 border-white shadow-lg flex items-center justify-center text-4xl"
+                      className="w-24 h-24 mx-auto rounded-full border-4 border-white shadow-lg flex items-center justify-center overflow-hidden"
                       style={{ backgroundColor: item.colorHex, color: item.textColor || '#FFFFFF' }}
                     >
-                      {item.icon}
+                      <KidIllustration name={item.icon} className="w-16 h-16" label={item.english} />
                     </div>
                   )}
 
                   {item.icon && !item.colorHex && (
-                    <div className="text-7xl my-2 drop-shadow-sm">
-                      {item.icon}
+                    <div className="my-2 flex justify-center drop-shadow-sm">
+                      <KidIllustration name={item.icon} className="w-28 h-28" label={item.english} />
                     </div>
                   )}
 
-                  {item.visual && (
-                    <div className="text-2xl tracking-widest my-1">{item.visual}</div>
+                  {item.visualIcon && (
+                    <div className="my-2 flex justify-center">
+                      <CountingVisual
+                        iconKey={item.visualIcon}
+                        count={item.visualCount}
+                        itemSize="w-9 h-9"
+                        label={item.countText}
+                      />
+                    </div>
                   )}
 
                   {/* Names in English & Bisaya */}
@@ -4134,7 +4250,7 @@ export default function StudentDashboard({ profile }) {
                       onClick={() => playAudioWord(item.english, 'en-US')}
                       className="px-4 py-2 rounded-xl bg-blue-100 hover:bg-blue-200 text-blue-800 font-baloo font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
-                      <span>🔊</span>
+                      <PlayfulIcon name="speaker" size={16} blob={false} />
                       <span>English ({item.english})</span>
                     </button>
                     <button
@@ -4142,7 +4258,7 @@ export default function StudentDashboard({ profile }) {
                       onClick={() => playAudioWord(item.bisaya, 'fil-PH')}
                       className="px-4 py-2 rounded-xl bg-orange-100 hover:bg-orange-200 text-orange-800 font-baloo font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
-                      <span>🌺</span>
+                      <PlayfulIcon name="hibiscus" size={16} blob={false} />
                       <span>Bisaya ({item.bisaya})</span>
                     </button>
                   </div>
@@ -4154,17 +4270,19 @@ export default function StudentDashboard({ profile }) {
                     type="button"
                     onClick={() => hasPrev && setActiveFlashcardIndex(activeFlashcardIndex - 1)}
                     disabled={!hasPrev}
-                    className="flex-1 py-2.5 rounded-2xl bg-white border border-[#E6E6E6] font-baloo font-bold text-xs text-[#3a3226] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50 cursor-pointer shadow-xs"
+                    className="flex-1 py-2.5 rounded-2xl bg-white border border-[#E6E6E6] font-baloo font-bold text-xs text-[#3a3226] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50 cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
                   >
-                    ◀ Previous / Niagi
+                    <Icon name="chevron-left" className="w-4 h-4 shrink-0" />
+                    <span>Previous / Niagi</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => hasNext && setActiveFlashcardIndex(activeFlashcardIndex + 1)}
                     disabled={!hasNext}
-                    className="flex-1 py-2.5 rounded-2xl bg-coral hover:bg-coral-deep text-white font-baloo font-bold text-xs disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-bump"
+                    className="flex-1 py-2.5 rounded-2xl bg-coral hover:bg-coral-deep text-white font-baloo font-bold text-xs disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-bump flex items-center justify-center gap-1.5"
                   >
-                    Next / Sunod ▶
+                    <span>Next / Sunod</span>
+                    <Icon name="chevron-right" className="w-4 h-4 shrink-0" />
                   </button>
                 </div>
               </div>
