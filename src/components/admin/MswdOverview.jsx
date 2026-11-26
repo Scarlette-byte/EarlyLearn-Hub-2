@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { isSuperAdminUser } from '../../lib/roles.js';
 import Icon from '../Icons.jsx';
+import { Button, Card, Badge } from '../ui/index.js';
 import {
   isAuthenticSupabaseMaterial,
   getCleanTeacherModulesList,
@@ -38,53 +39,60 @@ export default function MswdOverview({
         const mapped = data
           .filter((m) => isAuthenticSupabaseMaterial(m))
           .map((m) => {
-          let meta = {};
-          let cleanDescription = m.content_text || '';
-          if (m.content_text && m.content_text.trim().startsWith('{')) {
-            try {
-              const parsed = JSON.parse(m.content_text);
-              if (parsed && parsed.__metadata) {
-                meta = parsed;
-                cleanDescription = parsed.description || '';
-              }
-            } catch {}
-          }
-          const isApproved = m.status === 'approved' || m.status === 'Approved';
-          const isRejected = m.status === 'rejected' || m.status === 'Rejected' || m.status === 'needs_revision';
-          return {
-            id: m.id,
-            title: m.title || 'Curriculum Learning Activity',
-            teacher_name: cleanTeacherDisplayName(meta.teacher_name) || 'CDC Teacher',
-            teacher_id: m.created_by,
-            cdc_name: meta.cdc_name || 'Daycare Center',
-            barangay: meta.barangay || 'Manolo Fortich',
-            level: meta.level || (m.age_range?.includes('3') ? 'Pre-K1' : 'Pre-K2'),
-            quarter: meta.quarter || 1,
-            week: meta.week || 'Week 1',
-            sub_theme: meta.sub_theme || '',
-            theme: meta.theme || 'Early Childhood Learning',
-            module_type: meta.module_type || 'Activity Worksheet',
-            file_type: meta.file_type || 'PDF',
-            file_size: meta.file_size || '2.4 MB',
-            file_name: meta.file_name || null,
-            upload_date: m.created_at
-              ? new Date(m.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
-              : 'Recent',
-            status: isApproved ? 'Approved' : isRejected ? 'Rejected' : 'Pending Review',
-            verified_by_mswd: isApproved,
-            posted_to_students: Boolean(meta.posted_to_students),
-            target_student_name: meta.target_student_name || 'All Class Learners',
-            description: cleanDescription,
-            content_url: m.content_url || null,
-          };
-        });
+            let meta = {};
+            let cleanDescription = m.content_text || '';
+            if (m.content_text && m.content_text.trim().startsWith('{')) {
+              try {
+                const parsed = JSON.parse(m.content_text);
+                if (parsed && parsed.__metadata) {
+                  meta = parsed;
+                  cleanDescription = parsed.description || '';
+                }
+              } catch {}
+            }
+            const isApproved = m.status === 'approved' || m.status === 'Approved';
+            const isRejected =
+              m.status === 'rejected' || m.status === 'Rejected' || m.status === 'needs_revision';
+            return {
+              id: m.id,
+              title: m.title || 'Curriculum Learning Activity',
+              teacher_name: cleanTeacherDisplayName(meta.teacher_name) || 'CDC Teacher',
+              teacher_id: m.created_by,
+              cdc_name: meta.cdc_name || 'Daycare Center',
+              barangay: meta.barangay || 'Manolo Fortich',
+              level: meta.level || (m.age_range?.includes('3') ? 'Pre-K1' : 'Pre-K2'),
+              quarter: meta.quarter || 1,
+              week: meta.week || 'Week 1',
+              sub_theme: meta.sub_theme || '',
+              theme: meta.theme || 'Early Childhood Learning',
+              module_type: meta.module_type || 'Activity Worksheet',
+              file_type: meta.file_type || 'PDF',
+              file_size: meta.file_size || '2.4 MB',
+              file_name: meta.file_name || null,
+              upload_date: m.created_at
+                ? new Date(m.created_at).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: '2-digit',
+                    year: 'numeric',
+                  })
+                : 'Recent',
+              status: isApproved ? 'Approved' : isRejected ? 'Rejected' : 'Pending Review',
+              verified_by_mswd: isApproved,
+              posted_to_students: Boolean(meta.posted_to_students),
+              target_student_name: meta.target_student_name || 'All Class Learners',
+              description: cleanDescription,
+              content_url: m.content_url || null,
+            };
+          });
 
         const deduplicatedSb = deduplicateTeacherModules(mapped);
         const merged = deduplicatedSb.map((sb) => {
           const loc = localList.find(
             (l) =>
               l.id === sb.id ||
-              (l.title && sb.title && l.title.trim().toLowerCase() === sb.title.trim().toLowerCase())
+              (l.title &&
+                sb.title &&
+                l.title.trim().toLowerCase() === sb.title.trim().toLowerCase())
           );
           if (loc) {
             const bestUrl =
@@ -122,218 +130,200 @@ export default function MswdOverview({
     };
   }, [loadCompliedActivities]);
 
-  return (
-    <div className="space-y-6">
-      {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-[#FAF5EC] via-[#FFFDF8] to-[#FFF8EE] p-6 sm:p-7 rounded-3xl border border-card-border shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="space-y-1.5 max-w-2xl">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FFE4D6] text-accent text-xs font-bold">
-            <Icon name="landmark" size={14} />
-            <span>
-              {isSuperAdmin
-                ? 'Municipal System Administration & Governance • Manolo Fortich, Bukidnon'
-                : 'Municipal Social Welfare and Development Office • Manolo Fortich, Bukidnon'}
-            </span>
-          </div>
-          <h2 className="font-fraunces text-2xl sm:text-3xl font-bold text-dash-ink m-0">
-            {(() => {
-              const rawName = (profile?.full_name || '').trim();
-              const isGenericAdmin =
-                !rawName || /admin\s*test/i.test(rawName) || /^admin$/i.test(rawName);
-              const finalName = isGenericAdmin ? 'ADMIN' : rawName;
-              return `Welcome, ${finalName}`;
-            })()}
-          </h2>
-          <p className="text-xs sm:text-sm text-dash-ink-soft leading-relaxed m-0">
-            {isSuperAdmin
-              ? 'Comprehensive governance authority over Early Childhood Care & Development (ECCD), Daycare Center monitoring, educator accreditation, and municipal user access control.'
-              : 'Managing early childhood care, daycare center operations, and developmental milestones for children aged 3 to 4 years old across all 22 barangays of our municipality.'}
-          </p>
-        </div>
+  const MODULES = [
+    {
+      tab: 'enrollees',
+      badge: 'Core Function 1',
+      badgeVariant: 'primary',
+      icon: 'landmark',
+      iconTone: 'bg-brand-leaf-tint text-brand-leaf-deep border-brand-leaf/30',
+      title: 'Barangay Enrollee Population',
+      desc: 'Official municipal population census covering 3,041 enrollees across all 22 Barangays and 62 Child Development Centers (Pre-K 1: 1,001 • Pre-K 2: 1,596 • ITED: 439 • 5 Yrs: 5).',
+      footer: '3,041 Total Enrollees (62 CDCs)',
+    },
+    {
+      tab: 'centers',
+      badge: 'Core Function 2',
+      badgeVariant: 'info',
+      icon: 'school',
+      iconTone: 'bg-status-info-bg text-status-info border-status-info-border',
+      title: 'Daycare Center Monitoring',
+      desc: 'View each daycare center’s registered toddlers, daycare workers, capacity limits, and monthly attendance summaries.',
+      footer: `${cdcsCount} Centers Across 22 Barangays`,
+    },
+    {
+      tab: 'reports',
+      badge: 'Core Function 3',
+      badgeVariant: 'gold',
+      icon: 'file',
+      iconTone: 'bg-brand-yellow-tint text-brand-yellow-deep border-brand-yellow/60',
+      title: 'Reports Generation',
+      desc: 'Generate and download monthly or yearly municipal reports on child enrollment, attendance, developmental progress, and center metrics.',
+      footer: 'Exportable CSV & Print',
+    },
+    {
+      tab: 'programs',
+      badge: 'Core Function 4',
+      badgeVariant: 'coral',
+      icon: 'clipboard-check',
+      iconTone: 'bg-brand-coral-tint text-brand-coral-deep border-brand-coral/40',
+      title: 'Activity & Module Monitoring',
+      desc: 'Monitor learning modules uploaded by Child Development Teachers, verify weekly curriculum activity submissions, and review CDC compliance.',
+      footer: `${compliedActivities.length} Teacher Activities`,
+    },
+    {
+      tab: 'curriculum',
+      badge: 'Curriculum',
+      badgeVariant: 'gold',
+      icon: 'seedling',
+      iconTone: 'bg-brand-yellow-tint text-brand-yellow-deep border-brand-yellow/60',
+      title: 'Curriculum Guides',
+      desc: 'Official DepEd/ECCD Pre-K1 & Pre-K2 themes and sub-themes that can be assigned directly to teachers across CDCs.',
+      footer: 'Pre-K1 & Pre-K2 Matrices',
+    },
+    {
+      tab: 'teachers',
+      badge: 'Personnel',
+      badgeVariant: 'primary',
+      icon: 'teachers',
+      iconTone: 'bg-brand-leaf-tint text-brand-leaf-deep border-brand-leaf/30',
+      title: 'Manage Teachers',
+      desc: 'Manage Child Development Teachers (CDTs and Aides), view their assigned Barangay and CDC center, and manage credentials.',
+      footer: `${teachersCount} Registered Teachers`,
+    },
+  ];
 
-        <div className="flex flex-wrap gap-2 shrink-0">
-          {isSuperAdmin && (
-            <button
-              onClick={() => onNavigateTab('users')}
-              className="px-4 py-2.5 rounded-xl bg-[#5A2E9E] hover:bg-[#472280] text-white font-bold text-xs shadow-xs transition-colors"
+  const welcomeName = (() => {
+    const rawName = (profile?.full_name || '').trim();
+    const isGenericAdmin =
+      !rawName || /admin\s*test/i.test(rawName) || /^admin$/i.test(rawName);
+    return isGenericAdmin ? 'Administrator' : rawName;
+  })();
+
+  return (
+    <div className="space-y-6 min-w-0">
+      {/* Executive Welcome Banner matching Login's Forest + Warm Cream aesthetic */}
+      <div className="relative overflow-hidden rounded-auth-card bg-ui-panel text-white p-6 sm:p-8 border border-ui-panel-deep shadow-auth-card">
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 opacity-[0.07] pointer-events-none"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 1px 1px, rgba(255, 251, 234, 0.85) 1px, transparent 0)',
+            backgroundSize: '24px 24px',
+          }}
+        />
+        <div
+          aria-hidden="true"
+          className="absolute -top-24 -right-16 w-72 h-72 rounded-full bg-brand-yellow/15 blur-3xl pointer-events-none"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute -bottom-24 left-12 w-72 h-72 rounded-full bg-brand-leaf/20 blur-3xl pointer-events-none"
+        />
+
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-5 min-w-0">
+          <div className="space-y-2 max-w-2xl min-w-0">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-[11px] font-extrabold uppercase tracking-wider text-brand-cream max-w-full">
+              <Icon name="landmark" size={13} className="text-brand-yellow shrink-0" />
+              <span className="truncate">
+                {isSuperAdmin
+                  ? 'Municipal System Administration & Governance • Manolo Fortich'
+                  : 'Municipal Social Welfare & Development Office • Manolo Fortich'}
+              </span>
+            </div>
+            <h2 className="font-baloo text-2xl sm:text-3xl font-extrabold text-white m-0 leading-tight break-words">
+              Welcome, {welcomeName}
+            </h2>
+            <p className="text-xs sm:text-sm text-white/82 leading-relaxed m-0 break-words">
+              {isSuperAdmin
+                ? 'Comprehensive governance authority over Early Childhood Care & Development (ECCD), Daycare Center monitoring, educator accreditation, and municipal user access control.'
+                : 'Managing early childhood care, daycare center operations, and developmental milestones for children aged 3 to 4 years old across all 22 barangays of our municipality.'}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            {isSuperAdmin && (
+              <Button variant="accent" size="md" icon="users" onClick={() => onNavigateTab('users')}>
+                Manage Users
+              </Button>
+            )}
+            <Button
+              variant="primary"
+              size="md"
+              icon="clipboard-check"
+              onClick={() => onNavigateTab('programs')}
+              className="!bg-brand-leaf hover:!bg-[#68AC49] !text-ui-panel-deep font-extrabold"
             >
-              Manage Users
+              Review Teacher Activities ({compliedActivities.length})
+            </Button>
+            <button
+              type="button"
+              onClick={() => onNavigateTab('curriculum')}
+              className="px-4 py-2 rounded-ui-btn bg-white/10 hover:bg-white/18 border border-white/20 text-white font-bold text-xs sm:text-sm transition-colors cursor-pointer inline-flex items-center gap-2 min-h-[38px]"
+            >
+              <Icon name="target" size={15} className="text-brand-yellow shrink-0" />
+              <span>Assign MSWD Topics</span>
             </button>
-          )}
-          <button
-            onClick={() => onNavigateTab('programs')}
-            className="px-4 py-2.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
-          >
-            Review Teacher Activities ({compliedActivities.length})
-          </button>
-          <button
-            onClick={() => onNavigateTab('curriculum')}
-            className="px-4 py-2.5 rounded-xl bg-white border border-[#D5C7B0] hover:bg-[#FAF5EC] text-dash-ink font-bold text-xs shadow-xs transition-colors cursor-pointer"
-          >
-            Assign MSWD Topics
-          </button>
+          </div>
         </div>
       </div>
 
-      {/* 5 Core MSWD Functions Navigation Grid */}
-      <div className="space-y-3">
-        <h3 className="font-fraunces text-lg font-bold text-dash-ink m-0">
-          Specific Core Functions of MSWD in EarlyLearnHub
-        </h3>
-        <p className="text-xs text-dash-ink-soft m-0">
-          Select any core operational module below to manage municipal day care services and compliance:
-        </p>
+      {/* Core MSWD Operational Modules Grid */}
+      <div className="space-y-3 min-w-0">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+          <div>
+            <h3 className="font-baloo text-lg sm:text-xl font-extrabold text-ui-ink m-0">
+              Core MSWD Operational Modules
+            </h3>
+            <p className="text-xs sm:text-[13px] text-ui-ink-muted m-0 mt-0.5">
+              Select any operational module below to manage municipal day care services and compliance:
+            </p>
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
-          {/* Function 1 */}
-          <div
-            onClick={() => onNavigateTab('enrollees')}
-            className="bg-white p-5 rounded-2xl border border-card-border shadow-xs hover:border-accent hover:shadow-card transition-all cursor-pointer space-y-2 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="w-10 h-10 rounded-xl bg-[#FFE4D6] text-accent flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Icon name="landmark" size={20} />
-              </span>
-              <span className="text-[11px] font-bold text-accent bg-[#FFF5EE] px-2 py-0.5 rounded-full">
-                Core Function 1
-              </span>
-            </div>
-            <h4 className="font-fraunces text-base font-bold text-dash-ink group-hover:text-accent transition-colors">
-              Barangay Enrollee Population
-            </h4>
-            <p className="text-xs text-dash-ink-soft leading-relaxed">
-              Official municipal population census covering 3,041 enrollees across all 22 Barangays and 62 Child Development Centers (Pre-K 1: 1,001 • Pre-K 2: 1,596 • ITED: 439 • 5 Yrs: 5).
-            </p>
-            <div className="pt-2 flex items-center justify-between text-xs font-bold text-accent">
-              <span>3,041 Total Enrollees (62 CDCs)</span>
-              <span>Open →</span>
-            </div>
-          </div>
+          {MODULES.map((mod) => (
+            <Card
+              key={mod.tab}
+              onClick={() => onNavigateTab(mod.tab)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onNavigateTab(mod.tab);
+                }
+              }}
+              className="group cursor-pointer hover:border-brand-leaf/70 hover:shadow-card-hover transition-all flex flex-col justify-between focus:outline-none focus-visible:ring-2 focus-visible:ring-ui-focus"
+              bodyClassName="flex flex-col justify-between h-full gap-4"
+            >
+              <div className="space-y-2.5 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${mod.iconTone}`}
+                  >
+                    <Icon name={mod.icon} size={20} />
+                  </span>
+                  <Badge variant={mod.badgeVariant}>{mod.badge}</Badge>
+                </div>
+                <h4 className="font-baloo text-base sm:text-lg font-extrabold text-ui-ink group-hover:text-brand-leaf-deep transition-colors m-0 break-words">
+                  {mod.title}
+                </h4>
+                <p className="text-xs text-ui-ink-secondary leading-relaxed m-0 break-words">
+                  {mod.desc}
+                </p>
+              </div>
 
-          {/* Function 2 */}
-          <div
-            onClick={() => onNavigateTab('centers')}
-            className="bg-white p-5 rounded-2xl border border-card-border shadow-xs hover:border-accent hover:shadow-card transition-all cursor-pointer space-y-2 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="w-10 h-10 rounded-xl bg-[#E0EFFE] text-[#1E5B94] flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Icon name="school" size={20} />
-              </span>
-              <span className="text-[11px] font-bold text-[#1E5B94] bg-[#F0F7FF] px-2 py-0.5 rounded-full">
-                Core Function 2
-              </span>
-            </div>
-            <h4 className="font-fraunces text-base font-bold text-dash-ink group-hover:text-[#1E5B94] transition-colors">
-              Daycare Center Monitoring
-            </h4>
-            <p className="text-xs text-dash-ink-soft leading-relaxed">
-              View each daycare center’s registered toddlers, daycare workers, capacity limits, and monthly attendance summaries.
-            </p>
-            <div className="pt-2 flex items-center justify-between text-xs font-bold text-[#1E5B94]">
-              <span>{cdcsCount} Centers Across 22 Barangays</span>
-              <span>Open →</span>
-            </div>
-          </div>
-
-          {/* Function 3 */}
-          <div
-            onClick={() => onNavigateTab('reports')}
-            className="bg-white p-5 rounded-2xl border border-card-border shadow-xs hover:border-accent hover:shadow-card transition-all cursor-pointer space-y-2 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="w-10 h-10 rounded-xl bg-[#FFF3D6] text-[#8C6200] flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Icon name="file" size={20} />
-              </span>
-              <span className="text-[11px] font-bold text-[#8C6200] bg-[#FFFBF0] px-2 py-0.5 rounded-full">
-                Core Function 3
-              </span>
-            </div>
-            <h4 className="font-fraunces text-base font-bold text-dash-ink group-hover:text-[#8C6200] transition-colors">
-              Reports Generation
-            </h4>
-            <p className="text-xs text-dash-ink-soft leading-relaxed">
-              Generate and download monthly or yearly municipal reports on child enrollment, attendance, developmental progress, and center metrics.
-            </p>
-            <div className="pt-2 flex items-center justify-between text-xs font-bold text-[#8C6200]">
-              <span>Exportable CSV/PDF</span>
-              <span>Open →</span>
-            </div>
-          </div>
-
-          {/* Function 4 */}
-          <div
-            onClick={() => onNavigateTab('programs')}
-            className="bg-white p-5 rounded-2xl border border-card-border shadow-xs hover:border-accent hover:shadow-card transition-all cursor-pointer space-y-2 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="w-10 h-10 rounded-xl bg-[#E8DEF8] text-[#553C9A] flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Icon name="clipboard-check" size={20} />
-              </span>
-              <span className="text-[11px] font-bold text-[#553C9A] bg-[#F7F4FD] px-2 py-0.5 rounded-full">
-                Core Function 4
-              </span>
-            </div>
-            <h4 className="font-fraunces text-base font-bold text-dash-ink group-hover:text-[#553C9A] transition-colors">
-              Activity &amp; Module Monitoring
-            </h4>
-            <p className="text-xs text-dash-ink-soft leading-relaxed">
-              Monitor learning modules uploaded by Child Development Teachers, verify weekly curriculum activity submissions, and review CDC compliance.
-            </p>
-            <div className="pt-2 flex items-center justify-between text-xs font-bold text-[#553C9A]">
-              <span>{compliedActivities.length} Teacher Activities</span>
-              <span>Open →</span>
-            </div>
-          </div>
-
-          {/* Curriculum Guides Quick Link */}
-          <div
-            onClick={() => onNavigateTab('curriculum')}
-            className="bg-white p-5 rounded-2xl border border-card-border shadow-xs hover:border-accent hover:shadow-card transition-all cursor-pointer space-y-2 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="w-10 h-10 rounded-xl bg-[#FFF9CC] text-[#8C6200] flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Icon name="seedling" size={20} />
-              </span>
-              <span className="text-[11px] font-bold text-[#8C6200] bg-[#FFFBF0] px-2 py-0.5 rounded-full">
-                Curriculum
-              </span>
-            </div>
-            <h4 className="font-fraunces text-base font-bold text-dash-ink group-hover:text-accent transition-colors">
-              Curriculum Guides
-            </h4>
-            <p className="text-xs text-dash-ink-soft leading-relaxed">
-              Official DepEd/ECCD Pre-K1 &amp; Pre-K2 themes and sub-themes that can be assigned directly to teachers across CDCs.
-            </p>
-            <div className="pt-2 flex items-center justify-between text-xs font-bold text-accent">
-              <span>Pre-K1 &amp; Pre-K2 Matrices</span>
-              <span>Open →</span>
-            </div>
-          </div>
-
-          {/* Teacher Roster Quick Link */}
-          <div
-            onClick={() => onNavigateTab('teachers')}
-            className="bg-white p-5 rounded-2xl border border-card-border shadow-xs hover:border-accent hover:shadow-card transition-all cursor-pointer space-y-2 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="w-10 h-10 rounded-xl bg-[#FAF5EC] text-dash-ink flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Icon name="teachers" size={20} />
-              </span>
-              <span className="text-[11px] font-bold text-dash-ink bg-[#FAF5EC] px-2 py-0.5 rounded-full">
-                Personnel
-              </span>
-            </div>
-            <h4 className="font-fraunces text-base font-bold text-dash-ink group-hover:text-accent transition-colors">
-              Manage Teachers
-            </h4>
-            <p className="text-xs text-dash-ink-soft leading-relaxed">
-              Manage Child Development Teachers (CDTs and Aides), view their assigned Barangay and CDC center, and manage credentials.
-            </p>
-            <div className="pt-2 flex items-center justify-between text-xs font-bold text-accent">
-              <span>{teachersCount} Registered Teachers</span>
-              <span>Open →</span>
-            </div>
-          </div>
+              <div className="pt-3 border-t border-ui-border flex items-center justify-between gap-2 text-xs font-extrabold text-brand-leaf-deep">
+                <span className="truncate">{mod.footer}</span>
+                <span className="inline-flex items-center gap-1 shrink-0 group-hover:translate-x-0.5 transition-transform">
+                  <span>Open</span>
+                  <Icon name="arrow-right" size={14} />
+                </span>
+              </div>
+            </Card>
+          ))}
         </div>
       </div>
     </div>
