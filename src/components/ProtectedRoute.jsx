@@ -8,6 +8,7 @@ import {
   getRoleDashboardPath,
 } from '../lib/roles.js';
 import { getStudentApprovalStatus } from '../lib/learnersService.js';
+import Icon from './Icons.jsx';
 
 /**
  * Wraps a dashboard page and guarantees:
@@ -165,8 +166,12 @@ export default function ProtectedRoute({ allowedRoles, children }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#FFF3C4] via-[#FFF9E6] to-[#E8F6FF] p-5 font-nunito">
         <div className="bg-white max-w-md w-full rounded-3xl p-7 shadow-lg border-2 border-amber-200 text-center space-y-4">
-          <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-800 text-3xl flex items-center justify-center mx-auto">
-            {isRejected ? '❌' : '⏳'}
+          <div
+            className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto ${
+              isRejected ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'
+            }`}
+          >
+            <Icon name={isRejected ? 'x-circle' : 'clock'} size={32} label={isRejected ? 'Registration declined' : 'Pending approval'} />
           </div>
           <h2 className="font-baloo text-2xl text-slate-900 m-0">
             {isRejected ? 'Registration Not Approved' : 'Waiting for Teacher Approval'}
@@ -207,9 +212,10 @@ export default function ProtectedRoute({ allowedRoles, children }) {
                   await checkAccess();
                   setRechecking(false);
                 }}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer transition-colors disabled:opacity-60"
+                className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-1.5"
               >
-                {rechecking ? 'Checking Supabase...' : '🔄 Check Approval Status'}
+                <Icon name="refresh" size={14} className={rechecking ? 'animate-spin' : ''} />
+                <span>{rechecking ? 'Checking Supabase...' : 'Check Approval Status'}</span>
               </button>
             )}
             <button
