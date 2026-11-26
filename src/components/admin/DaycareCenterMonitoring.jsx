@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { barangays } from '../../lib/supabaseClient';
+import Icon from '../Icons.jsx';
 import {
   barangayEnrolleesData,
   enrolleePopulationSummary,
@@ -253,7 +254,7 @@ export default function DaycareCenterMonitoring({
             <span className="text-[11px] font-extrabold uppercase tracking-wider">
               Total Daycare Centers
             </span>
-            <span className="text-base">🏫</span>
+            <Icon name="school" size={18} className="text-dash-ink-soft" />
           </div>
           <div className="font-fraunces text-2xl sm:text-3xl font-bold text-dash-ink mt-1">
             {totalCentersCount}
@@ -268,7 +269,7 @@ export default function DaycareCenterMonitoring({
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-accent">
               Total Enrolled Children
             </span>
-            <span className="text-base">🧒</span>
+            <Icon name="child" size={18} className="text-accent" />
           </div>
           <div className="font-fraunces text-2xl sm:text-3xl font-bold text-accent mt-1">
             {grandTotalEnrollees.toLocaleString()}
@@ -293,7 +294,7 @@ export default function DaycareCenterMonitoring({
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#1E5B94]">
               Accredited CDWs / CDTs
             </span>
-            <span className="text-base">👩‍🏫</span>
+            <Icon name="teachers" size={18} className="text-[#1E5B94]" />
           </div>
           <div className="font-fraunces text-2xl sm:text-3xl font-bold text-[#1E5B94] mt-1">
             {grandTotalTeachers}
@@ -309,7 +310,7 @@ export default function DaycareCenterMonitoring({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FAF5EC] text-accent font-extrabold text-[11px] mb-1">
-              <span>🏛️</span>
+              <Icon name="landmark" size={13} />
               <span>Official MSWDO Manolo Fortich Monitoring Matrix</span>
             </div>
             <h3 className="font-fraunces text-xl font-bold text-dash-ink m-0">
@@ -330,7 +331,7 @@ export default function DaycareCenterMonitoring({
                 : 'text-dash-ink-soft hover:text-dash-ink'
                 }`}
             >
-              <span>📋</span>
+              <Icon name="table" size={14} />
               <span>Table</span>
             </button>
             <button
@@ -341,7 +342,7 @@ export default function DaycareCenterMonitoring({
                 : 'text-dash-ink-soft hover:text-dash-ink'
                 }`}
             >
-              <span>🗂️</span>
+              <Icon name="cards" size={14} />
               <span>Cards</span>
             </button>
           </div>
@@ -395,7 +396,9 @@ export default function DaycareCenterMonitoring({
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 pt-1 border-t border-[#F2ECE1]">
           {/* Search */}
           <div className="sm:col-span-5 relative">
-            <span className="absolute left-3 top-2.5 text-slate-400 text-xs">🔍</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+              <Icon name="search" size={14} />
+            </span>
             <input
               type="text"
               placeholder="Search by center, teacher name, or barangay..."
@@ -478,7 +481,9 @@ export default function DaycareCenterMonitoring({
                 {filteredCenters.length === 0 ? (
                   <tr>
                     <td colSpan="5" className="p-10 text-center text-dash-ink-soft">
-                      <div className="text-3xl mb-2">🔍</div>
+                      <div className="w-10 h-10 rounded-xl bg-[#FAF5EC] border border-[#EADBCE] text-slate-400 flex items-center justify-center mx-auto mb-2">
+                        <Icon name="search" size={20} />
+                      </div>
                       <div className="font-bold text-sm text-dash-ink">No Daycare Centers Found</div>
                       <div className="text-xs text-slate-500 mt-0.5">
                         Try adjusting your search keywords or barangay filter.
@@ -492,15 +497,18 @@ export default function DaycareCenterMonitoring({
                         {/* Daycare Center & Barangay */}
                         <td className="px-4 py-3.5 align-middle">
                           <div className="flex items-start gap-2.5">
-                            <span className="w-8 h-8 rounded-lg bg-[#FAF5EC] border border-[#EADBCE] text-accent flex items-center justify-center text-sm shrink-0 mt-0.5">
-                              🏫
+                            <span className="w-8 h-8 rounded-lg bg-[#FAF5EC] border border-[#EADBCE] text-accent flex items-center justify-center shrink-0 mt-0.5">
+                              <Icon name="school" size={16} />
                             </span>
                             <div>
                               <div className="font-bold text-[13.5px] text-dash-ink leading-snug">
                                 {cdc.name}
                               </div>
                               <div className="flex items-center gap-1.5 mt-1 text-[11px] text-dash-ink-soft">
-                                <span className="font-bold text-slate-700">📍 Brgy. {cdc.barangay}</span>
+                                <span className="font-bold text-slate-700 inline-flex items-center gap-1">
+                                  <Icon name="pin" size={11} className="text-accent" />
+                                  <span>Brgy. {cdc.barangay}</span>
+                                </span>
                                 <span>•</span>
                                 <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-semibold">
                                   Center #{cdc.no}
@@ -530,18 +538,21 @@ export default function DaycareCenterMonitoring({
                                       >
                                         {(t.designation || '').includes('Aide') ? 'CDW Aide' : 'CDT'}
                                       </span>
-                                      <span>📞 {t.contact_number || 'Official Mobile'}</span>
+                                        <span className="inline-flex items-center gap-1">
+                                          <Icon name="phone" size={10} />
+                                          <span>{t.contact_number || 'Official Mobile'}</span>
+                                        </span>
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="text-slate-500 italic text-[11px] flex items-center gap-1.5">
-                              <span>⚠️</span>
-                              <span>Assigned to Barangay Cluster CDW</span>
-                            </div>
-                          )}
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-slate-500 italic text-[11px] flex items-center gap-1.5">
+                                <Icon name="warning" size={13} className="text-amber-600 shrink-0" />
+                                <span>Assigned to Barangay Cluster CDW</span>
+                              </div>
+                            )}
                         </td>
 
                         {/* Real Enrollee Numbers & Progress Bar */}
@@ -598,7 +609,7 @@ export default function DaycareCenterMonitoring({
                         {/* Attendance Summary */}
                         <td className="px-4 py-3.5 text-center align-middle whitespace-nowrap">
                           <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-extrabold text-xs">
-                            <span>✓</span>
+                            <Icon name="check" size={12} />
                             <span>{cdc.attendanceRate}%</span>
                           </div>
                           <div className="text-[10px] text-slate-500 mt-1">
@@ -741,16 +752,18 @@ export default function DaycareCenterMonitoring({
                 <h3 className="font-fraunces text-2xl font-bold text-dash-ink mt-1.5 leading-tight">
                   {inspectingCdc.name}
                 </h3>
-                <p className="text-xs text-dash-ink-soft m-0 mt-0.5">
-                  📍 Barangay {inspectingCdc.barangay}, Manolo Fortich, Bukidnon (Center #{inspectingCdc.no})
+                <p className="text-xs text-dash-ink-soft m-0 mt-0.5 flex items-center gap-1">
+                  <Icon name="pin" size={13} className="text-accent shrink-0" />
+                  <span>Barangay {inspectingCdc.barangay}, Manolo Fortich, Bukidnon (Center #{inspectingCdc.no})</span>
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setInspectingCdc(null)}
+                aria-label="Close center dossier"
                 className="w-8 h-8 rounded-full bg-[#FAF5EC] text-dash-ink font-bold text-sm hover:bg-[#EFE8DC] transition-colors cursor-pointer flex items-center justify-center"
               >
-                ✕
+                <Icon name="close" size={15} />
               </button>
             </div>
 
@@ -813,8 +826,14 @@ export default function DaycareCenterMonitoring({
                     >
                       <div className="font-bold text-xs text-slate-900">{t.full_name}</div>
                       <div className="text-[10px] text-accent font-semibold">{t.designation || 'CDT'}</div>
-                      <div className="text-[10px] text-slate-500">📞 {t.contact_number || 'Official Mobile'}</div>
-                      <div className="text-[10px] text-slate-400">✉️ {t.email || `${t.full_name.toLowerCase().replace(/\s+/g, '.')}@earlylearn.ph`}</div>
+                      <div className="text-[10px] text-slate-500 flex items-center gap-1">
+                        <Icon name="phone" size={11} />
+                        <span>{t.contact_number || 'Official Mobile'}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                        <Icon name="mail" size={11} />
+                        <span>{t.email || `${t.full_name.toLowerCase().replace(/\s+/g, '.')}@earlylearn.ph`}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -833,16 +852,25 @@ export default function DaycareCenterMonitoring({
               <div className={`grid grid-cols-1 ${inspectingCdc.ited > 0 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-2 text-slate-700`}>
                 {inspectingCdc.ited > 0 && (
                   <div className="p-2.5 rounded-xl bg-amber-50/60 border border-amber-200">
-                    <span className="font-bold text-amber-800 block">🍼 ITED Program (0–2)</span>
+                    <span className="font-bold text-amber-800 flex items-center gap-1.5">
+                      <Icon name="baby" size={14} />
+                      <span>ITED Program (0–2)</span>
+                    </span>
                     <span className="text-[11px] text-slate-600">Early Dev Care • {inspectingCdc.ited} Enrolled</span>
                   </div>
                 )}
                 <div className="p-2.5 rounded-xl bg-[#FFFDF8] border border-[#EADBCE]">
-                  <span className="font-bold text-accent block">☀️ Morning Shift (Pre-K 1)</span>
+                  <span className="font-bold text-accent flex items-center gap-1.5">
+                    <Icon name="sun" size={14} />
+                    <span>Morning Shift (Pre-K 1)</span>
+                  </span>
                   <span className="text-[11px] text-slate-600">8:00 AM – 10:30 AM • 3–3.11 Year Olds ({inspectingCdc.preK1})</span>
                 </div>
                 <div className="p-2.5 rounded-xl bg-[#FFFDF8] border border-[#EADBCE]">
-                  <span className="font-bold text-purple-700 block">🌤️ Afternoon Shift (Pre-K 2)</span>
+                  <span className="font-bold text-purple-700 flex items-center gap-1.5">
+                    <Icon name="cloud-sun" size={14} />
+                    <span>Afternoon Shift (Pre-K 2)</span>
+                  </span>
                   <span className="text-[11px] text-slate-600">1:00 PM – 3:30 PM • 4–4.11 Year Olds ({inspectingCdc.preK2})</span>
                 </div>
               </div>
