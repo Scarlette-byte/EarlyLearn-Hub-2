@@ -541,11 +541,15 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen min-h-[100dvh] bg-ui-panel bg-gradient-to-br from-[#0D2B1E] via-[#123B29] to-[#1B5139] text-ui-ink font-nunito flex flex-col items-center justify-center p-3 sm:p-6 lg:p-8 relative overflow-x-hidden selection:bg-brand-yellow/40 selection:text-ui-ink">
-      {/* Subtle ambient background glow */}
+    <div className="min-h-screen min-h-[100dvh] bg-ui-panel text-ui-ink font-nunito flex flex-col items-center justify-center p-3 sm:p-6 lg:p-8 relative overflow-x-hidden selection:bg-brand-yellow/40 selection:text-ui-ink">
+      {/* Full-Screen Playful Preschool Learning Landscape Background */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
-        <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-brand-leaf/15 blur-3xl" />
-        <div className="absolute -bottom-32 -right-32 w-96 h-96 rounded-full bg-brand-yellow/10 blur-3xl" />
+        <img
+          src="/login-landscape-bg.png"
+          alt=""
+          className="w-full h-full object-cover object-center"
+        />
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0D2B1E]/65 via-[#123B29]/50 to-[#1B5139]/60 backdrop-blur-[2px]" />
       </div>
 
       {/* Centered Wide Rounded Card */}
