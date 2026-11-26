@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { barangays } from '../../lib/supabaseClient';
+import Icon from '../Icons.jsx';
 
 export default function ChildRecordsManagement({
   learners = [],
@@ -353,9 +354,10 @@ export default function ChildRecordsManagement({
                                 })
                               }
                               title="Verify & Enroll"
-                              className="px-2 py-1 rounded-lg bg-[#DCEBDD] text-[#2E6B38] font-bold text-[11px] hover:bg-[#C9E2CB]"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#DCEBDD] text-[#2E6B38] font-bold text-[11px] hover:bg-[#C9E2CB]"
                             >
-                              Verify ✓
+                              <Icon name="check" size={12} />
+                              <span>Verify</span>
                             </button>
                           )}
                           <button
@@ -380,9 +382,11 @@ export default function ChildRecordsManagement({
                                 onDeleteLearner(learner.id);
                               }
                             }}
-                            className="px-2 py-1 rounded-lg text-danger hover:bg-[#FBEBE8] font-bold text-[11px]"
+                            aria-label={`Delete ${learner.full_name}`}
+                            title="Delete record"
+                            className="px-2 py-1 rounded-lg text-danger hover:bg-[#FBEBE8] font-bold text-[11px] inline-flex items-center justify-center"
                           >
-                            ✕
+                            <Icon name="close" size={13} />
                           </button>
                         </div>
                       </td>
@@ -410,9 +414,10 @@ export default function ChildRecordsManagement({
               </div>
               <button
                 onClick={() => setViewingLearner(null)}
-                className="w-8 h-8 rounded-full bg-[#FAF5EC] text-dash-ink font-bold text-sm hover:bg-[#EFE8DC]"
+                aria-label="Close learner profile"
+                className="w-8 h-8 rounded-full bg-[#FAF5EC] text-dash-ink font-bold text-sm hover:bg-[#EFE8DC] flex items-center justify-center"
               >
-                ✕
+                <Icon name="close" size={15} />
               </button>
             </div>
 
@@ -509,9 +514,10 @@ export default function ChildRecordsManagement({
                   setShowAddModal(false);
                   setEditingLearner(null);
                 }}
-                className="w-7 h-7 rounded-full bg-[#FAF5EC] text-dash-ink font-bold text-xs"
+                aria-label="Close form"
+                className="w-7 h-7 rounded-full bg-[#FAF5EC] text-dash-ink font-bold text-xs flex items-center justify-center"
               >
-                ✕
+                <Icon name="close" size={14} />
               </button>
             </div>
 
