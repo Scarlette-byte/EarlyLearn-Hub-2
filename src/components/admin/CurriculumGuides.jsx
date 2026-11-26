@@ -15,6 +15,7 @@ import {
   fetchSyncedTeachersList,
 } from '../../lib/curriculumData.js';
 import { supabase, barangays } from '../../lib/supabaseClient';
+import { Button, Card, Modal, Badge, Tabs, PageHeader, EmptyState, Toast } from '../ui/index.js';
 import {
   cardBox,
   cardBoxTitle,
@@ -523,164 +524,128 @@ export default function CurriculumGuides({
   }, [assignments, searchQuery, selectedBarangayFilter, selectedLevel, assignedQuarterFilter, assignedWeekFilter]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 min-w-0">
       {/* Top Banner / Header Card */}
-      <div className="bg-white p-5 sm:p-6 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="space-y-1 max-w-3xl">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-semibold">
-            <IconMaterials className="w-3.5 h-3.5 text-slate-500" />
-            <span>Official ECCD Curriculum Guidelines • MSWDO Manolo Fortich</span>
-          </div>
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 m-0 tracking-tight">
-            Curriculum Guides & Teacher Assignments
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-500 leading-relaxed m-0">
-            Official prescribed ECCD early childhood lesson plans for Pre-K 1 (3.11 years old) and Pre-K 2 (4.11 years old). Assign quarterly curriculum competencies to Child Development Teachers across all 64 centers.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <button
-            onClick={() => {
-              setTargetType('all');
-              setSelectedLevelForAssign(selectedLevel === 'PRE-K1' ? 'Pre-K1' : 'Pre-K2');
-              setSelectedQuartersForAssign([1, 2, 3, 4]);
-              setAssignSuccessMsg('');
-              setAssignModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer"
-          >
-            <IconCheck className="w-3.5 h-3.5" />
-            <span>Assign to All Teachers</span>
-          </button>
-
-          <button
-            onClick={() => handleOpenAssignModal()}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer"
-          >
-            <IconPlus className="w-3.5 h-3.5" />
-            <span>Assign Specific Teacher/CDC</span>
-          </button>
-        </div>
-      </div>
+      <Card accentBar>
+        <PageHeader
+          className="!pb-0 !border-b-0"
+          icon="materials"
+          eyebrow="Official ECCD Curriculum Guidelines • MSWDO Manolo Fortich"
+          title="Curriculum Guides & Teacher Assignments"
+          subtitle="Official prescribed ECCD early childhood lesson plans for Pre-K 1 (3.11 years old) and Pre-K 2 (4.11 years old). Assign quarterly curriculum competencies to Child Development Teachers across all 64 centers."
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                icon="check"
+                onClick={() => {
+                  setTargetType('all');
+                  setSelectedLevelForAssign(selectedLevel === 'PRE-K1' ? 'Pre-K1' : 'Pre-K2');
+                  setSelectedQuartersForAssign([1, 2, 3, 4]);
+                  setAssignSuccessMsg('');
+                  setAssignModalOpen(true);
+                }}
+              >
+                Assign to All Teachers
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon="plus"
+                onClick={() => handleOpenAssignModal()}
+              >
+                Assign Specific Teacher/CDC
+              </Button>
+            </div>
+          }
+        />
+      </Card>
 
       {/* Primary Navigation Bar (Tabs & View Controls) */}
-      <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        {/* Pre-K Level Government-style Tabs */}
-        <div className="flex items-center gap-2 border-b lg:border-b-0 pb-2 lg:pb-0 border-slate-200">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">
-            Level:
-          </span>
-          <button
-            onClick={() => setSelectedLevel('PRE-K1')}
-            className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${
-              selectedLevel === 'PRE-K1'
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            <span>PRE-K 1 (3.11 years old)</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded ${selectedLevel === 'PRE-K1' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
-              Q1 – Q4
+      <Card padding="sm">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 min-w-0">
+          <div className="flex items-center gap-2.5 flex-wrap min-w-0">
+            <span className="text-xs font-extrabold text-ui-ink-muted uppercase tracking-wider">
+              Level:
             </span>
-          </button>
-
-          <button
-            onClick={() => setSelectedLevel('PRE-K2')}
-            className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${
-              selectedLevel === 'PRE-K2'
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
-          >
-            <span>PRE-K 2 (4.11 years old)</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded ${selectedLevel === 'PRE-K2' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
-              Q1 – Q4
-            </span>
-          </button>
-        </div>
-
-        {/* View Toggle: Matrix vs Teacher Assignments */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-lg bg-slate-100 p-1 border border-slate-200">
-            <button
-              onClick={() => setActiveView('matrix')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
-                activeView === 'matrix'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Curriculum Matrix
-            </button>
-            <button
-              onClick={() => setActiveView('assignments')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeView === 'assignments'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <span>Assigned Teachers</span>
-            </button>
+            <Tabs
+              ariaLabel="Pre-K curriculum level"
+              activeKey={selectedLevel}
+              onChange={setSelectedLevel}
+              tabs={[
+                { key: 'PRE-K1', label: 'PRE-K 1 (3.11 y/o)', count: 'Q1–Q4' },
+                { key: 'PRE-K2', label: 'PRE-K 2 (4.11 y/o)', count: 'Q1–Q4' },
+              ]}
+            />
           </div>
-        </div>
-      </div>
 
-      {/* FILTER & SEARCH ROW */}
-      <div className="bg-white p-4 rounded-2xl border border-card-border shadow-xs flex flex-col sm:flex-row gap-3 items-center justify-between">
-        <div className="relative w-full sm:w-80">
-          <IconSearch className="w-4 h-4 text-[#A89F91] absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search themes, weeks, sub-themes..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] text-xs font-semibold text-dash-ink outline-none focus:border-accent"
+          <Tabs
+            ariaLabel="Curriculum view mode"
+            activeKey={activeView}
+            onChange={setActiveView}
+            tabs={[
+              { key: 'matrix', label: 'Curriculum Matrix', icon: 'book' },
+              { key: 'assignments', label: 'Assigned Teachers', icon: 'teachers', count: assignments.length },
+            ]}
           />
         </div>
+      </Card>
 
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          {activeView === 'matrix' ? (
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <span className="text-xs font-bold text-dash-ink-soft whitespace-nowrap">Quarter:</span>
-              <select
-                value={quarterFilter}
-                onChange={(e) => setQuarterFilter(e.target.value)}
-                className="px-3 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] text-xs font-bold text-dash-ink outline-none focus:border-accent"
-              >
-                <option value="all">All Quarters (Q1 - Q4)</option>
-                <option value="1">Quarter 1</option>
-                <option value="2">Quarter 2</option>
-                <option value="3">Quarter 3</option>
-                <option value="4">Quarter 4</option>
-              </select>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <span className="text-xs font-bold text-dash-ink-soft whitespace-nowrap">Barangay:</span>
-              <select
-                value={selectedBarangayFilter}
-                onChange={(e) => setSelectedBarangayFilter(e.target.value)}
-                className="px-3 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] text-xs font-bold text-dash-ink outline-none focus:border-accent"
-              >
-                <option value="all">All 22 Barangays</option>
-                {barangays.map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+      {/* FILTER & SEARCH ROW */}
+      <Card padding="sm">
+        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between min-w-0">
+          <div className="relative w-full sm:w-80">
+            <IconSearch className="w-4 h-4 text-ui-ink-muted absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search themes, weeks, sub-themes..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={`${input} !pl-9 !py-2 !text-xs`}
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            {activeView === 'matrix' ? (
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <span className="text-xs font-bold text-ui-ink-secondary whitespace-nowrap">Quarter:</span>
+                <select
+                  value={quarterFilter}
+                  onChange={(e) => setQuarterFilter(e.target.value)}
+                  className={`${input} !w-auto !py-2 !text-xs cursor-pointer`}
+                >
+                  <option value="all">All Quarters (Q1 - Q4)</option>
+                  <option value="1">Quarter 1</option>
+                  <option value="2">Quarter 2</option>
+                  <option value="3">Quarter 3</option>
+                  <option value="4">Quarter 4</option>
+                </select>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <span className="text-xs font-bold text-ui-ink-secondary whitespace-nowrap">Barangay:</span>
+                <select
+                  value={selectedBarangayFilter}
+                  onChange={(e) => setSelectedBarangayFilter(e.target.value)}
+                  className={`${input} !w-auto !py-2 !text-xs cursor-pointer`}
+                >
+                  <option value="all">All 22 Barangays</option>
+                  {barangays.map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </Card>
 
-      {/* ======================================================== */}
-      {/* VIEW 1: CURRICULUM MATRIX VIEW (Matching Excel Guide)     */}
-      {/* ======================================================== */}
+      {/* VIEW 1: CURRICULUM MATRIX VIEW */}
       {activeView === 'matrix' && (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {filteredCurriculum.map((q) => {
             const assignedTeachersForQ = getAssignedTeachersForQuarter(
               selectedLevel === 'PRE-K1' ? 'Pre-K1' : 'Pre-K2',
@@ -694,36 +659,35 @@ export default function CurriculumGuides({
             return (
               <div
                 key={q.quarter}
-                className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden"
+                className="bg-ui-surface rounded-ui-card border border-ui-border shadow-card overflow-hidden"
               >
                 {/* Quarter Header Banner */}
-                <div className="bg-slate-100 px-5 py-3 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <span className="font-bold text-xs uppercase tracking-wider text-white bg-slate-900 px-2.5 py-1 rounded">
+                <div className="bg-ui-surface-subtle px-5 py-3.5 border-b border-ui-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 flex-wrap min-w-0">
+                    <Badge variant="dark" size="md">
                       {q.quarter}
-                    </span>
-                    <span className="font-bold text-sm text-slate-800">
-                      {q.suggestedContent} • <span className="font-normal text-xs text-slate-500">({q.month})</span>
+                    </Badge>
+                    <span className="font-bold text-sm text-ui-ink break-words">
+                      {q.suggestedContent} •{' '}
+                      <span className="font-semibold text-xs text-ui-ink-muted">({q.month})</span>
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 px-2.5 py-1 rounded">
-                      <IconTeachers className="w-3.5 h-3.5 text-slate-500" />
-                      <span>{assignedTeachersForQ.length} Teachers Assigned</span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded">
-                      <IconMaterials className="w-3.5 h-3.5 text-emerald-700" />
-                      <span>{uploadedModulesForQ} Modules Uploaded</span>
-                    </div>
-
-                    <button
+                  <div className="flex items-center gap-2 flex-wrap shrink-0">
+                    <Badge variant="neutral" icon="teachers">
+                      {assignedTeachersForQ.length} Teachers Assigned
+                    </Badge>
+                    <Badge variant="success" icon="materials">
+                      {uploadedModulesForQ} Modules Uploaded
+                    </Badge>
+                    <Button
+                      variant="primary"
+                      size="xs"
+                      icon="plus"
                       onClick={() => handleOpenAssignModal(q.quarterNumber)}
-                      className="px-3 py-1 rounded bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs transition-colors cursor-pointer"
                     >
-                      + Assign Q{q.quarterNumber}
-                    </button>
+                      Assign Q{q.quarterNumber}
+                    </Button>
                   </div>
                 </div>
 
@@ -731,54 +695,52 @@ export default function CurriculumGuides({
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-left text-xs">
                     <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
-                        <th className="px-4 py-3 border-r border-slate-200 w-[180px]">
+                      <tr className="bg-ui-surface-warm/60 border-b border-ui-border text-[11px] font-extrabold text-ui-ink-secondary uppercase tracking-wider">
+                        <th className="px-4 py-3 border-r border-ui-border w-[180px]">
                           Quarter &amp; Suggested Content
                         </th>
-                        <th className="px-4 py-3 border-r border-slate-200 w-[210px] bg-amber-50 text-amber-900">
+                        <th className="px-4 py-3 border-r border-ui-border w-[210px] bg-brand-yellow-tint text-brand-yellow-deep">
                           THEME (FOCUS AREA)
                         </th>
-                        <th className="px-4 py-3 border-r border-slate-200 w-[110px]">WEEK</th>
-                        <th className="px-4 py-3 border-r border-slate-200">SUB-THEMES / COMPETENCIES</th>
-                        <th className="px-4 py-3 border-r border-slate-200 w-[130px]">MONTH</th>
-                        <th className="px-4 py-3 text-center w-[130px]">DEPED ECCD ACTIVITY</th>
+                        <th className="px-4 py-3 border-r border-ui-border w-[130px]">WEEK</th>
+                        <th className="px-4 py-3 border-r border-ui-border">SUB-THEMES / COMPETENCIES</th>
+                        <th className="px-4 py-3 border-r border-ui-border w-[130px]">MONTH</th>
+                        <th className="px-4 py-3 text-center w-[150px]">DEPED ECCD ACTIVITY</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-ui-border/70">
                       {q.filteredWeeks.map((w, wIdx) => (
-                        <tr key={w.week + wIdx} className="hover:bg-slate-50/70 transition-colors">
-                          {/* Span Content across the first row of each Quarter */}
+                        <tr key={w.week + wIdx} className="hover:bg-brand-leaf-tint/30 transition-colors">
                           {wIdx === 0 && (
                             <td
                               rowSpan={q.filteredWeeks.length}
-                              className="px-4 py-4 font-semibold text-slate-900 align-middle border-r border-slate-200 bg-slate-50/50"
+                              className="px-4 py-4 font-semibold text-ui-ink align-middle border-r border-ui-border bg-ui-surface-subtle"
                             >
-                              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                              <div className="text-xs font-extrabold text-brand-leaf-deep uppercase tracking-wider mb-1">
                                 {q.quarter}
                               </div>
-                              <div className="text-xs text-slate-800 font-semibold leading-relaxed">
+                              <div className="text-xs text-ui-ink font-semibold leading-relaxed">
                                 {q.suggestedContent}
                               </div>
                             </td>
                           )}
 
-                          {/* Soft Amber Theme Column matching administrative highlight */}
                           {wIdx === 0 && (
                             <td
                               rowSpan={q.filteredWeeks.length}
-                              className="px-4 py-4 align-middle border-r border-slate-200 bg-amber-50/80 text-amber-950 border-l-2 border-l-amber-400"
+                              className="px-4 py-4 align-middle border-r border-ui-border bg-brand-yellow-tint/70 text-ui-ink border-l-2 border-l-brand-yellow"
                             >
-                              <div className="font-bold text-xs uppercase leading-snug tracking-wide">
+                              <div className="font-extrabold text-xs uppercase leading-snug tracking-wide">
                                 {q.theme}
                               </div>
                             </td>
                           )}
 
-                          <td className="px-4 py-3 font-semibold text-slate-800 border-r border-slate-200 whitespace-nowrap bg-white">
+                          <td className="px-4 py-3 font-semibold text-ui-ink border-r border-ui-border whitespace-nowrap bg-ui-surface">
                             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
-                              <span className="inline-block bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded text-[11px] font-semibold">
+                              <Badge variant="neutral" size="xs">
                                 {w.week}
-                              </span>
+                              </Badge>
                               <button
                                 type="button"
                                 onClick={() =>
@@ -791,7 +753,7 @@ export default function CurriculumGuides({
                                     suggestedContent: q.suggestedContent,
                                   })
                                 }
-                                className="text-[10.5px] font-bold text-accent hover:text-white bg-amber-50 hover:bg-accent border border-amber-300 px-2 py-0.5 rounded-md cursor-pointer transition-colors shadow-2xs whitespace-nowrap flex items-center gap-1"
+                                className="text-[10.5px] font-extrabold text-brand-leaf-deep hover:text-white bg-brand-leaf-tint hover:bg-brand-leaf-deep border border-brand-leaf/40 px-2 py-0.5 rounded-md cursor-pointer transition-colors whitespace-nowrap flex items-center gap-1"
                                 title={`Assign "${w.subTheme}" (${w.week}) to teacher`}
                               >
                                 <Icon name="target" size={12} />
@@ -800,15 +762,15 @@ export default function CurriculumGuides({
                             </div>
                           </td>
 
-                          <td className="px-4 py-3 font-medium text-slate-800 border-r border-slate-200 bg-white">
+                          <td className="px-4 py-3 font-semibold text-ui-ink border-r border-ui-border bg-ui-surface">
                             <div className="text-xs tracking-wide leading-relaxed">{w.subTheme}</div>
                           </td>
 
-                          <td className="px-4 py-3 text-slate-600 border-r border-slate-200 whitespace-nowrap bg-white text-[11px]">
+                          <td className="px-4 py-3 text-ui-ink-muted border-r border-ui-border whitespace-nowrap bg-ui-surface text-[11px]">
                             {q.month}
                           </td>
 
-                          <td className="px-4 py-3 bg-white text-slate-500 text-[11px] leading-relaxed">
+                          <td className="px-4 py-3 bg-ui-surface text-ui-ink-secondary text-[11px] leading-relaxed">
                             {w.suggestedActivities}
                           </td>
                         </tr>
@@ -818,25 +780,25 @@ export default function CurriculumGuides({
                 </div>
 
                 {/* Assigned Teachers Bar for this Quarter */}
-                <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="p-3.5 bg-ui-surface-subtle border-t border-ui-border flex flex-wrap items-center justify-between gap-3 text-xs">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-slate-700">Assigned Teachers for {q.quarter}:</span>
+                    <span className="font-bold text-ui-ink-secondary">Assigned Teachers for {q.quarter}:</span>
                     {assignedTeachersForQ.length === 0 ? (
-                      <span className="text-slate-400 italic">No teachers assigned yet.</span>
+                      <span className="text-ui-ink-muted italic">No teachers assigned yet.</span>
                     ) : (
                       <div className="flex flex-wrap gap-1.5">
                         {assignedTeachersForQ.slice(0, 4).map((t) => (
                           <span
                             key={t.id}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white border border-slate-200 text-[11px] font-medium text-slate-800"
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-ui-surface border border-ui-border text-[11px] font-bold text-ui-ink"
                           >
-                            <IconTeachers className="w-3 h-3 text-slate-400" />
+                            <IconTeachers className="w-3 h-3 text-brand-leaf-deep" />
                             <span>{t.teacherName}</span>
-                            <span className="text-[10px] text-dash-ink-soft">({t.barangay})</span>
+                            <span className="text-[10px] text-ui-ink-muted">({t.barangay})</span>
                           </span>
                         ))}
                         {assignedTeachersForQ.length > 4 && (
-                          <span className="text-[11px] font-bold text-accent self-center">
+                          <span className="text-[11px] font-extrabold text-brand-leaf-deep self-center">
                             +{assignedTeachersForQ.length - 4} more
                           </span>
                         )}
@@ -845,10 +807,12 @@ export default function CurriculumGuides({
                   </div>
 
                   <button
+                    type="button"
                     onClick={() => handleOpenAssignModal(q.quarterNumber)}
-                    className="text-xs font-bold text-accent hover:underline cursor-pointer"
+                    className="text-xs font-extrabold text-brand-leaf-deep hover:underline cursor-pointer bg-transparent border-none inline-flex items-center gap-1"
                   >
-                    Manage Quarter Assignments →
+                    <span>Manage Quarter Assignments</span>
+                    <Icon name="arrow-right" size={13} />
                   </button>
                 </div>
               </div>
@@ -857,39 +821,27 @@ export default function CurriculumGuides({
         </div>
       )}
 
-      {/* ======================================================== */}
-      {/* VIEW 2: TEACHER ASSIGNMENTS OVERVIEW (Master Matrix)      */}
-      {/* ======================================================== */}
+      {/* VIEW 2: TEACHER ASSIGNMENTS OVERVIEW */}
       {activeView === 'assignments' && (
-        <div className="bg-white rounded-2xl border border-card-border shadow-card p-5 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h3 className="font-fraunces text-lg font-bold text-dash-ink m-0">
-                Curriculum Guide Teacher Assignments Roster
-              </h3>
-              <p className="text-xs text-dash-ink-soft mt-0.5">
-                Overview of Child Development Teachers and assigned Curriculum Guides (Pre-K1 / Pre-K2), Quarters, and specific Weeks across CDCs.
-              </p>
-            </div>
-
-            <button
-              onClick={() => handleOpenAssignModal()}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
-            >
-              <IconPlus className="w-3.5 h-3.5" />
-              <span>Assign New Teacher</span>
-            </button>
-          </div>
-
+        <Card
+          icon="teachers"
+          title="Curriculum Guide Teacher Assignments Roster"
+          subtitle="Overview of Child Development Teachers and assigned Curriculum Guides (Pre-K1 / Pre-K2), Quarters, and specific Weeks across CDCs."
+          action={
+            <Button variant="primary" size="sm" icon="plus" onClick={() => handleOpenAssignModal()}>
+              Assign New Teacher
+            </Button>
+          }
+          bodyClassName="space-y-4"
+        >
           {/* Filters Bar for Roster */}
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-wrap items-center gap-2.5 text-xs">
-            <span className="font-semibold text-slate-700">Filter By:</span>
+          <div className="p-3 bg-ui-surface-subtle border border-ui-border rounded-xl flex flex-wrap items-center gap-2.5 text-xs">
+            <span className="font-bold text-ui-ink-secondary">Filter By:</span>
 
-            {/* Quarter Filter */}
             <select
               value={assignedQuarterFilter}
               onChange={(e) => setAssignedQuarterFilter(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-700 outline-none"
+              className={`${input} !w-auto !py-1.5 !text-xs cursor-pointer`}
             >
               <option value="all">All Quarters</option>
               <option value="1">Quarter 1</option>
@@ -898,11 +850,10 @@ export default function CurriculumGuides({
               <option value="4">Quarter 4</option>
             </select>
 
-            {/* Week Filter */}
             <select
               value={assignedWeekFilter}
               onChange={(e) => setAssignedWeekFilter(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-700 outline-none"
+              className={`${input} !w-auto !py-1.5 !text-xs cursor-pointer`}
             >
               <option value="all">All Weeks</option>
               <option value="Week 1">Week 1</option>
@@ -917,16 +868,15 @@ export default function CurriculumGuides({
               <option value="Week 10">Week 10</option>
             </select>
 
-            {/* Search Input */}
             <div className="relative flex-1 min-w-[200px]">
               <input
                 type="text"
                 placeholder="Search teacher, CDC, or barangay..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs outline-none"
+                className={`${input} !pl-8 !py-1.5 !text-xs`}
               />
-              <IconSearch className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <IconSearch className="w-3.5 h-3.5 text-ui-ink-muted absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
 
             {(assignedQuarterFilter !== 'all' || assignedWeekFilter !== 'all' || searchQuery) && (
@@ -937,684 +887,543 @@ export default function CurriculumGuides({
                   setAssignedWeekFilter('all');
                   setSearchQuery('');
                 }}
-                className="text-xs text-accent hover:underline font-semibold cursor-pointer"
+                className="text-xs text-brand-leaf-deep hover:underline font-extrabold cursor-pointer bg-transparent border-none"
               >
                 Reset
               </button>
             )}
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-card-border">
-            <table className="w-full border-collapse text-left text-xs">
-              <thead>
-                <tr className="bg-[#FAF5EC] border-b border-card-border text-[11px] font-bold text-[#8C7F63] uppercase">
-                  <th className="px-4 py-3">Teacher / Child Development Worker</th>
-                  <th className="px-4 py-3">Barangay &amp; Child Development Center</th>
-                  <th className="px-4 py-3 text-center">Level</th>
-                  <th className="px-4 py-3">Assigned Topic &amp; Focus</th>
-                  <th className="px-4 py-3 text-center">Submission Deadline</th>
-                  <th className="px-4 py-3">Complied Activity &amp; MSWD Status</th>
-                  <th className="px-4 py-3 text-center">Compliance</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#F6F1E7]">
-                {filteredAssignments.map((asg) => {
-                  const teacherModules = getCleanModules().filter(
-                    (m) =>
-                      m.assignment_id === asg.id ||
-                      ((m.teacher_name === asg.teacherName || m.teacher_id === asg.teacherId) &&
-                        ((asg.subTheme && m.sub_theme?.toLowerCase() === asg.subTheme.toLowerCase()) ||
-                          (asg.topicTitle && m.title?.toLowerCase().includes(asg.topicTitle.toLowerCase()))))
-                  );
-                  const latestMod = teacherModules[0] || null;
-                  const isPastDeadline = asg.deadline && new Date(asg.deadline + 'T23:59:59') < new Date();
-                  const isCompleted = asg.status === 'Completed' || teacherModules.length > 0;
+          {filteredAssignments.length === 0 ? (
+            <EmptyState
+              icon="teachers"
+              title="No teacher curriculum assignments found"
+              description="Try clearing your search or quarter/week filters, or assign a new topic above."
+            />
+          ) : (
+            <div className="overflow-x-auto rounded-ui-card border border-ui-border">
+              <table className="w-full border-collapse text-left text-xs">
+                <thead>
+                  <tr className="bg-ui-surface-subtle border-b border-ui-border text-[11px] font-extrabold text-ui-ink-secondary uppercase tracking-wider">
+                    <th className="px-4 py-3">Teacher / Child Development Worker</th>
+                    <th className="px-4 py-3">Barangay &amp; Child Development Center</th>
+                    <th className="px-4 py-3 text-center">Level</th>
+                    <th className="px-4 py-3">Assigned Topic &amp; Focus</th>
+                    <th className="px-4 py-3 text-center">Submission Deadline</th>
+                    <th className="px-4 py-3">Complied Activity &amp; MSWD Status</th>
+                    <th className="px-4 py-3 text-center">Compliance</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-ui-border/70">
+                  {filteredAssignments.map((asg) => {
+                    const teacherModules = getCleanModules().filter(
+                      (m) =>
+                        m.assignment_id === asg.id ||
+                        ((m.teacher_name === asg.teacherName || m.teacher_id === asg.teacherId) &&
+                          ((asg.subTheme && m.sub_theme?.toLowerCase() === asg.subTheme.toLowerCase()) ||
+                            (asg.topicTitle && m.title?.toLowerCase().includes(asg.topicTitle.toLowerCase()))))
+                    );
+                    const latestMod = teacherModules[0] || null;
+                    const isPastDeadline = asg.deadline && new Date(asg.deadline + 'T23:59:59') < new Date();
+                    const isCompleted = asg.status === 'Completed' || teacherModules.length > 0;
 
-                  return (
-                    <tr key={asg.id} className="hover:bg-[#FFFDF9] transition-colors">
-                      <td className="px-4 py-3.5">
-                        <div className="font-bold text-dash-ink text-[12.5px]">{asg.teacherName}</div>
-                        <div className="text-[11px] text-dash-ink-soft">
-                          SY {asg.schoolYear} • Assigned: {asg.assignedDate}
-                        </div>
-                      </td>
-
-                      <td className="px-4 py-3.5">
-                        <div className="font-bold text-[#423722] flex items-center gap-1">
-                          <IconBuilding className="w-3.5 h-3.5 text-accent shrink-0" />
-                          <span>{asg.cdcName}</span>
-                        </div>
-                        <div className="text-[11px] text-dash-ink-soft flex items-center gap-1 mt-0.5">
-                          <IconPin className="w-3 h-3 text-[#A89F91] shrink-0" />
-                          <span>Brgy. {asg.barangay}</span>
-                        </div>
-                      </td>
-
-                      <td className="px-4 py-3.5 text-center">
-                        <span
-                          className={`inline-block px-2.5 py-1 rounded-full text-[10.5px] font-bold ${
-                            asg.level === 'Pre-K1'
-                              ? 'bg-[#DCEBDD] text-[#2E6B38]'
-                              : 'bg-[#E0EFFE] text-[#1E5B94]'
-                          }`}
-                        >
-                          {asg.level}
-                        </span>
-                      </td>
-
-                      <td className="px-4 py-3.5">
-                        <div className="font-bold text-slate-800 text-xs">
-                          {asg.topicTitle || formatAssignmentCoverage(asg)}
-                        </div>
-                        {asg.subTheme && (
-                          <div className="text-[11px] text-slate-500 mt-0.5 line-clamp-1 italic">
-                            Focus: {asg.subTheme}
+                    return (
+                      <tr key={asg.id} className="hover:bg-brand-leaf-tint/30 transition-colors">
+                        <td className="px-4 py-3.5">
+                          <div className="font-bold text-ui-ink text-[12.5px]">{asg.teacherName}</div>
+                          <div className="text-[11px] text-ui-ink-muted">
+                            SY {asg.schoolYear} • Assigned: {asg.assignedDate}
                           </div>
-                        )}
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {asg.quarters.map((q) => (
-                            <span
-                              key={q}
-                              className="px-2 py-0.5 bg-[#FAF3E8] border border-[#E8DFC9] rounded-md text-[10px] font-bold text-[#5C5036]"
-                            >
-                              Q{q}
-                            </span>
-                          ))}
-                          {asg.weeks && asg.weeks !== 'all' && Array.isArray(asg.weeks) && asg.weeks.map((w) => (
-                            <span
-                              key={w}
-                              className="px-2 py-0.5 bg-amber-50 border border-amber-300 text-amber-900 rounded-md text-[10px] font-bold"
-                            >
-                              {w}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
+                        </td>
 
-                      <td className="px-4 py-3.5 text-center whitespace-nowrap">
-                        {asg.deadline ? (
-                          <div className="inline-flex flex-col items-center">
-                            <span
-                              className={`px-2 py-1 rounded-md text-[11px] font-bold flex items-center gap-1 ${
-                                isCompleted
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                  : isPastDeadline
-                                  ? 'bg-rose-50 text-rose-700 border border-rose-200 animate-pulse'
-                                  : 'bg-amber-50 text-amber-800 border border-amber-200'
-                              }`}
-                            >
-                              <Icon name="calendar" size={12} />
-                              <span>{asg.deadline}</span>
-                            </span>
-                            <span className="text-[10px] mt-0.5 font-medium text-slate-500 inline-flex items-center gap-1">
-                              {isCompleted ? (
-                                <>
-                                  <Icon name="check" size={11} className="text-emerald-600" />
-                                  <span>Complied</span>
-                                </>
-                              ) : isPastDeadline ? (
-                                <>
-                                  <Icon name="warning" size={11} className="text-rose-600" />
-                                  <span>Deadline Passed</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Icon name="clock" size={11} className="text-amber-600" />
-                                  <span>Open for Upload</span>
-                                </>
-                              )}
-                            </span>
+                        <td className="px-4 py-3.5">
+                          <div className="font-bold text-ui-ink flex items-center gap-1">
+                            <IconBuilding className="w-3.5 h-3.5 text-brand-leaf-deep shrink-0" />
+                            <span>{asg.cdcName}</span>
                           </div>
-                        ) : (
-                          <span className="text-slate-400 text-xs italic">No deadline set</span>
-                        )}
-                      </td>
+                          <div className="text-[11px] text-ui-ink-muted flex items-center gap-1 mt-0.5">
+                            <IconPin className="w-3 h-3 text-ui-ink-muted shrink-0" />
+                            <span>Brgy. {asg.barangay}</span>
+                          </div>
+                        </td>
 
-                      <td className="px-4 py-3.5">
-                        {latestMod ? (
-                          <div className="space-y-1 max-w-[220px]">
-                            <div className="font-bold text-slate-800 text-xs truncate" title={latestMod.title}>
-                              {latestMod.title}
+                        <td className="px-4 py-3.5 text-center">
+                          <Badge variant={asg.level === 'Pre-K1' ? 'primary' : 'info'}>
+                            {asg.level}
+                          </Badge>
+                        </td>
+
+                        <td className="px-4 py-3.5">
+                          <div className="font-bold text-ui-ink text-xs">
+                            {asg.topicTitle || formatAssignmentCoverage(asg)}
+                          </div>
+                          {asg.subTheme && (
+                            <div className="text-[11px] text-ui-ink-muted mt-0.5 line-clamp-1 italic">
+                              Focus: {asg.subTheme}
                             </div>
-                            <span
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                latestMod.verified_by_mswd || latestMod.status === 'Approved'
-                                  ? 'bg-[#DCEBDD] text-[#2E6B38]'
-                                  : latestMod.status === 'Rejected' || latestMod.status === 'Needs Revision'
-                                  ? 'bg-rose-100 text-rose-800'
-                                  : 'bg-amber-100 text-amber-800'
-                              }`}
-                            >
-                              {latestMod.verified_by_mswd || latestMod.status === 'Approved' ? (
-                                <>
-                                  <Icon name="check" size={11} />
-                                  <span>{latestMod.posted_to_students ? 'Approved & Posted to Students' : 'Approved by MSWD'}</span>
-                                </>
-                              ) : latestMod.status === 'Rejected' || latestMod.status === 'Needs Revision' ? (
-                                <>
-                                  <Icon name="close" size={11} />
-                                  <span>Rejected by MSWD</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Icon name="clock" size={11} />
-                                  <span>Pending MSWD Decision</span>
-                                </>
-                              )}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-[11px] text-slate-400 italic">Not complied yet</span>
-                        )}
-                      </td>
-
-                      <td className="px-4 py-3.5 text-center whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
-                            isCompleted
-                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                              : isPastDeadline
-                              ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                              : 'bg-amber-50 text-amber-800 border border-amber-200'
-                          }`}
-                        >
-                          {isCompleted && <Icon name="check" size={11} />}
-                          <span>{isCompleted ? 'Complied' : isPastDeadline ? 'Expired' : 'Pending'}</span>
-                        </span>
-                      </td>
-
-                      <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1.5">
-                          {latestMod && onNavigateToActivityMonitoring && (
-                            <button
-                              type="button"
-                              onClick={onNavigateToActivityMonitoring}
-                              className="px-2.5 py-1 rounded-lg bg-accent hover:bg-[#B5673C] text-white text-[11px] font-bold transition-colors cursor-pointer"
-                            >
-                              View &amp; Decide →
-                            </button>
                           )}
-                          <button
-                            onClick={() => handleRemoveAssignment(asg.id)}
-                            className="px-2.5 py-1 rounded-lg text-danger hover:bg-danger/10 text-xs font-bold transition-colors cursor-pointer"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {asg.quarters.map((q) => (
+                              <Badge key={q} variant="neutral" size="xs">Q{q}</Badge>
+                            ))}
+                            {asg.weeks && asg.weeks !== 'all' && Array.isArray(asg.weeks) && asg.weeks.map((w) => (
+                              <Badge key={w} variant="gold" size="xs">{w}</Badge>
+                            ))}
+                          </div>
+                        </td>
 
-          {filteredAssignments.length === 0 && (
-            <p className="text-xs text-center py-6 text-dash-ink-soft">
-              No teacher curriculum assignments found matching your filter criteria.
-            </p>
+                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                          {asg.deadline ? (
+                            <div className="inline-flex flex-col items-center gap-0.5">
+                              <Badge
+                                variant={isCompleted ? 'success' : isPastDeadline ? 'danger' : 'warning'}
+                                icon="calendar"
+                              >
+                                {asg.deadline}
+                              </Badge>
+                              <span className="text-[10px] font-semibold text-ui-ink-muted">
+                                {isCompleted ? 'Complied' : isPastDeadline ? 'Deadline Passed' : 'Open for Upload'}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-ui-ink-muted text-xs italic">No deadline set</span>
+                          )}
+                        </td>
+
+                        <td className="px-4 py-3.5">
+                          {latestMod ? (
+                            <div className="space-y-1 max-w-[220px]">
+                              <div className="font-bold text-ui-ink text-xs truncate" title={latestMod.title}>
+                                {latestMod.title}
+                              </div>
+                              <Badge
+                                variant={
+                                  latestMod.verified_by_mswd || latestMod.status === 'Approved'
+                                    ? 'success'
+                                    : latestMod.status === 'Rejected' || latestMod.status === 'Needs Revision'
+                                      ? 'danger'
+                                      : 'warning'
+                                }
+                                size="xs"
+                              >
+                                {latestMod.verified_by_mswd || latestMod.status === 'Approved'
+                                  ? latestMod.posted_to_students
+                                    ? 'Approved & Posted'
+                                    : 'Approved by MSWD'
+                                  : latestMod.status === 'Rejected' || latestMod.status === 'Needs Revision'
+                                    ? 'Rejected by MSWD'
+                                    : 'Pending MSWD Decision'}
+                              </Badge>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-ui-ink-muted italic">Not complied yet</span>
+                          )}
+                        </td>
+
+                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                          <Badge
+                            variant={isCompleted ? 'success' : isPastDeadline ? 'danger' : 'warning'}
+                            icon={isCompleted ? 'check' : undefined}
+                          >
+                            {isCompleted ? 'Complied' : isPastDeadline ? 'Expired' : 'Pending'}
+                          </Badge>
+                        </td>
+
+                        <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1.5">
+                            {latestMod && onNavigateToActivityMonitoring && (
+                              <Button
+                                variant="primary"
+                                size="xs"
+                                iconRight="arrow-right"
+                                onClick={onNavigateToActivityMonitoring}
+                              >
+                                View &amp; Decide
+                              </Button>
+                            )}
+                            <Button
+                              variant="dangerSoft"
+                              size="xs"
+                              onClick={() => handleRemoveAssignment(asg.id)}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
-        </div>
+        </Card>
       )}
 
-      {/* ======================================================== */}
-      {/* MODAL: ASSIGN CURRICULUM TO TEACHERS                     */}
-      {/* ======================================================== */}
-      {assignModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-3xl border border-card-border shadow-2xl max-w-xl w-full p-6 space-y-5 animate-scaleUp max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-[#F0E6D2]">
-              <div>
-                <h3 className="font-fraunces text-lg font-bold text-dash-ink m-0">
-                  Assign Curriculum Guide to Teacher(s)
-                </h3>
-                <p className="text-xs text-dash-ink-soft mt-0.5">
-                  Select teacher, Child Development Center, and the ECCD quarters to deploy.
-                </p>
-              </div>
-              <button
-                onClick={() => setAssignModalOpen(false)}
-                aria-label="Close assignment modal"
-                className="w-8 h-8 rounded-full bg-[#FAF5EC] hover:bg-[#F0E6D2] flex items-center justify-center text-dash-ink-soft text-sm transition-colors cursor-pointer"
+      {/* MODAL: ASSIGN CURRICULUM TO TEACHERS */}
+      <Modal
+        open={assignModalOpen}
+        onClose={() => setAssignModalOpen(false)}
+        icon="target"
+        title="Assign Curriculum Guide to Teacher(s)"
+        subtitle="Select teacher, Child Development Center, and the ECCD quarters to deploy."
+        maxWidth="max-w-xl"
+      >
+        <form onSubmit={handleSaveAssignment} className="space-y-4 text-xs">
+          {/* Assignment Scope / Target Type */}
+          <div className="space-y-1.5">
+            <label className="font-bold text-ui-ink block">Assignment Target Scope</label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                { key: 'all', label: 'All Teachers', icon: 'sparkles' },
+                { key: 'teacher', label: 'Single Teacher', icon: 'teachers' },
+                { key: 'barangay', label: 'Whole Barangay', icon: 'neighborhood' },
+                { key: 'cdc', label: 'Specific CDC', icon: 'school' },
+              ].map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => setTargetType(opt.key)}
+                  className={`py-2 px-2.5 rounded-ui-btn font-bold border transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 ${
+                    targetType === opt.key
+                      ? 'border-brand-leaf-deep bg-brand-leaf-tint text-brand-leaf-deep shadow-2xs'
+                      : 'border-ui-border bg-ui-surface text-ui-ink-secondary hover:border-ui-border-strong'
+                  }`}
+                >
+                  <Icon name={opt.icon} size={13} />
+                  <span>{opt.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {targetType === 'all' && (
+            <div className="p-3 bg-brand-leaf-tint border border-brand-leaf/35 rounded-xl text-xs text-brand-leaf-deep font-semibold leading-relaxed flex items-start gap-2">
+              <Icon name="megaphone" size={15} className="mt-0.5 shrink-0" />
+              <span>
+                <b>Deploy to All Teachers:</b> This will assign the selected <b>{selectedLevelForAssign}</b> curriculum guide and chosen quarters to <b>all 84 Child Development Teachers across 64 Daycare Centers</b> in Manolo Fortich.
+              </span>
+            </div>
+          )}
+
+          {targetType === 'teacher' && (
+            <div className="space-y-1">
+              <label className="font-bold text-ui-ink block">Select Teacher</label>
+              <select
+                value={selectedTeacherId}
+                onChange={(e) => setSelectedTeacherId(e.target.value)}
+                required
+                className={`${input} !text-xs cursor-pointer`}
               >
-                <Icon name="close" size={15} />
+                <option value="">-- Choose Teacher from 46 CDCs --</option>
+                {activeTeachersList.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.full_name} — Brgy. {t.barangay} ({t.cdc_name})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {targetType === 'barangay' && (
+            <div className="space-y-1">
+              <label className="font-bold text-ui-ink block">Select Barangay</label>
+              <select
+                value={selectedBarangayForAssign}
+                onChange={(e) => setSelectedBarangayForAssign(e.target.value)}
+                required
+                className={`${input} !text-xs cursor-pointer`}
+              >
+                <option value="">-- Choose Barangay (All CDCs &amp; Teachers) --</option>
+                {barangays.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {targetType === 'cdc' && (
+            <div className="space-y-1">
+              <label className="font-bold text-ui-ink block">Select Child Development Center (CDC)</label>
+              <select
+                value={selectedCdcForAssign}
+                onChange={(e) => setSelectedCdcForAssign(e.target.value)}
+                required
+                className={`${input} !text-xs cursor-pointer`}
+              >
+                <option value="">-- Choose Child Development Center --</option>
+                {realCdcsList.map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.name} (Brgy. {c.barangay})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Curriculum Level */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-ui-ink block">Curriculum Level</label>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { val: 'Pre-K1', title: 'PRE-K 1', sub: '3.11 years old (3 – 3.11)' },
+                { val: 'Pre-K2', title: 'PRE-K 2', sub: '4.11 years old (4 – 4.11)' },
+              ].map((lvl) => (
+                <label
+                  key={lvl.val}
+                  className={`flex items-center gap-2.5 p-3 rounded-ui-input border cursor-pointer transition-colors ${
+                    selectedLevelForAssign === lvl.val
+                      ? 'border-brand-leaf-deep bg-brand-leaf-tint text-ui-ink font-semibold'
+                      : 'border-ui-border bg-ui-surface text-ui-ink-secondary hover:bg-ui-surface-subtle'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="curriculumLevel"
+                    value={lvl.val}
+                    checked={selectedLevelForAssign === lvl.val}
+                    onChange={() => setSelectedLevelForAssign(lvl.val)}
+                    className="accent-brand-leaf-deep"
+                  />
+                  <div>
+                    <div className="text-xs font-extrabold text-ui-ink">{lvl.title}</div>
+                    <div className="text-[11px] text-ui-ink-muted">{lvl.sub}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Quarters Selection */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="font-bold text-ui-ink block">Quarters to Assign</label>
+              <button
+                type="button"
+                onClick={() => setSelectedQuartersForAssign([1, 2, 3, 4])}
+                className="text-[11px] font-extrabold text-brand-leaf-deep hover:underline cursor-pointer bg-transparent border-none"
+              >
+                Select All Quarters
               </button>
             </div>
 
-            <form onSubmit={handleSaveAssignment} className="space-y-4 text-xs">
-              {/* Assignment Scope / Target Type */}
-              <div className="space-y-1.5">
-                <label className="font-bold text-dash-ink block">Assignment Target Scope</label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[1, 2, 3, 4].map((qNum) => {
+                const isChecked = selectedQuartersForAssign.includes(qNum);
+                return (
                   <button
                     type="button"
-                    onClick={() => setTargetType('all')}
-                    className={`py-2 px-2.5 rounded-xl font-bold border transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 ${
-                      targetType === 'all'
-                        ? 'border-[#2E6B38] bg-[#F2F8F3] text-[#2E6B38]'
-                        : 'border-[#E5DCC9] bg-white text-dash-ink-soft'
+                    key={qNum}
+                    onClick={() => toggleQuarterCheckbox(qNum)}
+                    className={`py-2 px-3 rounded-ui-btn font-bold border transition-all cursor-pointer text-center ${
+                      isChecked
+                        ? 'border-brand-leaf-deep bg-brand-leaf-tint text-brand-leaf-deep'
+                        : 'border-ui-border bg-ui-surface text-ui-ink-secondary'
                     }`}
                   >
-                    <Icon name="sparkles" size={13} />
-                    <span>All Teachers</span>
+                    Quarter {qNum}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setTargetType('teacher')}
-                    className={`py-2 px-2.5 rounded-xl font-bold border transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 ${
-                      targetType === 'teacher'
-                        ? 'border-accent bg-[#FFF5EE] text-accent'
-                        : 'border-[#E5DCC9] bg-white text-dash-ink-soft'
-                    }`}
-                  >
-                    <Icon name="teachers" size={13} />
-                    <span>Single Teacher</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTargetType('barangay')}
-                    className={`py-2 px-2.5 rounded-xl font-bold border transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 ${
-                      targetType === 'barangay'
-                        ? 'border-accent bg-[#FFF5EE] text-accent'
-                        : 'border-[#E5DCC9] bg-white text-dash-ink-soft'
-                    }`}
-                  >
-                    <Icon name="neighborhood" size={13} />
-                    <span>Whole Barangay</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTargetType('cdc')}
-                    className={`py-2 px-2.5 rounded-xl font-bold border transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 ${
-                      targetType === 'cdc'
-                        ? 'border-accent bg-[#FFF5EE] text-accent'
-                        : 'border-[#E5DCC9] bg-white text-dash-ink-soft'
-                    }`}
-                  >
-                    <Icon name="school" size={13} />
-                    <span>Specific CDC</span>
-                  </button>
-                </div>
-              </div>
+                );
+              })}
+            </div>
+          </div>
 
-              {targetType === 'all' && (
-                <div className="p-3 bg-[#F2F8F3] border border-[#CDE5D1] rounded-xl text-xs text-[#25572D] font-semibold leading-relaxed flex items-start gap-2">
-                  <Icon name="megaphone" size={15} className="mt-0.5 shrink-0" />
-                  <span>
-                    <b>Deploy to All Teachers:</b> This will assign the selected <b>{selectedLevelForAssign}</b> curriculum guide and chosen quarters to <b>all 84 Child Development Teachers across 64 Daycare Centers</b> in Manolo Fortich.
-                  </span>
-                </div>
-              )}
+          {/* Week Assignment Scope */}
+          <div className="space-y-2 pt-2 border-t border-ui-border">
+            <label className="text-xs font-bold text-ui-ink block">
+              Week Scope <span className="text-ui-ink-muted font-normal">(assign full quarter or specific weeks)</span>
+            </label>
 
-              {/* Target Selector */}
-              {targetType === 'teacher' && (
-                <div className="space-y-1">
-                  <label className="font-bold text-dash-ink block">Select Teacher</label>
-                  <select
-                    value={selectedTeacherId}
-                    onChange={(e) => setSelectedTeacherId(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] font-bold text-dash-ink outline-none focus:border-accent"
-                  >
-                    <option value="">-- Choose Teacher from 46 CDCs --</option>
-                    {activeTeachersList.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.full_name} — Brgy. {t.barangay} ({t.cdc_name})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setWeekScopeMode('all');
+                  setSelectedWeeksForAssign([]);
+                }}
+                className={`py-2 px-3 rounded-ui-btn text-xs font-bold border transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 ${
+                  weekScopeMode === 'all'
+                    ? 'border-ui-panel bg-ui-panel text-white'
+                    : 'border-ui-border bg-ui-surface text-ui-ink-secondary hover:bg-ui-surface-subtle'
+                }`}
+              >
+                <Icon name="calendar" size={13} />
+                <span>All Weeks in Quarter</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setWeekScopeMode('specific');
+                  if (selectedWeeksForAssign.length === 0 && availableWeeksInModal.length > 0) {
+                    setSelectedWeeksForAssign([availableWeeksInModal[0].week]);
+                  }
+                }}
+                className={`py-2 px-3 rounded-ui-btn text-xs font-bold border transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 ${
+                  weekScopeMode === 'specific'
+                    ? 'border-ui-panel bg-ui-panel text-white'
+                    : 'border-ui-border bg-ui-surface text-ui-ink-secondary hover:bg-ui-surface-subtle'
+                }`}
+              >
+                <Icon name="push-pin" size={13} />
+                <span>Specific Week(s) Only</span>
+              </button>
+            </div>
 
-              {targetType === 'barangay' && (
-                <div className="space-y-1">
-                  <label className="font-bold text-dash-ink block">Select Barangay</label>
-                  <select
-                    value={selectedBarangayForAssign}
-                    onChange={(e) => setSelectedBarangayForAssign(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] font-bold text-dash-ink outline-none focus:border-accent"
-                  >
-                    <option value="">-- Choose Barangay (All CDCs & Teachers) --</option>
-                    {barangays.map((b) => (
-                      <option key={b} value={b}>
-                        {b}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {targetType === 'cdc' && (
-                <div className="space-y-1">
-                  <label className="font-bold text-dash-ink block">Select Child Development Center (CDC)</label>
-                  <select
-                    value={selectedCdcForAssign}
-                    onChange={(e) => setSelectedCdcForAssign(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] font-bold text-dash-ink outline-none focus:border-accent"
-                  >
-                    <option value="">-- Choose Child Development Center --</option>
-                    {realCdcsList.map((c) => (
-                      <option key={c.id} value={c.name}>
-                        {c.name} (Brgy. {c.barangay})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Curriculum Level */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 block">Curriculum Level</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <label
-                    className={`flex items-center gap-2.5 p-3 rounded-lg border cursor-pointer transition-colors ${
-                      selectedLevelForAssign === 'Pre-K1'
-                        ? 'border-slate-900 bg-slate-50 text-slate-900 font-semibold'
-                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="curriculumLevel"
-                      value="Pre-K1"
-                      checked={selectedLevelForAssign === 'Pre-K1'}
-                      onChange={() => setSelectedLevelForAssign('Pre-K1')}
-                      className="accent-slate-900"
-                    />
-                    <div>
-                      <div className="text-xs font-bold text-slate-900">PRE-K 1</div>
-                      <div className="text-[11px] text-slate-500">3.11 years old (3 – 3.11)</div>
-                    </div>
-                  </label>
-
-                  <label
-                    className={`flex items-center gap-2.5 p-3 rounded-lg border cursor-pointer transition-colors ${
-                      selectedLevelForAssign === 'Pre-K2'
-                        ? 'border-slate-900 bg-slate-50 text-slate-900 font-semibold'
-                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="curriculumLevel"
-                      value="Pre-K2"
-                      checked={selectedLevelForAssign === 'Pre-K2'}
-                      onChange={() => setSelectedLevelForAssign('Pre-K2')}
-                      className="accent-slate-900"
-                    />
-                    <div>
-                      <div className="text-xs font-bold text-slate-900">PRE-K 2</div>
-                      <div className="text-[11px] text-slate-500">4.11 years old (4 – 4.11)</div>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              {/* Quarters Selection */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="font-bold text-dash-ink block">Quarters to Assign</label>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedQuartersForAssign([1, 2, 3, 4])}
-                    className="text-[11px] font-bold text-accent hover:underline cursor-pointer"
-                  >
-                    Select All Quarters
-                  </button>
+            {weekScopeMode === 'specific' && (
+              <div className="p-3 bg-ui-surface-subtle border border-ui-border rounded-xl space-y-2">
+                <div className="flex items-center justify-between text-[11px] text-ui-ink-secondary font-semibold">
+                  <span>Click to select specific weeks:</span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedWeeksForAssign(availableWeeksInModal.map((w) => w.week))}
+                      className="text-brand-leaf-deep hover:underline font-extrabold bg-transparent border-none cursor-pointer"
+                    >
+                      Select All
+                    </button>
+                    <span>•</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedWeeksForAssign([])}
+                      className="text-ui-ink-muted hover:underline bg-transparent border-none cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {[1, 2, 3, 4].map((qNum) => {
-                    const isChecked = selectedQuartersForAssign.includes(qNum);
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                  {availableWeeksInModal.map((w) => {
+                    const isSelected = selectedWeeksForAssign.includes(w.week);
                     return (
                       <button
                         type="button"
-                        key={qNum}
-                        onClick={() => toggleQuarterCheckbox(qNum)}
-                        className={`py-2 px-3 rounded-xl font-bold border transition-all cursor-pointer text-center ${
-                          isChecked
-                            ? 'border-accent bg-[#FFF5EE] text-accent'
-                            : 'border-[#E5DCC9] bg-white text-dash-ink-soft'
+                        key={w.week}
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedWeeksForAssign(selectedWeeksForAssign.filter((x) => x !== w.week));
+                          } else {
+                            setSelectedWeeksForAssign([...selectedWeeksForAssign, w.week]);
+                          }
+                        }}
+                        className={`p-2 text-left rounded-lg border transition-all cursor-pointer flex items-start gap-2 ${
+                          isSelected
+                            ? 'border-brand-leaf-deep bg-brand-leaf-tint text-ui-ink font-semibold'
+                            : 'border-ui-border bg-ui-surface text-ui-ink-secondary hover:border-ui-border-strong'
                         }`}
                       >
-                        Quarter {qNum}
+                        <Badge variant={isSelected ? 'primary' : 'neutral'} size="xs">
+                          {w.week}
+                        </Badge>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11px] truncate leading-tight">{w.subTheme}</div>
+                        </div>
                       </button>
                     );
                   })}
                 </div>
-              </div>
-
-              {/* Week Assignment Scope */}
-              <div className="space-y-2 pt-1 border-t border-slate-100">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-slate-700 block">
-                    Week Scope <span className="text-slate-400 font-normal">(assign full quarter or specific weeks)</span>
-                  </label>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setWeekScopeMode('all');
-                      setSelectedWeeksForAssign([]);
-                    }}
-                    className={`py-2 px-3 rounded-lg text-xs font-semibold border transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 ${
-                      weekScopeMode === 'all'
-                        ? 'border-slate-900 bg-slate-900 text-white'
-                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <Icon name="calendar" size={13} />
-                    <span>All Weeks in Quarter</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setWeekScopeMode('specific');
-                      if (selectedWeeksForAssign.length === 0 && availableWeeksInModal.length > 0) {
-                        setSelectedWeeksForAssign([availableWeeksInModal[0].week]);
-                      }
-                    }}
-                    className={`py-2 px-3 rounded-lg text-xs font-semibold border transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 ${
-                      weekScopeMode === 'specific'
-                        ? 'border-slate-900 bg-slate-900 text-white'
-                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <Icon name="push-pin" size={13} />
-                    <span>Specific Week(s) Only</span>
-                  </button>
-                </div>
-
-                {weekScopeMode === 'specific' && (
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
-                    <div className="flex items-center justify-between text-[11px] text-slate-600 font-medium">
-                      <span>Click to select specific weeks:</span>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedWeeksForAssign(availableWeeksInModal.map((w) => w.week))}
-                          className="text-accent hover:underline font-bold"
-                        >
-                          Select All
-                        </button>
-                        <span>•</span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedWeeksForAssign([])}
-                          className="text-slate-500 hover:underline"
-                        >
-                          Clear
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
-                      {availableWeeksInModal.map((w) => {
-                        const isSelected = selectedWeeksForAssign.includes(w.week);
-                        return (
-                          <button
-                            type="button"
-                            key={w.week}
-                            onClick={() => {
-                              if (isSelected) {
-                                setSelectedWeeksForAssign(selectedWeeksForAssign.filter((x) => x !== w.week));
-                              } else {
-                                setSelectedWeeksForAssign([...selectedWeeksForAssign, w.week]);
-                              }
-                            }}
-                            className={`p-2 text-left rounded border transition-all cursor-pointer flex items-start gap-2 ${
-                              isSelected
-                                ? 'border-accent bg-amber-50/70 text-amber-950 font-semibold'
-                                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                            }`}
-                          >
-                            <span
-                              className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${
-                                isSelected ? 'bg-amber-200/80 text-amber-900' : 'bg-slate-100 text-slate-600'
-                              }`}
-                            >
-                              {w.week}
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <div className="text-[11px] truncate leading-tight">{w.subTheme}</div>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {selectedWeeksForAssign.length === 0 && (
-                      <p className="text-[11px] text-amber-700 italic m-0 flex items-center gap-1">
-                        <Icon name="warning" size={12} />
-                        <span>Please click at least one week to assign, or choose &ldquo;All Weeks in Quarter&rdquo; above.</span>
-                      </p>
-                    )}
-                  </div>
+                {selectedWeeksForAssign.length === 0 && (
+                  <p className="text-[11px] text-status-warn italic m-0 flex items-center gap-1">
+                    <Icon name="warning" size={12} />
+                    <span>Please click at least one week to assign, or choose &ldquo;All Weeks in Quarter&rdquo; above.</span>
+                  </p>
                 )}
               </div>
-
-              {/* Assignment Deadline */}
-              <div className="space-y-1.5 p-3 rounded-xl bg-amber-50/80 border border-amber-200">
-                <div className="flex items-center justify-between">
-                  <label className="font-bold text-amber-950 flex items-center gap-1.5">
-                    <Icon name="alarm" size={14} className="text-amber-800" />
-                    <span>Activity Submission Deadline <span className="text-coral">*</span></span>
-                  </label>
-                  <span className="text-[10.5px] text-amber-800">
-                    Teacher cannot upload once this deadline expires
-                  </span>
-                </div>
-                <input
-                  type="date"
-                  required
-                  value={assignmentDeadline}
-                  onChange={(e) => setAssignmentDeadline(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-amber-300 bg-white font-bold text-slate-800 outline-none focus:border-accent"
-                />
-                <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                  <span className="text-[10.5px] font-semibold text-slate-500">Quick Presets:</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const d = new Date();
-                      d.setDate(d.getDate() + 3);
-                      setAssignmentDeadline(d.toISOString().split('T')[0]);
-                    }}
-                    className="px-2 py-0.5 rounded bg-white hover:bg-amber-100 border border-amber-200 text-[10.5px] font-semibold text-slate-700 cursor-pointer"
-                  >
-                    +3 Days
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const d = new Date();
-                      d.setDate(d.getDate() + 7);
-                      setAssignmentDeadline(d.toISOString().split('T')[0]);
-                    }}
-                    className="px-2 py-0.5 rounded bg-white hover:bg-amber-100 border border-amber-200 text-[10.5px] font-semibold text-slate-700 cursor-pointer"
-                  >
-                    +1 Week (7 Days)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const d = new Date();
-                      d.setDate(d.getDate() + 14);
-                      setAssignmentDeadline(d.toISOString().split('T')[0]);
-                    }}
-                    className="px-2 py-0.5 rounded bg-white hover:bg-amber-100 border border-amber-200 text-[10.5px] font-semibold text-slate-700 cursor-pointer"
-                  >
-                    +2 Weeks
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const d = new Date();
-                      const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-                      setAssignmentDeadline(endOfMonth.toISOString().split('T')[0]);
-                    }}
-                    className="px-2 py-0.5 rounded bg-white hover:bg-amber-100 border border-amber-200 text-[10.5px] font-semibold text-slate-700 cursor-pointer"
-                  >
-                    End of Month
-                  </button>
-                </div>
-              </div>
-
-              {/* Instructions / Topic Notes for Teacher */}
-              <div className="space-y-1">
-                <label className="font-bold text-dash-ink block">
-                  Instructions / Topic Notes for Teacher <span className="text-slate-400 font-normal">(Optional)</span>
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Please post interactive toddler worksheets and tactile coloring crafts for this topic..."
-                  value={adminNotes}
-                  onChange={(e) => setAdminNotes(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] font-medium text-dash-ink outline-none focus:border-accent text-xs"
-                />
-              </div>
-
-              {/* School Year */}
-              <div className="space-y-1">
-                <label className="font-bold text-dash-ink block">Academic School Year</label>
-                <input
-                  type="text"
-                  value={schoolYear}
-                  onChange={(e) => setSchoolYear(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] font-bold text-dash-ink outline-none focus:border-accent"
-                />
-              </div>
-
-              {assignSuccessMsg && (
-                <div className="p-3 rounded-xl bg-[#DCEBDD] text-[#2E6B38] font-bold text-xs text-center">
-                  {assignSuccessMsg}
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#F0E6D2]">
-                <button
-                  type="button"
-                  onClick={() => setAssignModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl border border-[#D5C7B0] hover:bg-[#FAF5EC] text-dash-ink font-bold text-xs cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs cursor-pointer"
-                >
-                  Confirm &amp; Assign Guide
-                </button>
-              </div>
-            </form>
+            )}
           </div>
-        </div>
-      )}
+
+          {/* Assignment Deadline */}
+          <div className="space-y-1.5 p-3.5 rounded-xl bg-brand-yellow-tint/70 border border-brand-yellow/60">
+            <div className="flex items-center justify-between flex-wrap gap-1">
+              <label className="font-bold text-ui-ink flex items-center gap-1.5">
+                <Icon name="alarm" size={14} className="text-brand-yellow-deep" />
+                <span>Activity Submission Deadline <span className="text-status-error">*</span></span>
+              </label>
+              <span className="text-[10.5px] text-brand-yellow-deep font-semibold">
+                Teacher cannot upload once this deadline expires
+              </span>
+            </div>
+            <input
+              type="date"
+              required
+              value={assignmentDeadline}
+              onChange={(e) => setAssignmentDeadline(e.target.value)}
+              className={`${input} !bg-ui-surface !text-xs font-bold`}
+            />
+            <div className="flex items-center gap-1.5 flex-wrap pt-1">
+              <span className="text-[10.5px] font-semibold text-ui-ink-muted">Quick Presets:</span>
+              {[
+                { label: '+3 Days', days: 3 },
+                { label: '+1 Week (7 Days)', days: 7 },
+                { label: '+2 Weeks', days: 14 },
+              ].map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => {
+                    const d = new Date();
+                    d.setDate(d.getDate() + preset.days);
+                    setAssignmentDeadline(d.toISOString().split('T')[0]);
+                  }}
+                  className="px-2 py-0.5 rounded-md bg-ui-surface hover:bg-brand-yellow-tint border border-ui-border text-[10.5px] font-bold text-ui-ink cursor-pointer"
+                >
+                  {preset.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  const d = new Date();
+                  const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+                  setAssignmentDeadline(endOfMonth.toISOString().split('T')[0]);
+                }}
+                className="px-2 py-0.5 rounded-md bg-ui-surface hover:bg-brand-yellow-tint border border-ui-border text-[10.5px] font-bold text-ui-ink cursor-pointer"
+              >
+                End of Month
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="font-bold text-ui-ink block">
+              Instructions / Topic Notes for Teacher <span className="text-ui-ink-muted font-normal">(Optional)</span>
+            </label>
+            <textarea
+              rows={2}
+              placeholder="e.g. Please post interactive toddler worksheets and tactile coloring crafts for this topic..."
+              value={adminNotes}
+              onChange={(e) => setAdminNotes(e.target.value)}
+              className={`${input} !text-xs`}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="font-bold text-ui-ink block">Academic School Year</label>
+            <input
+              type="text"
+              value={schoolYear}
+              onChange={(e) => setSchoolYear(e.target.value)}
+              className={`${input} !text-xs font-bold`}
+            />
+          </div>
+
+          {assignSuccessMsg && (
+            <Toast floating={false} type="success" message={assignSuccessMsg} />
+          )}
+
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-ui-border">
+            <Button variant="secondary" size="sm" onClick={() => setAssignModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" size="sm" icon="check">
+              Confirm &amp; Assign Guide
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
