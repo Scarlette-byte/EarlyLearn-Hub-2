@@ -25,7 +25,7 @@ import {
   btnAdd,
   input,
 } from '../../lib/ui.js';
-import {
+import Icon, {
   IconSearch,
   IconPlus,
   IconCheck,
@@ -463,7 +463,7 @@ export default function CurriculumGuides({
       } catch {}
     })();
 
-    setAssignSuccessMsg(`✅ Topic "${resolvedTopic}" assigned successfully with deadline ${assignmentDeadline}!`);
+    setAssignSuccessMsg(`Topic "${resolvedTopic}" assigned successfully with deadline ${assignmentDeadline}!`);
     setTimeout(() => {
       setAssignModalOpen(false);
       setAssignSuccessMsg('');
@@ -794,7 +794,7 @@ export default function CurriculumGuides({
                                 className="text-[10.5px] font-bold text-accent hover:text-white bg-amber-50 hover:bg-accent border border-amber-300 px-2 py-0.5 rounded-md cursor-pointer transition-colors shadow-2xs whitespace-nowrap flex items-center gap-1"
                                 title={`Assign "${w.subTheme}" (${w.week}) to teacher`}
                               >
-                                <span>🎯</span>
+                                <Icon name="target" size={12} />
                                 <span>+ Assign Topic</span>
                               </button>
                             </div>
@@ -1044,14 +1044,26 @@ export default function CurriculumGuides({
                                   : 'bg-amber-50 text-amber-800 border border-amber-200'
                               }`}
                             >
-                              📅 {asg.deadline}
+                              <Icon name="calendar" size={12} />
+                              <span>{asg.deadline}</span>
                             </span>
-                            <span className="text-[10px] mt-0.5 font-medium text-slate-500">
-                              {isCompleted
-                                ? '✓ Complied'
-                                : isPastDeadline
-                                ? '⚠️ Deadline Passed'
-                                : '⏳ Open for Upload'}
+                            <span className="text-[10px] mt-0.5 font-medium text-slate-500 inline-flex items-center gap-1">
+                              {isCompleted ? (
+                                <>
+                                  <Icon name="check" size={11} className="text-emerald-600" />
+                                  <span>Complied</span>
+                                </>
+                              ) : isPastDeadline ? (
+                                <>
+                                  <Icon name="warning" size={11} className="text-rose-600" />
+                                  <span>Deadline Passed</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Icon name="clock" size={11} className="text-amber-600" />
+                                  <span>Open for Upload</span>
+                                </>
+                              )}
                             </span>
                           </div>
                         ) : (
@@ -1066,7 +1078,7 @@ export default function CurriculumGuides({
                               {latestMod.title}
                             </div>
                             <span
-                              className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
                                 latestMod.verified_by_mswd || latestMod.status === 'Approved'
                                   ? 'bg-[#DCEBDD] text-[#2E6B38]'
                                   : latestMod.status === 'Rejected' || latestMod.status === 'Needs Revision'
@@ -1074,13 +1086,22 @@ export default function CurriculumGuides({
                                   : 'bg-amber-100 text-amber-800'
                               }`}
                             >
-                              {latestMod.verified_by_mswd || latestMod.status === 'Approved'
-                                ? latestMod.posted_to_students
-                                  ? '✓ Approved & Posted to Students'
-                                  : '✓ Approved by MSWD'
-                                : latestMod.status === 'Rejected' || latestMod.status === 'Needs Revision'
-                                ? '✕ Rejected by MSWD'
-                                : '⏳ Pending MSWD Decision'}
+                              {latestMod.verified_by_mswd || latestMod.status === 'Approved' ? (
+                                <>
+                                  <Icon name="check" size={11} />
+                                  <span>{latestMod.posted_to_students ? 'Approved & Posted to Students' : 'Approved by MSWD'}</span>
+                                </>
+                              ) : latestMod.status === 'Rejected' || latestMod.status === 'Needs Revision' ? (
+                                <>
+                                  <Icon name="close" size={11} />
+                                  <span>Rejected by MSWD</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Icon name="clock" size={11} />
+                                  <span>Pending MSWD Decision</span>
+                                </>
+                              )}
                             </span>
                           </div>
                         ) : (
@@ -1090,7 +1111,7 @@ export default function CurriculumGuides({
 
                       <td className="px-4 py-3.5 text-center whitespace-nowrap">
                         <span
-                          className={`inline-block px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
                             isCompleted
                               ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                               : isPastDeadline
@@ -1098,7 +1119,8 @@ export default function CurriculumGuides({
                               : 'bg-amber-50 text-amber-800 border border-amber-200'
                           }`}
                         >
-                          {isCompleted ? 'Complied ✓' : isPastDeadline ? 'Expired' : 'Pending'}
+                          {isCompleted && <Icon name="check" size={11} />}
+                          <span>{isCompleted ? 'Complied' : isPastDeadline ? 'Expired' : 'Pending'}</span>
                         </span>
                       </td>
 
@@ -1153,9 +1175,10 @@ export default function CurriculumGuides({
               </div>
               <button
                 onClick={() => setAssignModalOpen(false)}
+                aria-label="Close assignment modal"
                 className="w-8 h-8 rounded-full bg-[#FAF5EC] hover:bg-[#F0E6D2] flex items-center justify-center text-dash-ink-soft text-sm transition-colors cursor-pointer"
               >
-                ✕
+                <Icon name="close" size={15} />
               </button>
             </div>
 
@@ -1167,53 +1190,60 @@ export default function CurriculumGuides({
                   <button
                     type="button"
                     onClick={() => setTargetType('all')}
-                    className={`py-2 px-2.5 rounded-xl font-bold border transition-all cursor-pointer text-center ${
+                    className={`py-2 px-2.5 rounded-xl font-bold border transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 ${
                       targetType === 'all'
                         ? 'border-[#2E6B38] bg-[#F2F8F3] text-[#2E6B38]'
                         : 'border-[#E5DCC9] bg-white text-dash-ink-soft'
                     }`}
                   >
-                    🌟 All Teachers
+                    <Icon name="sparkles" size={13} />
+                    <span>All Teachers</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setTargetType('teacher')}
-                    className={`py-2 px-2.5 rounded-xl font-bold border transition-all cursor-pointer text-center ${
+                    className={`py-2 px-2.5 rounded-xl font-bold border transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 ${
                       targetType === 'teacher'
                         ? 'border-accent bg-[#FFF5EE] text-accent'
                         : 'border-[#E5DCC9] bg-white text-dash-ink-soft'
                     }`}
                   >
-                    👩‍🏫 Single Teacher
+                    <Icon name="teachers" size={13} />
+                    <span>Single Teacher</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setTargetType('barangay')}
-                    className={`py-2 px-2.5 rounded-xl font-bold border transition-all cursor-pointer text-center ${
+                    className={`py-2 px-2.5 rounded-xl font-bold border transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 ${
                       targetType === 'barangay'
                         ? 'border-accent bg-[#FFF5EE] text-accent'
                         : 'border-[#E5DCC9] bg-white text-dash-ink-soft'
                     }`}
                   >
-                    🏘️ Whole Barangay
+                    <Icon name="neighborhood" size={13} />
+                    <span>Whole Barangay</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setTargetType('cdc')}
-                    className={`py-2 px-2.5 rounded-xl font-bold border transition-all cursor-pointer text-center ${
+                    className={`py-2 px-2.5 rounded-xl font-bold border transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 ${
                       targetType === 'cdc'
                         ? 'border-accent bg-[#FFF5EE] text-accent'
                         : 'border-[#E5DCC9] bg-white text-dash-ink-soft'
                     }`}
                   >
-                    🏫 Specific CDC
+                    <Icon name="school" size={13} />
+                    <span>Specific CDC</span>
                   </button>
                 </div>
               </div>
 
               {targetType === 'all' && (
-                <div className="p-3 bg-[#F2F8F3] border border-[#CDE5D1] rounded-xl text-xs text-[#25572D] font-semibold leading-relaxed">
-                  📢 <b>Deploy to All Teachers:</b> This will assign the selected <b>{selectedLevelForAssign}</b> curriculum guide and chosen quarters to <b>all 84 Child Development Teachers across 64 Daycare Centers</b> in Manolo Fortich.
+                <div className="p-3 bg-[#F2F8F3] border border-[#CDE5D1] rounded-xl text-xs text-[#25572D] font-semibold leading-relaxed flex items-start gap-2">
+                  <Icon name="megaphone" size={15} className="mt-0.5 shrink-0" />
+                  <span>
+                    <b>Deploy to All Teachers:</b> This will assign the selected <b>{selectedLevelForAssign}</b> curriculum guide and chosen quarters to <b>all 84 Child Development Teachers across 64 Daycare Centers</b> in Manolo Fortich.
+                  </span>
                 </div>
               )}
 
@@ -1372,13 +1402,14 @@ export default function CurriculumGuides({
                       setWeekScopeMode('all');
                       setSelectedWeeksForAssign([]);
                     }}
-                    className={`py-2 px-3 rounded-lg text-xs font-semibold border transition-all cursor-pointer text-center ${
+                    className={`py-2 px-3 rounded-lg text-xs font-semibold border transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 ${
                       weekScopeMode === 'all'
                         ? 'border-slate-900 bg-slate-900 text-white'
                         : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                     }`}
                   >
-                    📅 All Weeks in Quarter
+                    <Icon name="calendar" size={13} />
+                    <span>All Weeks in Quarter</span>
                   </button>
                   <button
                     type="button"
@@ -1388,13 +1419,14 @@ export default function CurriculumGuides({
                         setSelectedWeeksForAssign([availableWeeksInModal[0].week]);
                       }
                     }}
-                    className={`py-2 px-3 rounded-lg text-xs font-semibold border transition-all cursor-pointer text-center ${
+                    className={`py-2 px-3 rounded-lg text-xs font-semibold border transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 ${
                       weekScopeMode === 'specific'
                         ? 'border-slate-900 bg-slate-900 text-white'
                         : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                     }`}
                   >
-                    📌 Specific Week(s) Only
+                    <Icon name="push-pin" size={13} />
+                    <span>Specific Week(s) Only</span>
                   </button>
                 </div>
 
@@ -1456,8 +1488,9 @@ export default function CurriculumGuides({
                       })}
                     </div>
                     {selectedWeeksForAssign.length === 0 && (
-                      <p className="text-[11px] text-amber-700 italic m-0">
-                        ⚠️ Please click at least one week to assign, or choose "All Weeks in Quarter" above.
+                      <p className="text-[11px] text-amber-700 italic m-0 flex items-center gap-1">
+                        <Icon name="warning" size={12} />
+                        <span>Please click at least one week to assign, or choose &ldquo;All Weeks in Quarter&rdquo; above.</span>
                       </p>
                     )}
                   </div>
@@ -1467,8 +1500,9 @@ export default function CurriculumGuides({
               {/* Assignment Deadline */}
               <div className="space-y-1.5 p-3 rounded-xl bg-amber-50/80 border border-amber-200">
                 <div className="flex items-center justify-between">
-                  <label className="font-bold text-amber-950 block">
-                    ⏰ Activity Submission Deadline <span className="text-coral">*</span>
+                  <label className="font-bold text-amber-950 flex items-center gap-1.5">
+                    <Icon name="alarm" size={14} className="text-amber-800" />
+                    <span>Activity Submission Deadline <span className="text-coral">*</span></span>
                   </label>
                   <span className="text-[10.5px] text-amber-800">
                     Teacher cannot upload once this deadline expires
