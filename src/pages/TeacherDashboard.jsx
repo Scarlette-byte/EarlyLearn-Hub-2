@@ -43,7 +43,7 @@ import {
   saveMediaToSupabaseChunks,
   resolveViewableMediaUrl,
 } from '../lib/mediaStorage.js';
-import {
+import Icon, {
   IconSearch,
   IconMaterials,
   IconClose,
@@ -69,15 +69,15 @@ import {
 } from '../lib/ui.js';
 
 const TABS = [
-  { key: 'overview', label: 'Overview', icon: '📊' },
-  { key: 'assigned_topics', label: 'Assigned Topics & Tasks', icon: '📋' },
-  { key: 'mylearners', label: 'My Learners', icon: '🧒' },
-  { key: 'child_development', label: 'Child Development', icon: '🌱' },
-  { key: 'upload', label: 'Uploaded Materials', icon: '📁' },
-  { key: 'announcements', label: 'Announcements', icon: '📢' },
-  { key: 'submissions', label: 'Check Submissions', icon: '📝' },
-  { key: 'progress', label: 'Student Progress', icon: '📈' },
-  { key: 'profile', label: 'My Profile', icon: '👩‍🏫' },
+  { key: 'overview', label: 'Overview', icon: <Icon name="bar-chart" size={16} /> },
+  { key: 'assigned_topics', label: 'Assigned Topics & Tasks', icon: <Icon name="clipboard-check" size={16} /> },
+  { key: 'mylearners', label: 'My Learners', icon: <Icon name="child" size={16} /> },
+  { key: 'child_development', label: 'Child Development', icon: <Icon name="seedling" size={16} /> },
+  { key: 'upload', label: 'Uploaded Materials', icon: <Icon name="folder-open" size={16} /> },
+  { key: 'announcements', label: 'Announcements', icon: <Icon name="megaphone" size={16} /> },
+  { key: 'submissions', label: 'Check Submissions', icon: <Icon name="file" size={16} /> },
+  { key: 'progress', label: 'Student Progress', icon: <Icon name="trending-up" size={16} /> },
+  { key: 'profile', label: 'My Profile', icon: <Icon name="teachers" size={16} /> },
 ];
 
 export default function TeacherDashboard({ profile }) {
@@ -734,7 +734,7 @@ const handleFileSelected = async (file) => {
   if (!file) return;
   const validation = validateActivityFile(file);
   if (!validation.valid) {
-    setUploadMsg({ text: `⚠️ ${validation.error}`, type: 'error' });
+    setUploadMsg({ text: validation.error, type: 'error' });
     return;
   }
   setUploadMsg({ text: '', type: '' });
@@ -834,7 +834,7 @@ const handleFileSelected = async (file) => {
   const handleOpenUploadForAssignedTopic = (asg) => {
     const isPast = Boolean(asg.deadline && new Date(asg.deadline + 'T23:59:59') < new Date());
     if (isPast) {
-      alert(`⚠️ Cannot upload: The deadline for "${asg.topicTitle || asg.subTheme}" expired on ${asg.deadline}. New uploads are locked.`);
+      alert(`Cannot upload: The deadline for "${asg.topicTitle || asg.subTheme}" expired on ${asg.deadline}. New uploads are locked.`);
       return;
     }
 
@@ -947,7 +947,7 @@ const handleFileSelected = async (file) => {
   async function handleSaveMaterial(e) {
     if (e) e.preventDefault();
     if (!uploadTitle.trim()) {
-      setUploadMsg({ text: '⚠️ Please enter a title for this material.', type: 'error' });
+      setUploadMsg({ text: 'Please enter a title for this material.', type: 'error' });
       return;
     }
 
@@ -1258,8 +1258,8 @@ const handleFileSelected = async (file) => {
     loadMyMaterials();
     setUploadMsg({
       text: savedToSupabase
-        ? '✅ Activity submitted to MSWD! Once MSWD approves it, you can post it to your Student Dashboard.'
-        : '✅ Activity submitted to MSWD for review! Once approved, you can post it to your Student Dashboard.',
+        ? 'Activity submitted to MSWD! Once MSWD approves it, you can post it to your Student Dashboard.'
+        : 'Activity submitted to MSWD for review! Once approved, you can post it to your Student Dashboard.',
       type: 'ok',
     });
     setTimeout(() => {
@@ -1478,7 +1478,7 @@ const handleFileSelected = async (file) => {
     } catch { }
 
     setPostModalMsg({
-      text: `🚀 Activity successfully posted to Student Dashboard (${targetName})!`,
+      text: `Activity successfully posted to Student Dashboard (${targetName})!`,
       type: 'ok',
     });
 
@@ -1551,7 +1551,7 @@ const handleFileSelected = async (file) => {
       window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updated }));
     } catch { }
 
-    showTeacherToast(`🗑️ Deleted "${mat.title}". Moved to Deleted / Retrieve tab.`, () =>
+    showTeacherToast(`Deleted "${mat.title}". Moved to Deleted / Retrieve tab.`, () =>
       handleRetrieveMaterial(mat)
     );
   }
@@ -1602,7 +1602,7 @@ const handleFileSelected = async (file) => {
       window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updated }));
     } catch { }
 
-    showTeacherToast(`♻️ Retrieved "${mat.title}" back to your active uploaded materials!`);
+    showTeacherToast(`Retrieved "${mat.title}" back to your active uploaded materials!`);
   }
 
   // Permanently delete a material from Deleted / Retrieve tab
@@ -1618,7 +1618,7 @@ const handleFileSelected = async (file) => {
       localStorage.setItem('earlylearn_teacher_modules', JSON.stringify(updated));
       window.dispatchEvent(new CustomEvent('earlylearn_modules_updated', { detail: updated }));
     } catch { }
-    showTeacherToast(`🗑️ Permanently deleted "${mat.title}".`);
+    showTeacherToast(`Permanently deleted "${mat.title}".`);
   }
 
   // Soft-Delete an Assigned Topic & Task (moves to Deleted / Retrieve tab and syncs with Supabase)
@@ -1676,7 +1676,7 @@ const handleFileSelected = async (file) => {
 
     const topicName = asg.topicTitle || asg.subTheme || 'Assigned Topic';
     showTeacherToast(
-      `🗑️ Removed "${topicName}" from your active Assigned Topics. Moved to Deleted / Retrieve tab.`,
+      `Removed "${topicName}" from your active Assigned Topics. Moved to Deleted / Retrieve tab.`,
       () => handleRetrieveAssignedTopic(asg)
     );
   }
@@ -1729,7 +1729,7 @@ const handleFileSelected = async (file) => {
     } catch { }
 
     const topicName = asg.topicTitle || asg.subTheme || 'Assigned Topic';
-    showTeacherToast(`♻️ Retrieved "${topicName}" back to your active Assigned Topics & Tasks!`);
+    showTeacherToast(`Retrieved "${topicName}" back to your active Assigned Topics & Tasks!`);
   }
 
   // Permanently delete an Assigned Topic & Task from Deleted / Retrieve tab
@@ -1771,7 +1771,7 @@ const handleFileSelected = async (file) => {
       }
     } catch { }
 
-    showTeacherToast(`🗑️ Permanently deleted "${topicName}".`);
+    showTeacherToast(`Permanently deleted "${topicName}".`);
   }
 
   // --- Announcements (Supports All Class Learners or Specific Student + Cross-Device Sync via Supabase) ---
@@ -1909,7 +1909,7 @@ const handleFileSelected = async (file) => {
 
   async function postAnnouncement() {
     if (!annTitle.trim() || !annMessage.trim()) {
-      setAnnStatusMsg({ text: '⚠️ Please enter a title and message', type: 'error' });
+      setAnnStatusMsg({ text: 'Please enter a title and message', type: 'error' });
       return;
     }
 
@@ -1977,8 +1977,8 @@ const handleFileSelected = async (file) => {
     setAnnStatusMsg({
       text:
         targetStudentIdToSave === 'all'
-          ? `✅ Announcement posted to ${targetStudentNameToSave}!`
-          : `✅ Announcement posted specifically to ${targetStudentNameToSave}'s Student Dashboard!`,
+          ? `Announcement posted to ${targetStudentNameToSave}!`
+          : `Announcement posted specifically to ${targetStudentNameToSave}'s Student Dashboard!`,
       type: 'ok',
     });
     setAnnTitle('');
@@ -2094,7 +2094,7 @@ const handleFileSelected = async (file) => {
         const studentOnlyName = cleanStudentName(u.studentName || 'Student');
         const isChecked =
           u.status === 'Checked' ||
-          u.status === 'Checked by Teacher ✅' ||
+          String(u.status || '').toLowerCase().includes('checked') ||
           u.status === 'Reviewed by Teacher' ||
           u.teacherChecked === true;
         return {
@@ -2281,7 +2281,7 @@ const handleFileSelected = async (file) => {
       const updated = localStudentUploads.map((u) => {
         const uStudent = cleanStudentName(u.studentName || '').toLowerCase();
         if (idsToMark.includes(u.id) || (targetStudentName && uStudent === targetStudentName)) {
-          return { ...u, status: 'Checked by Teacher ✅', teacherChecked: true, checkedAt };
+          return { ...u, status: 'Checked by Teacher', teacherChecked: true, checkedAt };
         }
         return u;
       });
@@ -2357,7 +2357,7 @@ const handleFileSelected = async (file) => {
 
     loadSubmissions();
     showTeacherToast(
-      `🗑️ Deleted submission for ${cleanStudentName(targetSub.profiles?.full_name || 'Student')}. Moved to Deleted / Retrieve tab.`,
+      `Deleted submission for ${cleanStudentName(targetSub.profiles?.full_name || 'Student')}. Moved to Deleted / Retrieve tab.`,
       () => handleRetrieveSubmission(targetSub)
     );
   }
@@ -2403,7 +2403,7 @@ const handleFileSelected = async (file) => {
 
     loadSubmissions();
     showTeacherToast(
-      `♻️ Retrieved submission for ${cleanStudentName(targetSub.profiles?.full_name || 'Student')}!`
+      `Retrieved submission for ${cleanStudentName(targetSub.profiles?.full_name || 'Student')}!`
     );
   }
 
@@ -2436,7 +2436,7 @@ const handleFileSelected = async (file) => {
 
     loadSubmissions();
     loadProgress();
-    showTeacherToast(`🗑️ Permanently deleted submission for ${stName}.`);
+    showTeacherToast(`Permanently deleted submission for ${stName}.`);
   }
 
   // --- Progress (1 record per student only, student name only without parent name) ---
@@ -2932,12 +2932,12 @@ const handleFileSelected = async (file) => {
       });
       setTeacherRegCode(freshCode);
       setLearnerActionMsg({
-        text: `✅ New Parent Registration Code (${freshCode}) saved to Supabase! Parents can now use this code to register.`,
+        text: `New Parent Registration Code (${freshCode}) saved to Supabase! Parents can now use this code to register.`,
         type: 'ok',
       });
     } catch (err) {
       setLearnerActionMsg({
-        text: `❌ Could not update registration code: ${err.message}`,
+        text: `Could not update registration code: ${err.message}`,
         type: 'error',
       });
     } finally {
@@ -2956,13 +2956,13 @@ const handleFileSelected = async (file) => {
       setLearnerActionMsg({
         text:
           nextStatus === 'approved'
-            ? `✅ Approved parent & learner account for "${cleanStudentName(learner.full_name)}". They can now log in and access their dashboard on any device!`
-            : `❌ Declined parent registration for "${cleanStudentName(learner.full_name)}".`,
+            ? `Approved parent & learner account for "${cleanStudentName(learner.full_name)}". They can now log in and access their dashboard on any device!`
+            : `Declined parent registration for "${cleanStudentName(learner.full_name)}".`,
         type: nextStatus === 'approved' ? 'ok' : 'error',
       });
     } catch (err) {
       setLearnerActionMsg({
-        text: `❌ Failed updating approval status: ${err.message}`,
+        text: `Failed updating approval status: ${err.message}`,
         type: 'error',
       });
     } finally {
@@ -3018,7 +3018,7 @@ const handleFileSelected = async (file) => {
       setCreatedParentCredentials(res.credentials);
       await loadMyLearners();
       setLearnerActionMsg({
-        text: `✅ Parent & Learner account for "${res.credentials.childName}" created and approved in Supabase!`,
+        text: `Parent & Learner account for "${res.credentials.childName}" created and approved in Supabase!`,
         type: 'ok',
       });
     } catch (err) {
@@ -3198,7 +3198,7 @@ const handleFileSelected = async (file) => {
       tabs={TABS}
       title="Teacher Dashboard"
       subtitle="Manolo Fortich, Bukidnon · EarlyLearn Hub"
-      avatar="👩‍🏫"
+      avatar="TC"
       stats={[
         { label: 'Materials Uploaded', value: combinedUploadedMaterials.length || 0 },
         {
@@ -3287,7 +3287,8 @@ const handleFileSelected = async (file) => {
             <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
               <div>
                 <div className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <span>⏳ Parent Account Registrations Awaiting Your Approval</span>
+                  <Icon name="clock" size={14} />
+                  <span>Parent Account Registrations Awaiting Your Approval</span>
                 </div>
                 <p className="text-xs text-amber-800 mt-1 m-0">
                   You have{' '}
@@ -3312,7 +3313,8 @@ const handleFileSelected = async (file) => {
             <div className="bg-emerald-50 border border-emerald-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
               <div>
                 <div className="text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <span>✅ MSWD Approved Your Complied Activity!</span>
+                  <Icon name="check-circle" size={15} />
+                  <span>MSWD Approved Your Complied Activity!</span>
                 </div>
                 <p className="text-xs text-emerald-800 mt-1 m-0">
                   You have <strong>{approvedReadyToPost.length}</strong> MSWD-approved{' '}
@@ -3322,9 +3324,10 @@ const handleFileSelected = async (file) => {
               <button
                 type="button"
                 onClick={() => handleOpenPostToStudentModal(approvedReadyToPost[0])}
-                className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs cursor-pointer shrink-0"
+                className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs cursor-pointer shrink-0 inline-flex items-center gap-1.5"
               >
-                📤 Post to Student Dashboard →
+                <Icon name="upload" size={14} />
+                <span>Post to Student Dashboard →</span>
               </button>
             </div>
           )}
@@ -3338,7 +3341,7 @@ const handleFileSelected = async (file) => {
           <div className="bg-white p-5 sm:p-6 rounded-2xl border border-card-border shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold">
-                <span>📋</span>
+                <Icon name="clipboard-check" size={13} />
                 <span>Official DepEd ECCD • MSWDO Manolo Fortich Assigned Topics</span>
               </div>
               <h3 className="text-xl sm:text-2xl font-bold text-slate-900 m-0 mt-2 tracking-tight">
@@ -3351,7 +3354,7 @@ const handleFileSelected = async (file) => {
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 shrink-0">
               <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-1.5">
-                <span>🏫</span>
+                <Icon name="school" size={14} />
                 <span>{myCdcName || 'Manolo Fortich Day Care Center'}</span>
               </span>
               {myBarangay && (
@@ -3373,17 +3376,19 @@ const handleFileSelected = async (file) => {
                       teacherToast.undoAction();
                       setTeacherToast(null);
                     }}
-                    className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold cursor-pointer"
+                    className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold cursor-pointer inline-flex items-center gap-1"
                   >
-                    ♻️ Retrieve / Undo
+                    <Icon name="restore" size={12} />
+                    <span>Retrieve / Undo</span>
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={() => setTeacherToast(null)}
-                  className="text-slate-400 hover:text-white cursor-pointer"
+                  aria-label="Dismiss notification"
+                  className="text-slate-400 hover:text-white cursor-pointer inline-flex items-center justify-center"
                 >
-                  ✕
+                  <Icon name="close" size={14} />
                 </button>
               </div>
             </div>
@@ -3457,7 +3462,8 @@ const handleFileSelected = async (file) => {
                   : 'bg-amber-50 text-amber-900 hover:bg-amber-100'
                   }`}
               >
-                <span>⏳ Open / Pending</span>
+                <Icon name="clock" size={13} />
+                <span>Open / Pending</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${topicStatusFilter === 'pending' ? 'bg-white/20 text-white' : 'bg-amber-200 text-amber-900'}`}>
                   {assignedCounts.pending}
                 </span>
@@ -3471,7 +3477,8 @@ const handleFileSelected = async (file) => {
                   : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
                   }`}
               >
-                <span>✅ Complied</span>
+                <Icon name="check-circle" size={13} />
+                <span>Complied</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${topicStatusFilter === 'completed' ? 'bg-white/20 text-white' : 'bg-emerald-200 text-emerald-900'}`}>
                   {assignedCounts.completed}
                 </span>
@@ -3485,7 +3492,8 @@ const handleFileSelected = async (file) => {
                   : 'bg-rose-50 text-rose-900 hover:bg-rose-100'
                   }`}
               >
-                <span>⚠️ Past Deadline</span>
+                <Icon name="warning" size={13} />
+                <span>Past Deadline</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${topicStatusFilter === 'expired' ? 'bg-white/20 text-white' : 'bg-rose-200 text-rose-900'}`}>
                   {assignedCounts.expired}
                 </span>
@@ -3499,7 +3507,8 @@ const handleFileSelected = async (file) => {
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
               >
-                <span>🗑️ Deleted / Retrieve</span>
+                <Icon name="trash" size={13} />
+                <span>Deleted / Retrieve</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${topicStatusFilter === 'deleted' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
                   {assignedCounts.deleted}
                 </span>
@@ -3582,7 +3591,7 @@ const handleFileSelected = async (file) => {
                         {matchedMod ? (
                           matchedMod.status === 'Approved' ? (
                             <span className="text-[10.5px] px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
-                              <span>✅</span>
+                              <Icon name="check-circle" size={12} />
                               <span>
                                 {matchedMod.posted_to_students
                                   ? `Approved & Posted (${matchedMod.target_student_name || 'Students'})`
@@ -3591,23 +3600,23 @@ const handleFileSelected = async (file) => {
                             </span>
                           ) : matchedMod.status === 'Rejected' ? (
                             <span className="text-[10.5px] px-2.5 py-0.5 rounded-full font-bold bg-rose-100 text-rose-800 border border-rose-300 flex items-center gap-1">
-                              <span>❌</span>
+                              <Icon name="x-circle" size={12} />
                               <span>Rejected by MSWD</span>
                             </span>
                           ) : (
                             <span className="text-[10.5px] px-2.5 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
-                              <span>⏳</span>
+                              <Icon name="clock" size={12} />
                               <span>Complied • Pending MSWD Decision</span>
                             </span>
                           )
                         ) : item.isPastDeadline ? (
                           <span className="text-[10.5px] px-2.5 py-0.5 rounded-full font-bold bg-rose-100 text-rose-800 border border-rose-300 flex items-center gap-1">
-                            <span>⚠️</span>
+                            <Icon name="warning" size={12} />
                             <span>Deadline Passed (Locked)</span>
                           </span>
                         ) : (
                           <span className="text-[10.5px] px-2.5 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
-                            <span>⏳</span>
+                            <Icon name="clock" size={12} />
                             <span>Open for Compliance</span>
                           </span>
                         )}
@@ -3627,8 +3636,11 @@ const handleFileSelected = async (file) => {
                         </span>
                       </div>
 
-                      <div className="text-[11.5px] text-slate-500 flex items-center gap-1.5">
-                        <span className="font-semibold text-slate-700">🏫 {item.cdcName}</span>
+                      <div className="text-[11.5px] text-slate-500 flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold text-slate-700 inline-flex items-center gap-1">
+                          <Icon name="school" size={13} className="text-accent" />
+                          <span>{item.cdcName}</span>
+                        </span>
                         <span>•</span>
                         <span>Brgy. {item.barangay}</span>
                         {item.assignedDate && (
@@ -3670,7 +3682,7 @@ const handleFileSelected = async (file) => {
                                   : 'bg-amber-50 text-amber-900 border border-amber-300'
                                 }`}
                             >
-                              <span>📅</span>
+                              <Icon name="calendar" size={13} />
                               <span>{item.deadline}</span>
                             </span>
                           </div>
@@ -3689,7 +3701,7 @@ const handleFileSelected = async (file) => {
                               onClick={() => handleRetrieveAssignedTopic(item)}
                               className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
                             >
-                              <span>♻️</span>
+                              <Icon name="restore" size={13} />
                               <span>Retrieve</span>
                             </button>
                             <button
@@ -3697,7 +3709,7 @@ const handleFileSelected = async (file) => {
                               onClick={() => handlePermanentDeleteAssignedTopic(item)}
                               className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
                             >
-                              <span>🗑️</span>
+                              <Icon name="trash" size={13} />
                               <span>Delete Forever</span>
                             </button>
                           </div>
@@ -3708,7 +3720,8 @@ const handleFileSelected = async (file) => {
                               disabled
                               className="px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-300 text-slate-400 font-bold text-xs cursor-not-allowed flex items-center gap-1.5 opacity-60"
                             >
-                              <span>🔒 Upload Closed (Deadline Passed)</span>
+                              <Icon name="lock" size={13} />
+                              <span>Upload Closed (Deadline Passed)</span>
                             </button>
                             <button
                               type="button"
@@ -3716,7 +3729,7 @@ const handleFileSelected = async (file) => {
                               className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
                               title="Remove from active Assigned Topics (can be retrieved)"
                             >
-                              <span>🗑️</span>
+                              <Icon name="trash" size={13} />
                               <span>Delete</span>
                             </button>
                           </div>
@@ -3727,7 +3740,8 @@ const handleFileSelected = async (file) => {
                               onClick={() => handleOpenPostToStudentModal(matchedMod)}
                               className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
                             >
-                              <span>📤 {matchedMod.posted_to_students ? 'Repost / Change Student' : 'Post to Student Dashboard'}</span>
+                              <Icon name="upload" size={13} />
+                              <span>{matchedMod.posted_to_students ? 'Repost / Change Student' : 'Post to Student Dashboard'}</span>
                             </button>
                             <button
                               type="button"
@@ -3746,6 +3760,19 @@ const handleFileSelected = async (file) => {
                               }
                               className="px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
                             >
+                              <Icon
+                                name={
+                                  isVideoItem({
+                                    url: matchedMod.content_url,
+                                    file_name: matchedMod.file_name,
+                                    file_type: matchedMod.file_type,
+                                    type: matchedMod.type,
+                                  })
+                                    ? 'play'
+                                    : 'eye'
+                                }
+                                size={13}
+                              />
                               <span>
                                 {isVideoItem({
                                   url: matchedMod.content_url,
@@ -3753,8 +3780,8 @@ const handleFileSelected = async (file) => {
                                   file_type: matchedMod.file_type,
                                   type: matchedMod.type,
                                 })
-                                  ? '▶️ Play / View Material'
-                                  : '👁️ View Material'}
+                                  ? 'Play / View Material'
+                                  : 'View Material'}
                               </span>
                             </button>
                             <button
@@ -3763,7 +3790,7 @@ const handleFileSelected = async (file) => {
                               className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
                               title="Remove from active Assigned Topics (can be retrieved)"
                             >
-                              <span>🗑️</span>
+                              <Icon name="trash" size={13} />
                               <span>Delete</span>
                             </button>
                           </div>
@@ -3774,7 +3801,8 @@ const handleFileSelected = async (file) => {
                               onClick={() => handleOpenUploadForAssignedTopic(item)}
                               className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
                             >
-                              <span>🔄 Re-upload Revised Activity →</span>
+                              <Icon name="refresh" size={13} />
+                              <span>Re-upload Revised Activity →</span>
                             </button>
                             <button
                               type="button"
@@ -3782,14 +3810,15 @@ const handleFileSelected = async (file) => {
                               className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
                               title="Remove from active Assigned Topics (can be retrieved)"
                             >
-                              <span>🗑️</span>
+                              <Icon name="trash" size={13} />
                               <span>Delete</span>
                             </button>
                           </div>
                         ) : item.isCompleted ? (
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold">
-                              ⏳ Pending MSWD Approval
+                            <span className="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold inline-flex items-center gap-1.5">
+                              <Icon name="clock" size={13} />
+                              <span>Pending MSWD Approval</span>
                             </span>
                             {matchedMod && (
                               <button
@@ -3809,6 +3838,19 @@ const handleFileSelected = async (file) => {
                                 }
                                 className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
                               >
+                                <Icon
+                                  name={
+                                    isVideoItem({
+                                      url: matchedMod.content_url,
+                                      file_name: matchedMod.file_name,
+                                      file_type: matchedMod.file_type,
+                                      type: matchedMod.type,
+                                    })
+                                      ? 'play'
+                                      : 'eye'
+                                  }
+                                  size={13}
+                                />
                                 <span>
                                   {isVideoItem({
                                     url: matchedMod.content_url,
@@ -3816,8 +3858,8 @@ const handleFileSelected = async (file) => {
                                     file_type: matchedMod.file_type,
                                     type: matchedMod.type,
                                   })
-                                    ? '▶️ Play / View Material'
-                                    : '👁️ View Material'}
+                                    ? 'Play / View Material'
+                                    : 'View Material'}
                                 </span>
                               </button>
                             )}
@@ -3827,7 +3869,7 @@ const handleFileSelected = async (file) => {
                               className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
                               title="Remove from active Assigned Topics (can be retrieved)"
                             >
-                              <span>🗑️</span>
+                              <Icon name="trash" size={13} />
                               <span>Delete</span>
                             </button>
                           </div>
@@ -3838,7 +3880,8 @@ const handleFileSelected = async (file) => {
                               onClick={() => handleOpenUploadForAssignedTopic(item)}
                               className="px-4 py-2.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
                             >
-                              <span>📤 Comply &amp; Upload Activity →</span>
+                              <Icon name="upload" size={13} />
+                              <span>Comply &amp; Upload Activity →</span>
                             </button>
                             <button
                               type="button"
@@ -3846,7 +3889,7 @@ const handleFileSelected = async (file) => {
                               className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
                               title="Remove from active Assigned Topics (can be retrieved)"
                             >
-                              <span>🗑️</span>
+                              <Icon name="trash" size={13} />
                               <span>Delete</span>
                             </button>
                           </div>
@@ -3860,8 +3903,8 @@ const handleFileSelected = async (file) => {
 
             {filteredAssignedTopics.length === 0 && (
               <div className="bg-white p-10 rounded-2xl border border-card-border text-center space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-2xl flex items-center justify-center mx-auto">
-                  📋
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 flex items-center justify-center mx-auto">
+                  <Icon name="clipboard-check" size={24} />
                 </div>
                 <div className="font-fraunces font-bold text-slate-800 text-base">
                   {myAssignedTopics.length === 0 ? 'No Topics or Tasks Assigned by MSWD Yet' : 'No Matching Assigned Topics Found'}
@@ -3884,7 +3927,7 @@ const handleFileSelected = async (file) => {
           <div className="bg-white p-5 rounded-2xl border border-amber-200 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold">
-                <span>🔑</span>
+                <Icon name="key" size={13} />
                 <span>Parent Registration &amp; Approval Center</span>
               </div>
               <h4 className="text-base font-bold text-slate-900 m-0">
@@ -3908,7 +3951,8 @@ const handleFileSelected = async (file) => {
                 }}
                 className="px-3 py-2 rounded-xl bg-[#FAF5EC] hover:bg-[#F2E8D5] text-slate-800 font-bold text-xs border border-[#E5DAC4] cursor-pointer flex items-center gap-1.5"
               >
-                <span>{codeCopied ? '✅ Copied!' : '📋 Copy Code'}</span>
+                <Icon name={codeCopied ? 'check' : 'copy'} size={14} />
+                <span>{codeCopied ? 'Copied!' : 'Copy Code'}</span>
               </button>
 
               <button
@@ -3918,7 +3962,7 @@ const handleFileSelected = async (file) => {
                 className="px-3 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs border border-slate-200 cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
                 title="Generate a new unique registration code and save to Supabase"
               >
-                <span>🔄</span>
+                <Icon name="refresh" size={14} className={codeSaving ? 'animate-spin' : ''} />
                 <span>{codeSaving ? 'Saving...' : 'New Code'}</span>
               </button>
 
@@ -3933,25 +3977,30 @@ const handleFileSelected = async (file) => {
                 }}
                 className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1.5"
               >
-                <span>➕ Create Parent Account</span>
+                <Icon name="plus" size={14} />
+                <span>Create Parent Account</span>
               </button>
             </div>
           </div>
 
           {learnerActionMsg.text && (
             <div
-              className={`p-3 rounded-xl text-xs font-bold flex items-center justify-between ${learnerActionMsg.type === 'error'
+              className={`p-3 rounded-xl text-xs font-bold flex items-center justify-between gap-2 ${learnerActionMsg.type === 'error'
                   ? 'bg-rose-50 text-rose-800 border border-rose-200'
                   : 'bg-emerald-50 text-emerald-900 border border-emerald-200'
                 }`}
             >
-              <span>{learnerActionMsg.text}</span>
+              <span className="inline-flex items-center gap-1.5">
+                <Icon name={learnerActionMsg.type === 'error' ? 'alert-circle' : 'check-circle'} size={14} />
+                <span>{learnerActionMsg.text}</span>
+              </span>
               <button
                 type="button"
                 onClick={() => setLearnerActionMsg({ text: '', type: '' })}
-                className="text-xs font-bold px-2 cursor-pointer bg-transparent border-none"
+                aria-label="Dismiss message"
+                className="text-xs font-bold px-2 cursor-pointer bg-transparent border-none inline-flex items-center justify-center"
               >
-                ✕
+                <Icon name="close" size={14} />
               </button>
             </div>
           )}
@@ -3971,12 +4020,14 @@ const handleFileSelected = async (file) => {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {myLearners.some((l) => l.approval_status === 'pending') && (
-                  <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                    ⏳ {myLearners.filter((l) => l.approval_status === 'pending').length} Pending Approval
+                  <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 inline-flex items-center gap-1">
+                    <Icon name="clock" size={13} />
+                    <span>{myLearners.filter((l) => l.approval_status === 'pending').length} Pending Approval</span>
                   </span>
                 )}
-                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                  👥 {myLearners.length} {myLearners.length === 1 ? 'Learner' : 'Learners'}
+                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
+                  <Icon name="users" size={13} />
+                  <span>{myLearners.length} {myLearners.length === 1 ? 'Learner' : 'Learners'}</span>
                 </span>
                 <button
                   type="button"
@@ -3984,7 +4035,7 @@ const handleFileSelected = async (file) => {
                   className="px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold cursor-pointer flex items-center gap-1"
                   title="Refresh learner list from Supabase"
                 >
-                  <span>🔄</span>
+                  <Icon name="refresh" size={13} />
                   <span>Refresh</span>
                 </button>
               </div>
@@ -4019,7 +4070,9 @@ const handleFileSelected = async (file) => {
                           >
                             <td className={td}>
                               <div className="flex items-center gap-2">
-                                <span>🧒</span>
+                                <span className="w-7 h-7 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 flex items-center justify-center shrink-0">
+                                  <Icon name="child" size={15} />
+                                </span>
                                 <span className="font-bold text-slate-900">
                                   {cleanStudentName(l.full_name)}
                                 </span>
@@ -4031,15 +4084,18 @@ const handleFileSelected = async (file) => {
                             <td className={td}>
                               {isPending ? (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                                  ⏳ Pending Approval
+                                  <Icon name="clock" size={11} />
+                                  <span>Pending Approval</span>
                                 </span>
                               ) : isRejected ? (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
-                                  ✕ Declined
+                                  <Icon name="close" size={11} />
+                                  <span>Declined</span>
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                  ✓ Approved
+                                  <Icon name="check" size={11} />
+                                  <span>Approved</span>
                                 </span>
                               )}
                             </td>
@@ -4051,17 +4107,19 @@ const handleFileSelected = async (file) => {
                                       type="button"
                                       disabled={isBusy}
                                       onClick={() => handleApproveOrRejectParent(l, 'approved')}
-                                      className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                                      className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1"
                                     >
-                                      ✓ Approve
+                                      <Icon name="check" size={12} />
+                                      <span>Approve</span>
                                     </button>
                                     <button
                                       type="button"
                                       disabled={isBusy}
                                       onClick={() => handleApproveOrRejectParent(l, 'rejected')}
-                                      className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                                      className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1"
                                     >
-                                      ✕ Decline
+                                      <Icon name="close" size={12} />
+                                      <span>Decline</span>
                                     </button>
                                   </>
                                 )}
@@ -4070,9 +4128,10 @@ const handleFileSelected = async (file) => {
                                     type="button"
                                     disabled={isBusy}
                                     onClick={() => handleApproveOrRejectParent(l, 'approved')}
-                                    className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                                    className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1"
                                   >
-                                    ✓ Approve
+                                    <Icon name="check" size={12} />
+                                    <span>Approve</span>
                                   </button>
                                 )}
                                 <button
@@ -4080,7 +4139,7 @@ const handleFileSelected = async (file) => {
                                   onClick={() => setActiveTab('child_development')}
                                   className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
                                 >
-                                  <span>🌱</span>
+                                  <Icon name="seedling" size={12} />
                                   <span>Assess ECCD</span>
                                 </button>
                               </div>
@@ -4123,9 +4182,10 @@ const handleFileSelected = async (file) => {
                   <button
                     type="button"
                     onClick={() => setCreateParentModalOpen(false)}
-                    className="text-slate-400 hover:text-slate-700 bg-transparent border-none cursor-pointer text-base font-bold"
+                    aria-label="Close parent account modal"
+                    className="text-slate-400 hover:text-slate-700 bg-transparent border-none cursor-pointer text-base font-bold inline-flex items-center justify-center"
                   >
-                    ✕
+                    <Icon name="close" size={16} />
                   </button>
                 </div>
 
@@ -4225,8 +4285,8 @@ const handleFileSelected = async (file) => {
           {createdParentCredentials && (
             <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl border border-slate-200 text-center space-y-4">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-2xl mx-auto">
-                  ✅
+                <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto">
+                  <Icon name="check-circle" size={24} />
                 </div>
                 <div>
                   <h4 className="font-fraunces text-base font-bold text-slate-900 m-0">
@@ -4264,9 +4324,10 @@ const handleFileSelected = async (file) => {
                       navigator.clipboard?.writeText(text);
                       alert('Parent credentials copied to clipboard!');
                     }}
-                    className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs cursor-pointer"
+                    className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs cursor-pointer inline-flex items-center justify-center gap-1.5"
                   >
-                    📋 Copy Credentials
+                    <Icon name="copy" size={14} />
+                    <span>Copy Credentials</span>
                   </button>
                   <button
                     type="button"
@@ -4325,7 +4386,7 @@ const handleFileSelected = async (file) => {
           <div className="bg-white p-4 rounded-2xl border border-amber-200 shadow-xs space-y-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <span>📌</span>
+                <Icon name="push-pin" size={14} className="text-amber-700" />
                 <span>MSWD Assigned Topics for You ({mswdTopicChoices.length})</span>
               </div>
               <span className="text-[11px] text-slate-500">
@@ -4356,7 +4417,7 @@ const handleFileSelected = async (file) => {
                         : 'bg-amber-50/70 border-amber-300 text-amber-950 hover:bg-amber-100'
                         }`}
                     >
-                      <span>{alreadyComplied ? '✓' : '📤'}</span>
+                      <Icon name={alreadyComplied ? 'check' : 'upload'} size={13} />
                       <span>
                         {c.week}: {c.subTheme}
                       </span>
@@ -4395,17 +4456,19 @@ const handleFileSelected = async (file) => {
                       teacherToast.undoAction();
                       setTeacherToast(null);
                     }}
-                    className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs cursor-pointer"
+                    className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs cursor-pointer inline-flex items-center gap-1"
                   >
-                    ♻️ Retrieve / Undo
+                    <Icon name="restore" size={12} />
+                    <span>Retrieve / Undo</span>
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={() => setTeacherToast(null)}
-                  className="text-slate-300 hover:text-white cursor-pointer px-1"
+                  aria-label="Dismiss notification"
+                  className="text-slate-300 hover:text-white cursor-pointer px-1 inline-flex items-center justify-center"
                 >
-                  ✕
+                  <Icon name="close" size={14} />
                 </button>
               </div>
             </div>
@@ -4417,32 +4480,38 @@ const handleFileSelected = async (file) => {
               {[
                 {
                   key: 'all',
+                  icon: null,
                   label: 'All',
                   count: combinedUploadedMaterials.filter((m) => !m.is_deleted).length,
                 },
                 {
                   key: 'pending',
-                  label: '⏳ Pending MSWD',
+                  icon: 'clock',
+                  label: 'Pending MSWD',
                   count: combinedUploadedMaterials.filter((m) => !m.is_deleted && m.status === 'Pending Review').length,
                 },
                 {
                   key: 'approved',
-                  label: '✅ MSWD Approved',
+                  icon: 'check-circle',
+                  label: 'MSWD Approved',
                   count: combinedUploadedMaterials.filter((m) => !m.is_deleted && m.status === 'Approved').length,
                 },
                 {
                   key: 'posted',
-                  label: '🚀 Posted to Students',
+                  icon: 'rocket',
+                  label: 'Posted to Students',
                   count: combinedUploadedMaterials.filter((m) => !m.is_deleted && m.posted_to_students).length,
                 },
                 {
                   key: 'rejected',
-                  label: '❌ Rejected',
+                  icon: 'x-circle',
+                  label: 'Rejected',
                   count: combinedUploadedMaterials.filter((m) => !m.is_deleted && m.status === 'Rejected').length,
                 },
                 {
                   key: 'deleted',
-                  label: '♻️ Deleted / Retrieve',
+                  icon: 'restore',
+                  label: 'Deleted / Retrieve',
                   count: combinedUploadedMaterials.filter((m) => m.is_deleted).length,
                 },
               ].map((tab) => (
@@ -4459,6 +4528,7 @@ const handleFileSelected = async (file) => {
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                     }`}
                 >
+                  {tab.icon && <Icon name={tab.icon} size={13} />}
                   <span>{tab.label}</span>
                   <span
                     className={`px-1.5 py-0.2 rounded-full text-[10px] ${uploadedFilterStatus === tab.key
@@ -4506,14 +4576,18 @@ const handleFileSelected = async (file) => {
 
           {/* Applicable File Size Limits Indicator Banner */}
           <div className="px-4 py-2.5 rounded-xl bg-amber-50/90 border border-amber-200/90 text-xs text-amber-900 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              📏 <span className="font-bold">Applicable File Size Limits for Posting &amp; Submitting Activities:</span>{' '}
-              <span className="font-semibold">🖼️ Images (PNG/JPG/WebP/GIF): Max 10 MB</span> •{' '}
-              <span className="font-semibold">📁 Files/Docs (PDF/Word/PPT): Max 15 MB</span> •{' '}
-              <span className="font-semibold">🎬 Videos (MP4/WebM/MOV): Max 50 MB</span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Icon name="ruler" size={14} className="shrink-0" />
+              <span className="font-bold">Applicable File Size Limits for Posting &amp; Submitting Activities:</span>
+              <span className="font-semibold">Images (PNG/JPG/WebP/GIF): Max 10 MB</span>
+              <span>•</span>
+              <span className="font-semibold">Files/Docs (PDF/Word/PPT): Max 15 MB</span>
+              <span>•</span>
+              <span className="font-semibold">Videos (MP4/WebM/MOV): Max 50 MB</span>
             </div>
-            <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/80 px-2.5 py-0.5 rounded-full">
-              👁️ All Files, Images &amp; Videos Viewable Before &amp; After Checking
+            <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/80 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+              <Icon name="eye" size={12} />
+              <span>All Files, Images &amp; Videos Viewable Before &amp; After Checking</span>
             </span>
           </div>
 
@@ -4545,7 +4619,7 @@ const handleFileSelected = async (file) => {
                       <tr key={m.id} className="hover:bg-slate-50/70 transition-colors">
                         <td className="px-4 py-3.5">
                           <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                            {isVidMat && <span title="Video Lesson">🎬</span>}
+                            {isVidMat && <Icon name="film" size={14} className="text-purple-700 shrink-0" title="Video Lesson" />}
                             <span>{m.title}</span>
                           </div>
                           {m.sub_theme && (
@@ -4555,7 +4629,7 @@ const handleFileSelected = async (file) => {
                           )}
                           {m.file_name && (
                             <div className="text-[11px] text-blue-700 font-medium mt-1 flex items-center gap-1">
-                              <span>{isVidMat ? '🎬' : '📎'}</span>
+                              <Icon name={isVidMat ? 'film' : 'paperclip'} size={12} className="shrink-0" />
                               <span className="font-semibold">{m.file_name}</span>
                               {m.file_size && <span className="text-slate-400">({m.file_size})</span>}
                             </div>
@@ -4566,13 +4640,15 @@ const handleFileSelected = async (file) => {
                             </div>
                           )}
                           {m.mswd_comments && (
-                            <div className="mt-1.5 p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-900">
-                              <span className="font-bold">💬 MSWD Note:</span> {m.mswd_comments}
+                            <div className="mt-1.5 p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-900 flex items-start gap-1.5">
+                              <Icon name="comment" size={13} className="mt-0.5 shrink-0" />
+                              <span><span className="font-bold">MSWD Note:</span> {m.mswd_comments}</span>
                             </div>
                           )}
                           {m.revision_notes && (
-                            <div className="mt-1.5 p-2 rounded-lg bg-rose-50 border border-rose-200 text-[11px] text-rose-900">
-                              <span className="font-bold">⚠️ MSWD Rejection / Revision Note:</span> {m.revision_notes}
+                            <div className="mt-1.5 p-2 rounded-lg bg-rose-50 border border-rose-200 text-[11px] text-rose-900 flex items-start gap-1.5">
+                              <Icon name="warning" size={13} className="mt-0.5 shrink-0" />
+                              <span><span className="font-bold">MSWD Rejection / Revision Note:</span> {m.revision_notes}</span>
                             </div>
                           )}
                         </td>
@@ -4595,18 +4671,21 @@ const handleFileSelected = async (file) => {
 
                         <td className="px-4 py-3.5 text-center whitespace-nowrap">
                           <span
-                            className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${isApproved
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${isApproved
                               ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
                               : isRejected
                                 ? 'bg-rose-50 text-rose-800 border border-rose-300'
                                 : 'bg-amber-50 text-amber-800 border border-amber-300'
                               }`}
                           >
-                            {isApproved
-                              ? '✅ Approved by MSWD'
-                              : isRejected
-                                ? '❌ Rejected by MSWD'
-                                : '⏳ Pending MSWD Decision'}
+                            <Icon name={isApproved ? 'check-circle' : isRejected ? 'x-circle' : 'clock'} size={12} />
+                            <span>
+                              {isApproved
+                                ? 'Approved by MSWD'
+                                : isRejected
+                                  ? 'Rejected by MSWD'
+                                  : 'Pending MSWD Decision'}
+                            </span>
                           </span>
                         </td>
 
@@ -4614,8 +4693,9 @@ const handleFileSelected = async (file) => {
                           {isApproved ? (
                             m.posted_to_students ? (
                               <div className="inline-flex flex-col items-center gap-0.5">
-                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
-                                  🚀 Posted to Student Dashboard
+                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-800 border border-blue-200 inline-flex items-center gap-1">
+                                  <Icon name="rocket" size={12} />
+                                  <span>Posted to Student Dashboard</span>
                                 </span>
                                 <span className="text-[10px] text-slate-500 font-semibold">
                                   Target: {m.target_student_name || 'All Class Learners'}
@@ -4627,7 +4707,7 @@ const handleFileSelected = async (file) => {
                                 onClick={() => handleOpenPostToStudentModal(m)}
                                 className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] shadow-2xs transition-colors cursor-pointer inline-flex items-center gap-1"
                               >
-                                <span>📤</span>
+                                <Icon name="upload" size={12} />
                                 <span>Post to Student Dashboard</span>
                               </button>
                             )
@@ -4677,7 +4757,7 @@ const handleFileSelected = async (file) => {
                               className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-colors inline-flex items-center gap-1 cursor-pointer"
                               title="View or Play Uploaded Activity File, Image, or Video"
                             >
-                              <span>{isVidMat ? '▶️' : '👁️'}</span>
+                              <Icon name={isVidMat ? 'play' : 'eye'} size={12} />
                               <span>{isVidMat ? 'Play / View' : 'View'}</span>
                             </button>
 
@@ -4688,7 +4768,7 @@ const handleFileSelected = async (file) => {
                                 className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-colors cursor-pointer inline-flex items-center gap-1"
                                 title="Delete activity (can be retrieved from Deleted / Retrieve tab)"
                               >
-                                <span>🗑️</span>
+                                <Icon name="trash" size={12} />
                                 <span>Delete</span>
                               </button>
                             ) : (
@@ -4699,7 +4779,7 @@ const handleFileSelected = async (file) => {
                                   className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors cursor-pointer inline-flex items-center gap-1"
                                   title="Retrieve and restore this deleted activity"
                                 >
-                                  <span>♻️</span>
+                                  <Icon name="restore" size={12} />
                                   <span>Retrieve</span>
                                 </button>
                                 <button
@@ -4708,7 +4788,7 @@ const handleFileSelected = async (file) => {
                                   className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors cursor-pointer inline-flex items-center gap-1"
                                   title="Permanently delete this activity"
                                 >
-                                  <span>🗑️</span>
+                                  <Icon name="trash" size={12} />
                                   <span>Delete Forever</span>
                                 </button>
                               </>
@@ -4721,7 +4801,9 @@ const handleFileSelected = async (file) => {
                   {filteredUploadedMaterials.length === 0 && (
                     <tr>
                       <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
-                        <div className="text-2xl mb-1">📂</div>
+                        <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 flex items-center justify-center mx-auto mb-1.5">
+                          <Icon name="folder-open" size={20} />
+                        </div>
                         <div className="font-semibold text-xs">No uploaded activities match your filter</div>
                         <div className="text-[11px] text-slate-400 mt-0.5">
                           Select an MSWD-assigned topic above to upload your complied activity.
@@ -4753,13 +4835,13 @@ const handleFileSelected = async (file) => {
             className={input}
           >
             <option value="all">
-              👨‍👩‍👧‍👦 All Class Learners ({myCdcName || profile?.cdc_name || 'My Daycare Center'})
+              All Class Learners ({myCdcName || profile?.cdc_name || 'My Daycare Center'})
             </option>
             {myLearners.map((l) => {
               const sName = l.studentDisplayName || cleanStudentName(l.full_name) || l.full_name;
               return (
                 <option key={l.id} value={l.id}>
-                  🎯 Specific Student: {sName}
+                  Specific Student: {sName}
                 </option>
               );
             })}
@@ -4814,11 +4896,13 @@ const handleFileSelected = async (file) => {
                       <td className={td}>
                         {a.target_student_id && a.target_student_id !== 'all' ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                            🎯 {a.target_student_name || 'Specific Student'}
+                            <Icon name="target" size={12} />
+                            <span>{a.target_student_name || 'Specific Student'}</span>
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                            👨‍👩‍👧‍👦 {a.target_student_name || 'All Class Learners'}
+                            <Icon name="users" size={12} />
+                            <span>{a.target_student_name || 'All Class Learners'}</span>
                           </span>
                         )}
                       </td>
@@ -4826,8 +4910,12 @@ const handleFileSelected = async (file) => {
                         {a.created_at ? new Date(a.created_at).toLocaleDateString() : 'Recent'}
                       </td>
                       <td className={td}>
-                        <button onClick={() => deleteAnnouncement(a)} className={delBtn}>
-                          ✕
+                        <button
+                          onClick={() => deleteAnnouncement(a)}
+                          aria-label="Delete announcement"
+                          className={`${delBtn} inline-flex items-center justify-center`}
+                        >
+                          <Icon name="close" size={14} />
                         </button>
                       </td>
                     </tr>
@@ -4853,17 +4941,19 @@ const handleFileSelected = async (file) => {
                       teacherToast.undoAction();
                       setTeacherToast(null);
                     }}
-                    className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs cursor-pointer"
+                    className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs cursor-pointer inline-flex items-center gap-1"
                   >
-                    ♻️ Retrieve / Undo
+                    <Icon name="restore" size={12} />
+                    <span>Retrieve / Undo</span>
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={() => setTeacherToast(null)}
-                  className="text-slate-300 hover:text-white cursor-pointer px-1"
+                  aria-label="Dismiss notification"
+                  className="text-slate-300 hover:text-white cursor-pointer px-1 inline-flex items-center justify-center"
                 >
-                  ✕
+                  <Icon name="close" size={14} />
                 </button>
               </div>
             </div>
@@ -4883,22 +4973,26 @@ const handleFileSelected = async (file) => {
                 {[
                   {
                     key: 'all',
+                    icon: null,
                     label: 'All Active',
                     count: submissions.filter((s) => !s.is_deleted).length,
                   },
                   {
                     key: 'pending',
-                    label: '⏳ Pending Check',
+                    icon: 'clock',
+                    label: 'Pending Check',
                     count: submissions.filter((s) => !s.is_deleted && s.status !== 'checked').length,
                   },
                   {
                     key: 'checked',
-                    label: '✅ Checked',
+                    icon: 'check-circle',
+                    label: 'Checked',
                     count: submissions.filter((s) => !s.is_deleted && s.status === 'checked').length,
                   },
                   {
                     key: 'deleted',
-                    label: '♻️ Deleted / Retrieve',
+                    icon: 'restore',
+                    label: 'Deleted / Retrieve',
                     count: submissions.filter((s) => s.is_deleted).length,
                   },
                 ].map((tab) => (
@@ -4915,6 +5009,7 @@ const handleFileSelected = async (file) => {
                         : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                       }`}
                   >
+                    {tab.icon && <Icon name={tab.icon} size={13} />}
                     <span>{tab.label}</span>
                     <span
                       className={`px-1.5 py-0.2 rounded-full text-[10px] ${submissionFilter === tab.key
@@ -4933,11 +5028,13 @@ const handleFileSelected = async (file) => {
 
             {/* Applicable File Size Limits Banner */}
             <div className="mb-4 px-3.5 py-2 rounded-xl bg-amber-50/80 border border-amber-200 text-[11.5px] text-amber-900 flex flex-wrap items-center justify-between gap-2">
-              <span>
-                📏 <b>Applicable Submission File Limits:</b> 🖼️ Images: Max 10 MB • 📁 Files/Docs (PDF/Word): Max 15 MB • 🎬 Videos (MP4/WebM/MOV): Max 50 MB
+              <span className="inline-flex items-center gap-1.5 flex-wrap">
+                <Icon name="ruler" size={13} className="shrink-0" />
+                <span><b>Applicable Submission File Limits:</b> Images: Max 10 MB • Files/Docs (PDF/Word): Max 15 MB • Videos (MP4/WebM/MOV): Max 50 MB</span>
               </span>
-              <span className="font-bold text-emerald-800">
-                👁️ Viewable Before &amp; After Checking
+              <span className="font-bold text-emerald-800 inline-flex items-center gap-1">
+                <Icon name="eye" size={13} />
+                <span>Viewable Before &amp; After Checking</span>
               </span>
             </div>
 
@@ -5009,113 +5106,115 @@ const handleFileSelected = async (file) => {
                                       onClick={openSubModal}
                                       className="w-11 h-11 object-cover rounded-lg border border-slate-200 shrink-0 cursor-pointer hover:opacity-90"
                                     />
-                                  ) : isVidSub ? (
-                                    <div
-                                      onClick={openSubModal}
-                                      className="w-11 h-11 rounded-lg bg-purple-100 text-purple-800 border border-purple-300 flex flex-col items-center justify-center shrink-0 text-[9px] font-extrabold cursor-pointer hover:bg-purple-200"
-                                    >
-                                      <span className="text-base">🎬</span>
-                                      <span>{s.fileType || 'VIDEO'}</span>
-                                    </div>
-                                  ) : (
-                                    <div
-                                      onClick={openSubModal}
-                                      className="w-11 h-11 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 flex flex-col items-center justify-center shrink-0 text-[9px] font-extrabold cursor-pointer hover:bg-blue-100"
-                                    >
-                                      <span className="text-base">📄</span>
-                                      <span>{s.fileType || 'FILE'}</span>
-                                    </div>
-                                  )}
-                                  <div className="text-[11px]">
-                                    <div className="font-bold text-slate-800 flex items-center gap-1">
-                                      <span>{isVidSub ? '🎬' : '📎'}</span>
-                                      <span>{s.fileName || 'Student Uploaded File'}</span>
-                                      {s.fileSize && <span className="text-slate-400">({s.fileSize})</span>}
-                                    </div>
-                                    <div className="flex items-center gap-2 mt-1">
-                                      <button
-                                        type="button"
+                                    ) : isVidSub ? (
+                                      <div
                                         onClick={openSubModal}
-                                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10.5px] cursor-pointer transition-colors inline-flex items-center gap-1"
+                                        className="w-11 h-11 rounded-lg bg-purple-100 text-purple-800 border border-purple-300 flex flex-col items-center justify-center shrink-0 text-[9px] font-extrabold cursor-pointer hover:bg-purple-200 gap-0.5"
                                       >
-                                        <span>{isVidSub ? '▶️' : '👁️'}</span>
-                                        <span>{isVidSub ? 'Play / View Video' : 'View Activity'}</span>
-                                      </button>
+                                        <Icon name="film" size={15} />
+                                        <span>{s.fileType || 'VIDEO'}</span>
+                                      </div>
+                                    ) : (
+                                      <div
+                                        onClick={openSubModal}
+                                        className="w-11 h-11 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 flex flex-col items-center justify-center shrink-0 text-[9px] font-extrabold cursor-pointer hover:bg-blue-100 gap-0.5"
+                                      >
+                                        <Icon name="file" size={15} />
+                                        <span>{s.fileType || 'FILE'}</span>
+                                      </div>
+                                    )}
+                                    <div className="text-[11px]">
+                                      <div className="font-bold text-slate-800 flex items-center gap-1">
+                                        <Icon name={isVidSub ? 'film' : 'paperclip'} size={12} className="shrink-0" />
+                                        <span>{s.fileName || 'Student Uploaded File'}</span>
+                                        {s.fileSize && <span className="text-slate-400">({s.fileSize})</span>}
+                                      </div>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <button
+                                          type="button"
+                                          onClick={openSubModal}
+                                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10.5px] cursor-pointer transition-colors inline-flex items-center gap-1"
+                                        >
+                                          <Icon name={isVidSub ? 'play' : 'eye'} size={12} />
+                                          <span>{isVidSub ? 'Play / View Video' : 'View Activity'}</span>
+                                        </button>
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                              )}
-                              {!s.mediaUrl && s.answer_text && (
+                                )}
+                                {!s.mediaUrl && s.answer_text && (
+                                  <button
+                                    type="button"
+                                    onClick={openSubModal}
+                                    className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-[10.5px] cursor-pointer inline-flex items-center gap-1"
+                                  >
+                                    <Icon name="eye" size={12} />
+                                    <span>View Answer</span>
+                                  </button>
+                                )}
+                                {!s.answer_text && !s.mediaUrl && <span>-</span>}
+                              </div>
+                            </td>
+                            <td className={td}>
+                              <span className={`${pillClass(s.status)} inline-flex items-center gap-1`}>
+                                <Icon name={s.status === 'checked' ? 'check-circle' : 'clock'} size={12} />
+                                <span>{s.status === 'checked' ? 'Checked' : 'Submitted'}</span>
+                              </span>
+                            </td>
+                            <td className={td}>
+                              <div className="flex items-center gap-1.5 flex-wrap">
                                 <button
                                   type="button"
                                   onClick={openSubModal}
-                                  className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-[10.5px] cursor-pointer inline-flex items-center gap-1"
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs cursor-pointer inline-flex items-center gap-1"
+                                  title="View or play submitted activity before or after checking"
                                 >
-                                  <span>👁️</span>
-                                  <span>View Answer</span>
+                                  <Icon name="eye" size={12} />
+                                  <span>View</span>
                                 </button>
-                              )}
-                              {!s.answer_text && !s.mediaUrl && <span>-</span>}
-                            </div>
-                          </td>
-                          <td className={td}>
-                            <span className={pillClass(s.status)}>
-                              {s.status === 'checked' ? '✅ Checked' : '⏳ Submitted'}
-                            </span>
-                          </td>
-                          <td className={td}>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <button
-                                type="button"
-                                onClick={openSubModal}
-                                className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs cursor-pointer inline-flex items-center gap-1"
-                                title="View or play submitted activity before or after checking"
-                              >
-                                <span>👁️</span>
-                                <span>View</span>
-                              </button>
 
-                              {!s.is_deleted ? (
-                                <>
-                                  {s.status === 'submitted' ? (
-                                    <button onClick={() => markChecked(s)} className={btnSmall}>
-                                      Mark Checked
+                                {!s.is_deleted ? (
+                                  <>
+                                    {s.status === 'submitted' ? (
+                                      <button onClick={() => markChecked(s)} className={btnSmall}>
+                                        Mark Checked
+                                      </button>
+                                    ) : (
+                                      <span className="text-xs font-bold text-emerald-700 px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 inline-flex items-center gap-1">
+                                        <Icon name="check" size={12} />
+                                        <span>Checked</span>
+                                      </span>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteSubmission(s)}
+                                      className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold cursor-pointer inline-flex items-center gap-1"
+                                      title="Delete submission (can be retrieved from Deleted / Retrieve tab)"
+                                    >
+                                      <Icon name="trash" size={12} />
+                                      <span>Delete</span>
                                     </button>
-                                  ) : (
-                                    <span className="text-xs font-bold text-emerald-700 px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200">
-                                      ✓ Checked
-                                    </span>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteSubmission(s)}
-                                    className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold cursor-pointer inline-flex items-center gap-1"
-                                    title="Delete submission (can be retrieved from Deleted / Retrieve tab)"
-                                  >
-                                    <span>🗑️</span>
-                                    <span>Delete</span>
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRetrieveSubmission(s)}
-                                    className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer inline-flex items-center gap-1"
-                                  >
-                                    <span>♻️</span>
-                                    <span>Retrieve</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handlePermanentDeleteSubmission(s)}
-                                    className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer inline-flex items-center gap-1"
-                                  >
-                                    <span>🗑️</span>
-                                    <span>Delete Forever</span>
-                                  </button>
-                                </>
-                              )}
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRetrieveSubmission(s)}
+                                      className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer inline-flex items-center gap-1"
+                                    >
+                                      <Icon name="restore" size={12} />
+                                      <span>Retrieve</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handlePermanentDeleteSubmission(s)}
+                                      className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer inline-flex items-center gap-1"
+                                    >
+                                      <Icon name="trash" size={12} />
+                                      <span>Delete Forever</span>
+                                    </button>
+                                  </>
+                                )}
                             </div>
                           </td>
                         </tr>
@@ -5173,8 +5272,8 @@ const handleFileSelected = async (file) => {
         <div className="space-y-6">
           <div className="bg-white p-5 sm:p-6 rounded-2xl border border-card-border shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-[#FFF5EE] border border-accent/20 text-accent flex items-center justify-center font-bold text-2xl shadow-xs shrink-0">
-                👩‍🏫
+              <div className="w-16 h-16 rounded-2xl bg-[#FFF5EE] border border-accent/20 text-accent flex items-center justify-center font-bold shadow-xs shrink-0">
+                <Icon name="teachers" size={30} />
               </div>
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -5203,7 +5302,7 @@ const handleFileSelected = async (file) => {
 
             <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 max-w-sm">
               <span className="font-bold flex items-center gap-1.5 text-amber-900 mb-1">
-                <span>🌸</span>
+                <Icon name="flower" size={14} />
                 <span>Teacher Profile &amp; MSWD Sync</span>
               </span>
               Keep your full name, phone number, and assigned Day Care Center accurate. Saving your profile automatically updates the MSWDO Admin Dashboard.
@@ -5218,15 +5317,16 @@ const handleFileSelected = async (file) => {
                 }`}
             >
               <div className="flex items-center gap-2">
-                <span className="text-base">{profileMsg.type === 'error' ? '⚠️' : '✅'}</span>
+                <Icon name={profileMsg.type === 'error' ? 'warning' : 'check-circle'} size={16} />
                 <span>{profileMsg.text}</span>
               </div>
               <button
                 type="button"
                 onClick={() => setProfileMsg({ text: '', type: '' })}
-                className="text-slate-500 hover:text-slate-900 font-bold px-2 cursor-pointer"
+                aria-label="Dismiss profile message"
+                className="text-slate-500 hover:text-slate-900 font-bold px-2 cursor-pointer inline-flex items-center justify-center"
               >
-                ✕
+                <Icon name="close" size={14} />
               </button>
             </div>
           )}
@@ -5236,7 +5336,7 @@ const handleFileSelected = async (file) => {
               <div className="bg-white p-5 rounded-2xl border border-card-border shadow-xs space-y-4">
                 <div className="border-b border-slate-100 pb-3">
                   <h4 className="font-fraunces text-base font-bold text-slate-900 m-0 flex items-center gap-2">
-                    <span>👤</span>
+                    <Icon name="user" size={16} className="text-accent" />
                     <span>1. Personal Details</span>
                   </h4>
                   <p className="text-[11px] text-slate-500 mt-0.5">
@@ -5268,9 +5368,10 @@ const handleFileSelected = async (file) => {
                         <button
                           type="button"
                           onClick={() => setMyContact('')}
-                          className="text-[10.5px] text-rose-600 hover:underline cursor-pointer"
+                          className="text-[10.5px] text-rose-600 hover:underline cursor-pointer inline-flex items-center gap-0.5"
                         >
-                          ✕ Clear
+                          <Icon name="close" size={11} />
+                          <span>Clear</span>
                         </button>
                       )}
                     </div>
@@ -5302,7 +5403,7 @@ const handleFileSelected = async (file) => {
               <div className="bg-white p-5 rounded-2xl border border-card-border shadow-xs space-y-4">
                 <div className="border-b border-slate-100 pb-3">
                   <h4 className="font-fraunces text-base font-bold text-slate-900 m-0 flex items-center gap-2">
-                    <span>🏫</span>
+                    <Icon name="school" size={16} className="text-accent" />
                     <span>2. Assigned Day Care Center &amp; Barangay</span>
                   </h4>
                   <p className="text-[11px] text-slate-500 mt-0.5">
@@ -5352,9 +5453,16 @@ const handleFileSelected = async (file) => {
                       <button
                         type="button"
                         onClick={() => setCustomCdcMode(!customCdcMode)}
-                        className="text-[10.5px] text-accent font-bold hover:underline cursor-pointer"
+                        className="text-[10.5px] text-accent font-bold hover:underline cursor-pointer inline-flex items-center gap-1"
                       >
-                        {customCdcMode ? '← Select from List' : '➕ Enter Custom Center'}
+                        {customCdcMode ? (
+                          <span>← Select from List</span>
+                        ) : (
+                          <>
+                            <Icon name="plus" size={11} />
+                            <span>Enter Custom Center</span>
+                          </>
+                        )}
                       </button>
                     </div>
 
@@ -5437,7 +5545,7 @@ const handleFileSelected = async (file) => {
                 disabled={profileSaving}
                 className="px-6 py-3 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs sm:text-sm shadow-md transition-all cursor-pointer flex items-center gap-2 hover:scale-[1.01]"
               >
-                <span>💾</span>
+                <Icon name="save" className="w-4 h-4 shrink-0" />
                 <span>
                   {profileSaving ? 'Saving Profile...' : 'Save Profile'}
                 </span>
@@ -5453,8 +5561,9 @@ const handleFileSelected = async (file) => {
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-5 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
-                <span className="text-[10.5px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                  ✅ Approved by MSWD
+                <span className="inline-flex items-center gap-1 text-[10.5px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  <Icon name="check-circle" className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Approved by MSWD</span>
                 </span>
                 <h3 className="text-base font-bold text-slate-900 m-0 mt-1">
                   Post Activity to Student Dashboard
@@ -5487,11 +5596,11 @@ const handleFileSelected = async (file) => {
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white font-bold text-slate-900 outline-none focus:border-slate-900"
                 >
                   <option value="all">
-                    👥 All Learners in My CDC ({myCdcName || 'My Class'}) — {myLearners.length} Enrolled
+                    All Learners in My CDC ({myCdcName || 'My Class'}) — {myLearners.length} Enrolled
                   </option>
                   {myLearners.map((learner) => (
                     <option key={learner.id} value={learner.id}>
-                      🧒 {cleanStudentName(learner.full_name)}
+                      {cleanStudentName(learner.full_name)}
                     </option>
                   ))}
                 </select>
@@ -5518,7 +5627,7 @@ const handleFileSelected = async (file) => {
                   type="submit"
                   className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold shadow-xs cursor-pointer flex items-center gap-1.5"
                 >
-                  <span>🚀</span>
+                  <Icon name="rocket" className="w-4 h-4 shrink-0" />
                   <span>Post to Student Dashboard</span>
                 </button>
               </div>
@@ -5554,10 +5663,13 @@ const handleFileSelected = async (file) => {
             >
               <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
                 <div>
-                  <span className="text-[10.5px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
-                    {previewModalItem.kind === 'submission'
-                      ? '📝 Student Activity Submission (Viewable Before & After Checking)'
-                      : '📁 Teacher Uploaded Material'}
+                  <span className="inline-flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
+                    <Icon name={previewModalItem.kind === 'submission' ? 'clipboard' : 'folder'} className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                    <span>
+                      {previewModalItem.kind === 'submission'
+                        ? 'Student Activity Submission (Viewable Before & After Checking)'
+                        : 'Teacher Uploaded Material'}
+                    </span>
                   </span>
                   <h3 className="text-base sm:text-lg font-bold text-slate-900 m-0 mt-1.5">
                     {previewModalItem.title}
@@ -5592,7 +5704,7 @@ const handleFileSelected = async (file) => {
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5 min-w-0">
-                      <span>{isVid ? '🎬' : '📎'}</span>
+                      <Icon name={isVid ? 'film' : 'paperclip'} size={14} className="shrink-0" />
                       <span className="truncate">{fName || 'Attached File'}</span>
                       {previewModalItem.fileSize && (
                         <span className="text-slate-400">({previewModalItem.fileSize})</span>
@@ -5604,7 +5716,7 @@ const handleFileSelected = async (file) => {
                         onClick={() => handleOpenInNewTabOrDownload(fUrl, fName, 'view', previewModalItem.title)}
                         className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer flex items-center gap-1"
                       >
-                        <span>🔍</span>
+                        <Icon name="external-link" size={13} />
                         <span>Open in New Tab</span>
                       </button>
                       <button
@@ -5612,7 +5724,7 @@ const handleFileSelected = async (file) => {
                         onClick={() => handleOpenInNewTabOrDownload(fUrl, fName, 'download', previewModalItem.title)}
                         className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold cursor-pointer flex items-center gap-1"
                       >
-                        <span>⬇️</span>
+                        <Icon name="download" size={13} />
                         <span>Download</span>
                       </button>
                     </div>
@@ -5647,7 +5759,9 @@ const handleFileSelected = async (file) => {
                       </video>
                     ) : (
                       <div className="p-6 text-center bg-slate-900 text-white rounded-xl border border-slate-700 space-y-2">
-                        <div className="text-2xl">🎬</div>
+                        <div className="flex justify-center">
+                          <Icon name="film" size={26} />
+                        </div>
                         <div className="text-xs font-bold">Loading video stream...</div>
                       </div>
                     )
@@ -5667,7 +5781,9 @@ const handleFileSelected = async (file) => {
                     />
                   ) : (
                     <div className="p-6 text-center bg-white rounded-xl border border-slate-200 space-y-2">
-                      <div className="text-3xl">📄</div>
+                      <div className="flex justify-center text-slate-400">
+                        <Icon name="file" size={30} />
+                      </div>
                       <div className="text-xs font-bold text-slate-800">
                         {fName || 'Document File'} ({fType || 'FILE'})
                       </div>
@@ -5687,9 +5803,15 @@ const handleFileSelected = async (file) => {
                 <div className="text-xs font-bold">
                   {previewModalItem.kind === 'submission' ? (
                     previewModalItem.status === 'checked' ? (
-                      <span className="text-emerald-700">✅ Checked by Teacher</span>
+                      <span className="text-emerald-700 inline-flex items-center gap-1">
+                        <Icon name="check-circle" size={14} />
+                        <span>Checked by Teacher</span>
+                      </span>
                     ) : (
-                      <span className="text-amber-700">⏳ Pending Teacher Check</span>
+                      <span className="text-amber-700 inline-flex items-center gap-1">
+                        <Icon name="clock" size={14} />
+                        <span>Pending Teacher Check</span>
+                      </span>
                     )
                   ) : (
                     <span className="text-slate-600">Status: {previewModalItem.status || 'Uploaded'}</span>
@@ -5705,9 +5827,10 @@ const handleFileSelected = async (file) => {
                           handleDeleteSubmission(previewModalItem.submissionObj);
                           handleClosePreviewModal();
                         }}
-                        className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs cursor-pointer"
+                        className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs cursor-pointer inline-flex items-center gap-1.5"
                       >
-                        🗑️ Delete
+                        <Icon name="trash" size={13} />
+                        <span>Delete</span>
                       </button>
                     ) : (
                       <button
@@ -5716,9 +5839,10 @@ const handleFileSelected = async (file) => {
                           handleRetrieveSubmission(previewModalItem.submissionObj);
                           handleClosePreviewModal();
                         }}
-                        className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer"
+                        className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer inline-flex items-center gap-1.5"
                       >
-                        ♻️ Retrieve
+                        <Icon name="restore" size={13} />
+                        <span>Retrieve</span>
                       </button>
                     )
                   )}
@@ -5731,9 +5855,10 @@ const handleFileSelected = async (file) => {
                           handleDeleteMaterial(previewModalItem.materialObj);
                           handleClosePreviewModal();
                         }}
-                        className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs cursor-pointer"
+                        className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs cursor-pointer inline-flex items-center gap-1.5"
                       >
-                        🗑️ Delete
+                        <Icon name="trash" size={13} />
+                        <span>Delete</span>
                       </button>
                     ) : (
                       <button
@@ -5742,9 +5867,10 @@ const handleFileSelected = async (file) => {
                           handleRetrieveMaterial(previewModalItem.materialObj);
                           handleClosePreviewModal();
                         }}
-                        className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer"
+                        className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer inline-flex items-center gap-1.5"
                       >
-                        ♻️ Retrieve
+                        <Icon name="restore" size={13} />
+                        <span>Retrieve</span>
                       </button>
                     )
                   )}
@@ -5753,9 +5879,10 @@ const handleFileSelected = async (file) => {
                     <button
                       type="button"
                       onClick={() => markChecked(previewModalItem.submissionObj || previewModalItem.submissionId)}
-                      className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs cursor-pointer shadow-xs"
+                      className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs cursor-pointer shadow-xs inline-flex items-center gap-1.5"
                     >
-                      ✅ Mark Checked
+                      <Icon name="check-circle" size={14} />
+                      <span>Mark Checked</span>
                     </button>
                   )}
                   <button
