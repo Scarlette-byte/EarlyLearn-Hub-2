@@ -147,8 +147,22 @@ export default function ProtectedRoute({ allowedRoles, children }) {
 
   if (status === 'checking') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-dashbg text-dash-ink-soft font-nunito text-sm">
-        Loading...
+      <div
+        role="status"
+        aria-live="polite"
+        className="min-h-screen min-h-[100dvh] flex flex-col items-center justify-center bg-ui-bg text-ui-ink font-nunito px-4"
+      >
+        <div className="bg-ui-surface border border-ui-border rounded-auth-card shadow-auth-card px-8 py-7 flex flex-col items-center gap-3 max-w-xs w-full text-center">
+          <div className="w-11 h-11 rounded-2xl bg-brand-leaf-tint border border-brand-leaf/30 text-brand-leaf-deep flex items-center justify-center">
+            <Icon name="loader" size={20} className="animate-spin" />
+          </div>
+          <div className="font-baloo font-extrabold text-base text-ui-ink">
+            Loading Workspace...
+          </div>
+          <p className="text-xs text-ui-ink-muted m-0">
+            Verifying MSWDO EarlyLearn Hub credentials
+          </p>
+        </div>
       </div>
     );
   }
@@ -164,38 +178,48 @@ export default function ProtectedRoute({ allowedRoles, children }) {
   if (status === 'pending_approval' || status === 'rejected_approval') {
     const isRejected = status === 'rejected_approval';
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#FFF3C4] via-[#FFF9E6] to-[#E8F6FF] p-5 font-nunito">
-        <div className="bg-white max-w-md w-full rounded-3xl p-7 shadow-lg border-2 border-amber-200 text-center space-y-4">
+      <div className="min-h-screen min-h-[100dvh] flex items-center justify-center bg-ui-bg p-5 font-nunito">
+        <div className="relative overflow-hidden bg-ui-surface max-w-md w-full rounded-auth-card p-7 sm:p-8 shadow-auth-card border border-ui-border text-center space-y-4">
           <div
-            className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto ${
-              isRejected ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'
+            aria-hidden="true"
+            className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-brand-leaf-deep via-brand-yellow to-brand-coral"
+          />
+          <div
+            className={`w-16 h-16 rounded-2xl border flex items-center justify-center mx-auto ${
+              isRejected
+                ? 'bg-status-error-bg border-status-error-border text-status-error'
+                : 'bg-status-warn-bg border-status-warn-border text-status-warn'
             }`}
           >
-            <Icon name={isRejected ? 'x-circle' : 'clock'} size={32} label={isRejected ? 'Registration declined' : 'Pending approval'} />
+            <Icon
+              name={isRejected ? 'x-circle' : 'clock'}
+              size={30}
+              label={isRejected ? 'Registration declined' : 'Pending approval'}
+            />
           </div>
-          <h2 className="font-baloo text-2xl text-slate-900 m-0">
+          <h2 className="font-baloo text-2xl font-extrabold text-ui-ink m-0">
             {isRejected ? 'Registration Not Approved' : 'Waiting for Teacher Approval'}
           </h2>
-          <p className="text-xs text-slate-600 leading-relaxed m-0">
+          <p className="text-xs sm:text-sm text-ui-ink-secondary leading-relaxed m-0">
             {isRejected
               ? 'Your parent account registration was declined by the assigned teacher. Please coordinate directly with your Day Care Center.'
               : 'Your parent account has been registered, but must be approved by your assigned teacher before you can open your child’s dashboard.'}
           </p>
 
-          <div className="p-3.5 rounded-2xl bg-[#FAF5EC] border border-[#E5DAC4] text-left text-xs space-y-1.5">
-            <div>
-              <span className="text-slate-500">Child / Learner:</span>{' '}
-              <strong className="text-slate-900">{profile?.full_name}</strong>
+          <div className="p-4 rounded-ui-card bg-ui-surface-subtle border border-ui-border text-left text-xs space-y-2">
+            <div className="min-w-0 break-words">
+              <span className="text-ui-ink-muted font-semibold">Child / Learner:</span>{' '}
+              <strong className="text-ui-ink">{profile?.full_name}</strong>
             </div>
-            <div>
-              <span className="text-slate-500">Assigned Teacher:</span>{' '}
-              <strong className="text-emerald-800">
+            <div className="min-w-0 break-words">
+              <span className="text-ui-ink-muted font-semibold">Assigned Teacher:</span>{' '}
+              <strong className="text-brand-leaf-deep">
                 {approvalInfo?.adviser_name || profile?.adviser_name || 'Assigned Day Care Teacher'}
               </strong>
             </div>
-            <div>
-              <span className="text-slate-500">Center &amp; Barangay:</span>{' '}
-              <strong className="text-slate-800">
+            <div className="min-w-0 break-words">
+              <span className="text-ui-ink-muted font-semibold">Center &amp; Barangay:</span>{' '}
+              <strong className="text-ui-ink">
                 {approvalInfo?.cdc_name || profile?.cdc_name || 'Child Development Center'} (Brgy.{' '}
                 {approvalInfo?.barangay || profile?.barangay || 'Manolo Fortich'})
               </strong>
@@ -212,10 +236,10 @@ export default function ProtectedRoute({ allowedRoles, children }) {
                   await checkAccess();
                   setRechecking(false);
                 }}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-1.5"
+                className="flex-1 py-2.5 px-4 rounded-ui-btn bg-brand-leaf-deep hover:bg-brand-leaf-hover text-white font-bold text-xs cursor-pointer transition-all disabled:opacity-60 inline-flex items-center justify-center gap-1.5 border-none shadow-xs"
               >
                 <Icon name="refresh" size={14} className={rechecking ? 'animate-spin' : ''} />
-                <span>{rechecking ? 'Checking Supabase...' : 'Check Approval Status'}</span>
+                <span>{rechecking ? 'Checking Status...' : 'Check Approval Status'}</span>
               </button>
             )}
             <button
@@ -224,7 +248,7 @@ export default function ProtectedRoute({ allowedRoles, children }) {
                 await supabase.auth.signOut();
                 navigate('/login');
               }}
-              className="flex-1 py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs cursor-pointer transition-colors"
+              className="flex-1 py-2.5 px-4 rounded-ui-btn bg-ui-surface hover:bg-ui-surface-warm border border-ui-border text-ui-ink font-bold text-xs cursor-pointer transition-colors"
             >
               Sign Out
             </button>
