@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import Icon from '../Icons.jsx';
 
 export default function TeacherActivityNotifications({
   materials = [],
@@ -52,7 +53,7 @@ export default function TeacherActivityNotifications({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
         <div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FFF5EE] border border-amber-200 text-accent text-[11px] font-bold">
-            <span>🔔</span>
+            <Icon name="bell" size={13} />
             <span>MSWDO Activity Review &amp; Approval System</span>
           </div>
           <h3 className="font-fraunces text-base sm:text-lg font-bold text-dash-ink m-0 mt-1">
@@ -86,8 +87,8 @@ export default function TeacherActivityNotifications({
                 : 'bg-[#DCEBDD] text-[#2E6B38] hover:bg-[#cee4d0]'
             }`}
           >
-            <span>✓ Approved</span>
-            <span>({metrics.approved})</span>
+            <Icon name="check" size={13} />
+            <span>Approved ({metrics.approved})</span>
           </button>
 
           <button
@@ -99,8 +100,8 @@ export default function TeacherActivityNotifications({
                 : 'bg-amber-100 text-amber-900 hover:bg-amber-200'
             }`}
           >
-            <span>⏳ Pending Review</span>
-            <span>({metrics.pending})</span>
+            <Icon name="clock" size={13} />
+            <span>Pending Review ({metrics.pending})</span>
           </button>
 
           {metrics.revision > 0 && (
@@ -113,8 +114,8 @@ export default function TeacherActivityNotifications({
                   : 'bg-rose-100 text-rose-800 hover:bg-rose-200 animate-pulse'
               }`}
             >
-              <span>⚠️ Needs Action</span>
-              <span>({metrics.revision})</span>
+              <Icon name="warning" size={13} />
+              <span>Needs Action ({metrics.revision})</span>
             </button>
           )}
         </div>
@@ -147,17 +148,17 @@ export default function TeacherActivityNotifications({
                     {/* Status Pill */}
                     {isApproved ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#DCEBDD] text-[#2E6B38] border border-emerald-300">
-                        <span>✓</span>
+                        <Icon name="check" size={12} />
                         <span>Approved &amp; Live on Student Dashboard</span>
                       </span>
                     ) : isRevision ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
-                        <span>⚠️</span>
+                        <Icon name="warning" size={12} />
                         <span>Needs Revision / Changes Requested</span>
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                        <span>⏳</span>
+                        <Icon name="clock" size={12} />
                         <span>Pending MSWDO Admin Review</span>
                       </span>
                     )}
@@ -190,8 +191,9 @@ export default function TeacherActivityNotifications({
                     </p>
                   ) : isRevision ? (
                     <div className="mt-1 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-0.5">
-                      <div className="font-bold flex items-center gap-1 text-rose-800">
-                        <span>💬 MSWDO Administrator Notes:</span>
+                      <div className="font-bold flex items-center gap-1.5 text-rose-800">
+                        <Icon name="comment" size={13} />
+                        <span>MSWDO Administrator Notes:</span>
                       </div>
                       <div className="leading-relaxed whitespace-pre-wrap">
                         {mat.mswd_comments || mat.revision_notes || 'Please review the activity instructions or worksheet file and resubmit.'}
@@ -217,7 +219,7 @@ export default function TeacherActivityNotifications({
                       rel="noreferrer"
                       className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 font-bold text-[10.5px] border border-slate-200 shadow-2xs transition-colors flex items-center gap-1"
                     >
-                      <span>📎</span>
+                      <Icon name="paperclip" size={12} />
                       <span>View File</span>
                     </a>
                   )}
@@ -228,7 +230,7 @@ export default function TeacherActivityNotifications({
                       onClick={() => onOpenUploadModal(mat)}
                       className="px-2.5 py-1 rounded-lg bg-rose-700 hover:bg-rose-800 text-white font-bold text-[10.5px] shadow-xs cursor-pointer flex items-center gap-1"
                     >
-                      <span>✏️</span>
+                      <Icon name="edit" size={12} />
                       <span>Resubmit</span>
                     </button>
                   )}
@@ -240,7 +242,9 @@ export default function TeacherActivityNotifications({
 
         {filteredMaterials.length === 0 && (
           <div className="py-8 text-center text-slate-500 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-            <div className="text-2xl mb-1">📭</div>
+            <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-400 flex items-center justify-center mx-auto mb-1.5">
+              <Icon name="inbox" size={20} />
+            </div>
             <div className="font-semibold text-xs text-slate-700">
               {statusFilter === 'all'
                 ? 'No activities uploaded yet'
