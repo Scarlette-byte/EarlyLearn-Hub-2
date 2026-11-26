@@ -101,6 +101,13 @@ const LINE_ICON_REGISTRY = {
   'arrow-big-up': Lucide.ArrowBigUp,
   'check-shield': Lucide.ShieldCheck,
   'alert-octagon': Lucide.AlertOctagon,
+  logout: Lucide.LogOut,
+  'chevron-down': Lucide.ChevronDown,
+  'chevron-up': Lucide.ChevronUp,
+  cloud: Lucide.Cloud,
+  filter: Lucide.Filter,
+  'file-check': Lucide.FileCheck2,
+  volume: Lucide.Volume2,
 
   // Status, Domain & Categories
   warning: Lucide.AlertTriangle,
