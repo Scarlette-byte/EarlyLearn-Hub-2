@@ -24,11 +24,13 @@ import {
   adminSetTeacherPassword,
   formatDisplayTeacherId,
 } from '../lib/teacherAuthService.js';
+import { Button, Card, Badge, StatCard, PageHeader, EmptyState, Toast } from '../components/ui/index.js';
 import {
   cardBox,
   table,
   th,
   td,
+  input,
 } from '../lib/ui.js';
 import {
   IconPlus,
@@ -446,166 +448,133 @@ export default function ManageTeachers() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* ---------------------------------------------------- */}
-      {/* 1. KPI SUMMARY METRICS                               */}
-      {/* ---------------------------------------------------- */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-card-border text-center">
-          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-dash-ink block">
-            {totalTeachers}
-          </span>
-          <span className="text-[11px] font-bold text-dash-ink-soft uppercase tracking-wider">
-            Total Teachers
-          </span>
-        </div>
-
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-card-border text-center">
-          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-[#2E6B39] block">
-            {assignedTeachers}
-          </span>
-          <span className="text-[11px] font-bold text-[#2E6B39] uppercase tracking-wider">
-            Assigned to CDC
-          </span>
-        </div>
-
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-card-border text-center">
-          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-[#8A6420] block">
-            {unassignedTeachers}
-          </span>
-          <span className="text-[11px] font-bold text-[#8A6420] uppercase tracking-wider">
-            Unassigned
-          </span>
-        </div>
-
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-card-border text-center">
-          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-accent block">
-            {barangaysCovered}
-          </span>
-          <span className="text-[11px] font-bold text-dash-ink-soft uppercase tracking-wider">
-            Barangays Active
-          </span>
-        </div>
-
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-card-border text-center col-span-2 sm:col-span-1">
-          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-[#55369A] block">
-            {totalCdcs}
-          </span>
-          <span className="text-[11px] font-bold text-dash-ink-soft uppercase tracking-wider">
-            Day Care Centers
-          </span>
-        </div>
+    <div className="space-y-5 min-w-0">
+      {/* 1. KPI SUMMARY METRICS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+        <StatCard
+          label="Total Teachers"
+          value={totalTeachers}
+          icon="teachers"
+          tone="panel"
+        />
+        <StatCard
+          label="Assigned to CDC"
+          value={assignedTeachers}
+          icon="check-circle"
+          tone="leaf"
+        />
+        <StatCard
+          label="Unassigned"
+          value={unassignedTeachers}
+          icon="clock"
+          tone="gold"
+        />
+        <StatCard
+          label="Barangays Active"
+          value={barangaysCovered}
+          icon="pin"
+          tone="coral"
+        />
+        <StatCard
+          label="Day Care Centers"
+          value={totalCdcs}
+          icon="school"
+          tone="info"
+        />
       </div>
 
-      {/* ---------------------------------------------------- */}
-      {/* 2. MAIN TEACHERS DIRECTORY MODULE                     */}
-      {/* ---------------------------------------------------- */}
-      <div className={cardBox}>
-        {/* Module Header & Action Bar */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#F5EDE0] mb-4">
-          <div>
-            <h3 className="font-fraunces text-lg font-bold text-dash-ink m-0">
-              Child Development Teachers &amp; Centers
-            </h3>
-            <p className="text-xs text-dash-ink-soft mt-1 m-0">
-              Create teacher accounts using a Teacher ID and temporary password, assign Day Care Centers, and manage credentials.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => {
-                setAddTeacherModal(true);
-                setNewIdentifier(generateTeacherId(newBarangay));
-                setNewUserPassword(generatePassword());
-              }}
-              className="px-3.5 py-2 rounded-xl bg-accent hover:opacity-90 text-white font-nunito font-bold text-xs shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <IconPlus className="w-4 h-4" />
-              <span>Add Teacher Account</span>
-            </button>
-
-            <button
-              onClick={() => setAddCdcModal(true)}
-              className="px-3 py-2 rounded-xl bg-[#FAF5EC] hover:bg-[#F2E8D5] text-dash-ink font-semibold text-xs transition-colors cursor-pointer border border-[#E5DAC4] flex items-center gap-1.5"
-              title="Add a new Day Care Center"
-            >
-              <IconBuilding className="w-3.5 h-3.5 text-dash-ink-soft" />
-              <span>Add Day Care Center</span>
-            </button>
-
-            <button
-              onClick={() => {
-                loadTeachers();
-                loadCdcs();
-              }}
-              disabled={loading}
-              className="px-3 py-2 rounded-xl bg-[#FAF5EC] hover:bg-[#F2E8D5] text-dash-ink font-semibold text-xs transition-colors cursor-pointer border border-[#E5DAC4] flex items-center gap-1.5"
-              title="Refresh teacher list"
-            >
-              <IconRefresh className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              <span>Refresh</span>
-            </button>
-          </div>
-        </div>
+      {/* 2. MAIN TEACHERS DIRECTORY MODULE */}
+      <Card accentBar className="space-y-4">
+        <PageHeader
+          className="!pb-3"
+          icon="teachers"
+          eyebrow="MSWDO Educator Directory"
+          title="Child Development Teachers & Centers"
+          subtitle="Create teacher accounts using a Teacher ID and temporary password, assign Day Care Centers, and manage credentials."
+          actions={
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="primary"
+                size="sm"
+                icon="plus"
+                onClick={() => {
+                  setAddTeacherModal(true);
+                  setNewIdentifier(generateTeacherId(newBarangay));
+                  setNewUserPassword(generatePassword());
+                }}
+              >
+                Add Teacher Account
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon="building"
+                onClick={() => setAddCdcModal(true)}
+                title="Add a new Day Care Center"
+              >
+                Add Day Care Center
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon="refresh"
+                loading={loading}
+                onClick={() => {
+                  loadTeachers();
+                  loadCdcs();
+                }}
+                title="Refresh teacher list"
+              >
+                Refresh
+              </Button>
+            </div>
+          }
+        />
 
         {/* Global Notification Banner */}
         {msg.text && (
-          <div
-            className={`p-3 rounded-xl text-xs font-semibold mb-4 flex items-center justify-between ${
-              msg.type === 'error'
-                ? 'bg-danger/10 text-danger border border-danger/20'
-                : 'bg-[#EDF6EE] text-[#2E6B39] border border-[#C8DEC9]'
-            }`}
-          >
-            <span>{msg.text}</span>
-            <button
-              onClick={() => setMsg({ text: '', type: '' })}
-              className="text-xs bg-transparent border-none cursor-pointer font-bold ml-2"
-            >
-              <IconClose className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <Toast
+            floating={false}
+            type={msg.type === 'error' ? 'error' : 'success'}
+            message={msg.text}
+            onClose={() => setMsg({ text: '', type: '' })}
+          />
         )}
 
         {/* Search & Filter Controls */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="relative">
             <input
               type="text"
               placeholder="Search by Teacher ID, name, contact, or center..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] font-nunito text-xs text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent"
+              className={`${input} !py-2 !text-xs`}
             />
           </div>
 
-          <div>
-            <select
-              value={barangayFilter}
-              onChange={(e) => setBarangayFilter(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] font-nunito text-xs text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent cursor-pointer"
-            >
-              <option value="all">All Barangays</option>
-              {barangays.map((b) => (
-                <option key={b} value={b}>
-                  {b}
-                </option>
-              ))}
-            </select>
-          </div>
+          <select
+            value={barangayFilter}
+            onChange={(e) => setBarangayFilter(e.target.value)}
+            className={`${input} !py-2 !text-xs cursor-pointer`}
+          >
+            <option value="all">All Barangays</option>
+            {barangays.map((b) => (
+              <option key={b} value={b}>
+                {b}
+              </option>
+            ))}
+          </select>
 
-          <div>
-            <select
-              value={assignmentFilter}
-              onChange={(e) => setAssignmentFilter(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] font-nunito text-xs text-dash-ink bg-[#FFFDF8] outline-none focus:border-accent cursor-pointer"
-            >
-              <option value="all">All Teachers ({totalTeachers})</option>
-              <option value="assigned">Assigned to Center ({assignedTeachers})</option>
-              <option value="unassigned">Unassigned Only ({unassignedTeachers})</option>
-            </select>
-          </div>
+          <select
+            value={assignmentFilter}
+            onChange={(e) => setAssignmentFilter(e.target.value)}
+            className={`${input} !py-2 !text-xs cursor-pointer`}
+          >
+            <option value="all">All Teachers ({totalTeachers})</option>
+            <option value="assigned">Assigned to Center ({assignedTeachers})</option>
+            <option value="unassigned">Unassigned Only ({unassignedTeachers})</option>
+          </select>
         </div>
 
         {/* Teachers Table */}
@@ -722,11 +691,13 @@ export default function ManageTeachers() {
         </div>
 
         {filteredTeachers.length === 0 && !loading && (
-          <div className="text-center py-8 text-dash-ink-soft text-sm">
-            No teachers found matching your filters.
-          </div>
+          <EmptyState
+            icon="teachers"
+            title="No teachers found"
+            description="No teachers match your current search or barangay/assignment filters."
+          />
         )}
-      </div>
+      </Card>
 
       {/* ---------------------------------------------------- */}
       {/* MODAL 1: ADD TEACHER (Teacher ID + Temporary Password)*/}
