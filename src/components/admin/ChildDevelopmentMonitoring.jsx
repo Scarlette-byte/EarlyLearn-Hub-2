@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { barangays } from '../../lib/supabaseClient';
+import Icon from '../Icons.jsx';
 
 export default function ChildDevelopmentMonitoring({
   assessments = [],
@@ -249,15 +250,17 @@ export default function ChildDevelopmentMonitoring({
                     <td className="px-4 py-3.5 text-right whitespace-nowrap">
                       <div className="inline-flex items-center gap-1.5">
                         {a.mswd_verified ? (
-                          <span className="px-2 py-0.8 rounded-md bg-[#DCEBDD] text-[#2E6B38] font-bold text-[10.5px]">
-                            Verified ✓
+                          <span className="inline-flex items-center gap-1 px-2 py-0.8 rounded-md bg-[#DCEBDD] text-[#2E6B38] font-bold text-[10.5px]">
+                            <Icon name="check" size={12} />
+                            <span>Verified</span>
                           </span>
                         ) : (
                           <button
                             onClick={() => onVerifyAssessment(a.id)}
-                            className="px-2.5 py-1 rounded-lg bg-accent text-white font-bold text-[11px] hover:bg-[#B5673C]"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent text-white font-bold text-[11px] hover:bg-[#B5673C]"
                           >
-                            Verify ✓
+                            <Icon name="check" size={12} />
+                            <span>Verify</span>
                           </button>
                         )}
                         <button
@@ -298,9 +301,10 @@ export default function ChildDevelopmentMonitoring({
               </div>
               <button
                 onClick={() => setActiveAssessment(null)}
-                className="w-8 h-8 rounded-full bg-[#FAF5EC] text-dash-ink font-bold text-sm hover:bg-[#EFE8DC]"
+                aria-label="Close assessment dossier"
+                className="w-8 h-8 rounded-full bg-[#FAF5EC] text-dash-ink font-bold text-sm hover:bg-[#EFE8DC] flex items-center justify-center"
               >
-                ✕
+                <Icon name="close" size={15} />
               </button>
             </div>
 
@@ -379,9 +383,10 @@ export default function ChildDevelopmentMonitoring({
                     onAddRecommendation(activeAssessment.id, recommendationText);
                     setActiveAssessment(null);
                   }}
-                  className="px-4 py-2 rounded-xl bg-[#2E6B38] text-white font-bold text-xs"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2E6B38] text-white font-bold text-xs"
                 >
-                  Verify Assessment ✓
+                  <Icon name="check" size={14} />
+                  <span>Verify Assessment</span>
                 </button>
               )}
               <div className="ml-auto flex gap-2">
