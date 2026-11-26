@@ -13,6 +13,8 @@ import {
 } from '../lib/learnersService.js';
 import { validatePassword, PASSWORD_MIN_LENGTH } from '../lib/passwordPolicy.js';
 import PasswordStrengthMeter from '../components/PasswordStrengthMeter.jsx';
+import Icon from '../components/Icons.jsx';
+import { PlayfulIcon } from '../components/KidIllustrations.jsx';
 
 export default function SignUp() {
   // Teacher Registration Code state
@@ -88,7 +90,7 @@ export default function SignUp() {
       matchedTeacher = await handleVerifyCode(registrationCode);
       if (!matchedTeacher || !matchedTeacher.valid) {
         setMsg({
-          text: '⚠️ Please enter a valid Teacher Registration Code before registering.',
+          text: 'Please enter a valid Teacher Registration Code before registering.',
           type: 'error',
         });
         return;
@@ -100,7 +102,7 @@ export default function SignUp() {
 
     if (!cleanParent || !cleanChild) {
       setMsg({
-        text: '⚠️ Please enter both Parent/Guardian and Child full names.',
+        text: 'Please enter both Parent/Guardian and Child full names.',
         type: 'error',
       });
       return;
@@ -109,18 +111,18 @@ export default function SignUp() {
     const { authEmail, display } = normalizeAuthIdentifier(identifier);
     if (!authEmail) {
       setMsg({
-        text: '⚠️ Please enter a valid mobile phone number or email address.',
+        text: 'Please enter a valid mobile phone number or email address.',
         type: 'error',
       });
       return;
     }
 
     const pwCheck = validatePassword(password, {
-      identifiers: [contactInput, parentName, childName],
+      identifiers: [identifier, parentName, childName],
     });
     if (!pwCheck.valid) {
       setMsg({
-        text: `⚠️ ${pwCheck.errors[0]}`,
+        text: pwCheck.errors[0],
         type: 'error',
       });
       return;
@@ -160,7 +162,7 @@ export default function SignUp() {
     });
 
     if (error) {
-      setMsg({ text: '❌ ' + error.message, type: 'error' });
+      setMsg({ text: error.message, type: 'error' });
       setLoading(false);
       return;
     }
@@ -240,10 +242,18 @@ export default function SignUp() {
           <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
             <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-[#FFD34E]/25 blur-3xl" />
             <div className="absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-[#78BD58]/20 blur-3xl" />
-            <span className="absolute top-[10%] left-[8%] text-amber-300 text-3xl select-none opacity-70">⭐</span>
-            <span className="absolute top-[20%] right-[10%] text-amber-300 text-2xl select-none opacity-60">✨</span>
-            <span className="absolute bottom-[14%] left-[6%] text-emerald-400 text-3xl select-none opacity-50">🌱</span>
-            <span className="absolute bottom-[18%] right-[8%] text-rose-300 text-2xl select-none opacity-50">🎈</span>
+            <span className="absolute top-[10%] left-[8%] select-none opacity-70">
+              <PlayfulIcon name="star" size={28} blob={false} />
+            </span>
+            <span className="absolute top-[20%] right-[10%] select-none opacity-60">
+              <PlayfulIcon name="sparkles" size={24} blob={false} />
+            </span>
+            <span className="absolute bottom-[14%] left-[6%] select-none opacity-55">
+              <PlayfulIcon name="seedling" size={28} blob={false} />
+            </span>
+            <span className="absolute bottom-[18%] right-[8%] select-none opacity-55">
+              <PlayfulIcon name="balloon" size={26} blob={false} />
+            </span>
           </div>
 
               <div className="animate-pop safe-x relative z-10 bg-white w-full max-w-[460px] my-4 p-7 sm:p-9 rounded-[32px] shadow-[0_16px_50px_rgba(43,36,28,0.08)] border border-[#F4EEDF] text-center">
@@ -261,8 +271,8 @@ export default function SignUp() {
                     {submittedPendingInfo ? (
                       <div className="text-left bg-white p-5 rounded-2xl border-2 border-amber-300 shadow-xs space-y-3.5">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center text-xl shrink-0">
-                            ⏳
+                          <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                            <Icon name="clock" size={20} label="Pending approval" />
                           </div>
                           <div>
                             <h2 className="font-baloo text-lg text-ink m-0 leading-tight">
@@ -321,9 +331,10 @@ export default function SignUp() {
                           <div className="flex items-center justify-between mb-1">
                             <label
                               htmlFor="regCode"
-                              className="block font-bold text-[12.5px] text-ink"
+                              className="flex items-center gap-1.5 font-bold text-[12.5px] text-ink"
                             >
-                              🔑 Teacher Registration Code <span className="text-coral">*</span>
+                              <Icon name="key" size={14} className="text-amber-700" />
+                              <span>Teacher Registration Code <span className="text-coral">*</span></span>
                             </label>
                           </div>
 
@@ -359,24 +370,28 @@ export default function SignUp() {
                           </p>
 
                           {codeError && (
-                            <div className="mt-2 p-2 rounded-xl bg-rose-50 border border-rose-200 text-[11.5px] font-bold text-rose-700">
-                              ⚠️ {codeError}
+                            <div className="mt-2 p-2 rounded-xl bg-rose-50 border border-rose-200 text-[11.5px] font-bold text-rose-700 flex items-center gap-1.5">
+                              <Icon name="warning" size={14} className="shrink-0" />
+                              <span>{codeError}</span>
                             </div>
                           )}
 
                           {verifiedTeacher && verifiedTeacher.valid && (
-                            <div className="mt-2.5 p-2.5 rounded-xl bg-[#EDF7ED] border border-[#B7DFB9] text-xs text-[#1E5624] space-y-0.5">
+                            <div className="mt-2.5 p-2.5 rounded-xl bg-[#EDF7ED] border border-[#B7DFB9] text-xs text-[#1E5624] space-y-1">
                               <div className="font-bold flex items-center gap-1.5">
-                                <span>✅ Verified Teacher Code:</span>
+                                <Icon name="check-circle" size={14} className="text-emerald-700 shrink-0" />
+                                <span>Verified Teacher Code:</span>
                                 <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-emerald-200">
                                   {verifiedTeacher.code}
                                 </span>
                               </div>
-                              <div>
-                                👩‍🏫 <strong>{verifiedTeacher.teacherName}</strong>
+                              <div className="flex items-center gap-1.5">
+                                <Icon name="teachers" size={14} className="shrink-0" />
+                                <strong>{verifiedTeacher.teacherName}</strong>
                               </div>
-                              <div className="text-[11px] opacity-90">
-                                🏫 {verifiedTeacher.cdcName} • Brgy. {verifiedTeacher.barangay}
+                              <div className="text-[11px] opacity-90 flex items-center gap-1.5">
+                                <Icon name="school" size={13} className="shrink-0" />
+                                <span>{verifiedTeacher.cdcName} • Brgy. {verifiedTeacher.barangay}</span>
                               </div>
                             </div>
                           )}
@@ -509,8 +524,8 @@ export default function SignUp() {
                             onChange={(e) => setIdentifier(e.target.value)}
                             className="w-full px-3.5 py-2.5 rounded-2xl border-2 border-[#E6E6E6] font-nunito text-sm bg-white outline-none transition-colors focus:border-sky-deep pr-10"
                           />
-                          <div className="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-ink-soft text-sm">
-                            📱
+                          <div className="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-ink-soft">
+                            <Icon name="smartphone" size={16} />
                           </div>
                         </div>
 
@@ -532,7 +547,7 @@ export default function SignUp() {
                         />
                         <PasswordStrengthMeter
                           password={password}
-                          identifiers={[contactInput, parentName, childName]}
+                          identifiers={[identifier, parentName, childName]}
                         />
 
                         <label className="mt-3 flex items-start gap-2 text-[11px] text-[#5C4E3C] cursor-pointer select-none">
@@ -548,8 +563,11 @@ export default function SignUp() {
                           </span>
                         </label>
 
-                        <div className="mt-3 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900">
-                          🔒 <strong>Teacher Approval Required:</strong> After registering, your assigned teacher will review and approve your account before you can access your child&apos;s dashboard.
+                        <div className="mt-3 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 flex items-start gap-1.5">
+                          <Icon name="lock" size={14} className="mt-0.5 shrink-0 text-amber-700" />
+                          <span>
+                            <strong>Teacher Approval Required:</strong> After registering, your assigned teacher will review and approve your account before you can access your child&apos;s dashboard.
+                          </span>
                         </div>
 
                         <button
@@ -562,19 +580,24 @@ export default function SignUp() {
 
                         {msg.text && (
                           <p
-                className={`mt-3 text-xs font-bold text-center min-h-[18px] leading-snug p-2.5 rounded-xl ${msg.type === 'error'
+                            className={`mt-3 text-xs font-bold text-center min-h-[18px] leading-snug p-2.5 rounded-xl flex items-center justify-center gap-1.5 ${
+                              msg.type === 'error'
                                 ? 'bg-rose-50 text-[#F46D70] border border-rose-200'
                                 : 'bg-emerald-50 text-[#78BD58] border border-emerald-200'
-                              }`}
+                            }`}
                           >
-                            {msg.text}
+                            <Icon name={msg.type === 'error' ? 'alert-circle' : 'check-circle'} size={15} className="shrink-0" />
+                            <span>{msg.text}</span>
                           </p>
                         )}
                       </form>
                     )}
 
-                      <div className="mt-4 pt-3 border-t border-[#F0EBE0] text-[11px] text-[#7A6B52]">
-                        👩‍🏫 <strong>Child Development Teachers:</strong> Teacher accounts are issued by MSWDO Administrator with an official Teacher ID.
+                      <div className="mt-4 pt-3 border-t border-[#F0EBE0] text-[11px] text-[#7A6B52] flex items-start gap-1.5 text-left">
+                        <Icon name="teachers" size={14} className="mt-0.5 shrink-0 text-[#7A6B52]" />
+                        <span>
+                          <strong>Child Development Teachers:</strong> Teacher accounts are issued by MSWDO Administrator with an official Teacher ID.
+                        </span>
                       </div>
 
                       <div className="mt-3">
