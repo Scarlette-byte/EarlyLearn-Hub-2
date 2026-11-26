@@ -96,6 +96,11 @@ const LINE_ICON_REGISTRY = {
   phone: Lucide.Phone,
   smartphone: Lucide.Smartphone,
   mail: Lucide.Mail,
+  loader: Lucide.Loader2,
+  'help-circle': Lucide.HelpCircle,
+  'arrow-big-up': Lucide.ArrowBigUp,
+  'check-shield': Lucide.ShieldCheck,
+  'alert-octagon': Lucide.AlertOctagon,
 
   // Status, Domain & Categories
   warning: Lucide.AlertTriangle,
