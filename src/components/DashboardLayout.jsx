@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import PineappleLogo from './PineappleLogo.jsx';
+import Icon from './Icons.jsx';
 
 /**
  * Shared shell for the earthy-tone Admin & Teacher dashboards:
@@ -45,7 +46,7 @@ export default function DashboardLayout({
             className="text-slate-300 hover:text-white text-xl p-1 shrink-0"
             aria-label="Toggle navigation"
           >
-            {mobileNavOpen ? '✕' : '☰'}
+            {mobileNavOpen ? <Icon name="close" size={20} /> : <Icon name="menu" size={20} />}
           </button>
         </div>
 
