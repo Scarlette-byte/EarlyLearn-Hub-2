@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { supabase, barangays } from '../../lib/supabaseClient';
 import { REPORT_REGISTRY, exportReportToCsv, logReportExport } from '../../lib/reportRegistry.js';
-import { Button, Table, FormField, Badge, EmptyState } from '../ui/index.js';
+import { Button, Card, Table, FormField, Badge, EmptyState } from '../ui/index.js';
+import { input } from '../../lib/ui.js';
 
 export default function ReportsGeneration({
   learners = [],
@@ -54,148 +55,152 @@ export default function ReportsGeneration({
     exportReportToCsv(`${activeReport.id}_${schoolYear}.csv`, activeReport.columns, rows);
   };
 
+  const selectClass = `${input} !py-2 !text-xs cursor-pointer`;
+
   return (
     <div className="space-y-5 min-w-0">
-      <div className="bg-white rounded-2xl border border-[#ece6da] p-5 space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="text-lg font-bold text-[#2b261c] m-0 break-words">
-              Reports Generation
-            </h3>
-            <p className="text-xs text-[#7c725e] mt-1 m-0 break-words">
-              Role-scoped MSWD &amp; ECCD reports with print and CSV export.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Button variant="secondary" size="sm" onClick={handlePrint}>
-              Print
+      <Card
+        icon="file"
+        title="Reports Generation"
+        subtitle="Role-scoped MSWDO & ECCD municipal reports with clean print formatting and CSV export."
+        accentBar
+        className="no-print"
+        action={
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="secondary" size="sm" icon="printer" onClick={handlePrint}>
+              Print Report
             </Button>
-            <Button variant="primary" size="sm" onClick={handleExportCsv} disabled={rows.length === 0}>
+            <Button
+              variant="primary"
+              size="sm"
+              icon="download"
+              onClick={handleExportCsv}
+              disabled={rows.length === 0}
+            >
               Export CSV
             </Button>
           </div>
-        </div>
-
-        {/* Report Selector */}
-        <div className="flex flex-wrap gap-2">
-          {scopedReports.map((rep) => (
-            <button
-              key={rep.id}
-              type="button"
-              onClick={() => setSelectedReportId(rep.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors cursor-pointer ${
-                activeReport?.id === rep.id
-                  ? 'bg-[#f4b41a] text-[#2b261c] border-[#e0a210]'
-                  : 'bg-[#faf8f4] text-[#5c5342] border-[#ece6da] hover:bg-[#f2ede3]'
-              }`}
-            >
-              {rep.title}
-            </button>
-          ))}
-        </div>
-
-        {/* Filters */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 pt-2 border-t border-[#f2ede3]">
-          <FormField label="School Year" htmlFor="rep-sy">
-            <select
-              id="rep-sy"
-              value={schoolYear}
-              onChange={(e) => setSchoolYear(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#ddd5c5] bg-white"
-            >
-              <option value="2026-2027">2026-2027</option>
-              <option value="2025-2026">2025-2026</option>
-            </select>
-          </FormField>
-
-          <FormField label="Barangay" htmlFor="rep-brgy">
-            <select
-              id="rep-brgy"
-              value={barangay}
-              onChange={(e) => setBarangay(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#ddd5c5] bg-white"
-            >
-              <option value="">All Barangays</option>
-              {barangays.map((b) => (
-                <option key={b} value={b}>
-                  {b}
-                </option>
-              ))}
-            </select>
-          </FormField>
-
-          <FormField label="CDC" htmlFor="rep-cdc">
-            <select
-              id="rep-cdc"
-              value={cdcId}
-              onChange={(e) => setCdcId(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#ddd5c5] bg-white"
-            >
-              <option value="">All CDCs</option>
-              {cdcs.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
-
-          <FormField label="Class" htmlFor="rep-class">
-            <select
-              id="rep-class"
-              value={classId}
-              onChange={(e) => setClassId(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#ddd5c5] bg-white"
-            >
-              <option value="">All Classes</option>
-              {classes.map((cls) => (
-                <option key={cls.id} value={cls.id}>
-                  {cls.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
-
-          <FormField label="Date From" htmlFor="rep-from">
-            <input
-              id="rep-from"
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#ddd5c5] bg-white"
-            />
-          </FormField>
-
-          <FormField label="Date To" htmlFor="rep-to">
-            <input
-              id="rep-to"
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-[#ddd5c5] bg-white"
-            />
-          </FormField>
-        </div>
-      </div>
-
-      {/* Report Output */}
-      {activeReport && (
-        <div className="bg-white rounded-2xl border border-[#ece6da] p-5 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="min-w-0">
-              <h4 className="text-base font-bold text-[#2b261c] m-0 break-words">
-                {activeReport.title}
-              </h4>
-              <p className="text-xs text-[#7c725e] m-0 break-words">{activeReport.description}</p>
-            </div>
-            <Badge variant="info">{rows.length} record(s)</Badge>
+        }
+      >
+        <div className="space-y-4">
+          {/* Report Type Selector Pills */}
+          <div className="flex flex-wrap gap-2">
+            {scopedReports.map((rep) => {
+              const isSelected = activeReport?.id === rep.id;
+              return (
+                <button
+                  key={rep.id}
+                  type="button"
+                  onClick={() => setSelectedReportId(rep.id)}
+                  className={`px-3.5 py-2 rounded-ui-btn text-xs font-extrabold border transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-brand-leaf-deep text-white border-brand-leaf-deep shadow-xs'
+                      : 'bg-ui-surface-subtle text-ui-ink-secondary border-ui-border hover:border-ui-border-strong hover:text-ui-ink'
+                  }`}
+                >
+                  {rep.title}
+                </button>
+              );
+            })}
           </div>
 
+          {/* Filter Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 pt-4 border-t border-ui-border">
+            <FormField label="School Year" htmlFor="rep-sy">
+              <select
+                id="rep-sy"
+                value={schoolYear}
+                onChange={(e) => setSchoolYear(e.target.value)}
+                className={selectClass}
+              >
+                <option value="2026-2027">2026-2027</option>
+                <option value="2025-2026">2025-2026</option>
+              </select>
+            </FormField>
+
+            <FormField label="Barangay" htmlFor="rep-brgy">
+              <select
+                id="rep-brgy"
+                value={barangay}
+                onChange={(e) => setBarangay(e.target.value)}
+                className={selectClass}
+              >
+                <option value="">All Barangays</option>
+                {barangays.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+
+            <FormField label="CDC" htmlFor="rep-cdc">
+              <select
+                id="rep-cdc"
+                value={cdcId}
+                onChange={(e) => setCdcId(e.target.value)}
+                className={selectClass}
+              >
+                <option value="">All CDCs</option>
+                {cdcs.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+
+            <FormField label="Class" htmlFor="rep-class">
+              <select
+                id="rep-class"
+                value={classId}
+                onChange={(e) => setClassId(e.target.value)}
+                className={selectClass}
+              >
+                <option value="">All Classes</option>
+                {classes.map((cls) => (
+                  <option key={cls.id} value={cls.id}>
+                    {cls.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+
+            <FormField label="Date From" htmlFor="rep-from">
+              <input
+                id="rep-from"
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className={selectClass}
+              />
+            </FormField>
+
+            <FormField label="Date To" htmlFor="rep-to">
+              <input
+                id="rep-to"
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className={selectClass}
+              />
+            </FormField>
+          </div>
+        </div>
+      </Card>
+
+      {/* Report Output Table */}
+      {activeReport && (
+        <Card
+          title={activeReport.title}
+          subtitle={activeReport.description}
+          action={<Badge variant="primary">{rows.length} record(s)</Badge>}
+        >
           {rows.length === 0 ? (
             <EmptyState
               icon="bar-chart"
               title="No matching records"
-              description="Adjust the school year, barangay, CDC, class, or date range filters to view data."
+              description="Adjust the school year, barangay, CDC, class, or date range filters above to view report data."
             />
           ) : (
             <Table
@@ -204,7 +209,7 @@ export default function ReportsGeneration({
               keyField={activeReport.columns[0]?.key || 'id'}
             />
           )}
-        </div>
+        </Card>
       )}
     </div>
   );
