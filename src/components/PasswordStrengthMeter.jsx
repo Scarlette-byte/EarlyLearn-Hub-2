@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import Icon from './Icons.jsx';
 import {
   validatePassword,
   PASSWORD_MIN_LENGTH,
@@ -77,7 +78,10 @@ export default function PasswordStrengthMeter({ password, identifiers = [], clas
       )}
 
       {result.valid && result.warnings.length === 0 && (
-        <p className="m-0 text-[11px] text-emerald-700 font-semibold">✓ Meets password requirements</p>
+        <p className="m-0 text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
+          <Icon name="check" size={13} />
+          <span>Meets password requirements</span>
+        </p>
       )}
     </div>
   );
