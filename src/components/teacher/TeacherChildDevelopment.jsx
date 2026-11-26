@@ -348,18 +348,18 @@ export default function TeacherChildDevelopment({
   return (
     <div className="space-y-5">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-[#FAF5EC] via-[#FFFDF8] to-[#FFF8EE] p-5 sm:p-6 rounded-3xl border border-card-border shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-ui-surface p-5 sm:p-6 rounded-ui-card border border-ui-border shadow-ui-card flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1.5 max-w-2xl">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-forest-tint text-brand-forest text-xs font-bold">
             <Icon name="seedling" size={14} />
             <span>Child Development Evaluation</span>
           </div>
-          <h2 className="font-fraunces text-2xl sm:text-3xl font-bold text-dash-ink m-0">
+          <h2 className="font-fraunces text-2xl sm:text-3xl font-bold text-ui-ink m-0">
             Child Development
           </h2>
-          <p className="text-xs sm:text-sm text-dash-ink-soft leading-relaxed m-0">
+          <p className="text-xs sm:text-sm text-ui-muted leading-relaxed m-0">
             Record and print child development evaluations for your class at{' '}
-            <strong className="text-dash-ink">{effectiveCenterName}</strong>.
+            <strong className="text-ui-ink">{effectiveCenterName}</strong>.
           </p>
         </div>
 
@@ -367,7 +367,7 @@ export default function TeacherChildDevelopment({
           <button
             type="button"
             onClick={() => setReportModal({ mode: 'class' })}
-            className="px-4 py-2.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs cursor-pointer"
+            className="px-4 py-2.5 rounded-xl bg-brand-forest hover:bg-brand-forest-deep text-white font-bold text-xs shadow-ui-card cursor-pointer transition-colors"
           >
             Class Report
           </button>
@@ -379,7 +379,7 @@ export default function TeacherChildDevelopment({
                 onRefreshLearners();
                 loadAssessmentsFromSupabase();
               }}
-              className="px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-dash-ink font-bold text-xs cursor-pointer"
+              className="px-3.5 py-2.5 rounded-xl border border-ui-border bg-ui-surface hover:bg-ui-surface-alt text-ui-ink font-bold text-xs cursor-pointer transition-colors"
             >
               Refresh
             </button>
@@ -391,8 +391,8 @@ export default function TeacherChildDevelopment({
         <div
           className={`p-3.5 rounded-2xl text-xs font-bold ${
             msg.type === 'error'
-              ? 'bg-rose-50 text-rose-800 border border-rose-200'
-              : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              ? 'bg-status-error-bg text-status-error border border-status-error-border'
+              : 'bg-status-success-bg text-status-success border border-status-success-border'
           }`}
         >
           {msg.text}
@@ -400,8 +400,8 @@ export default function TeacherChildDevelopment({
       )}
 
       {/* Single Summary Line + Search and Filter Bar */}
-      <div className="bg-white rounded-2xl p-4 border border-card-border shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="text-sm font-bold text-dash-ink">
+      <div className="bg-ui-surface rounded-ui-card p-4 border border-ui-border shadow-ui-card flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="text-sm font-bold text-ui-ink">
           {totalLearners} learners • {evaluatedCount} evaluated • {pendingCount} pending
         </div>
 
@@ -412,19 +412,19 @@ export default function TeacherChildDevelopment({
               placeholder="Search learner name"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 rounded-xl border border-gray-300 bg-white text-xs font-semibold text-dash-ink outline-none focus:border-accent"
+              className="w-full pl-8 pr-3 py-2 rounded-xl border border-ui-border bg-ui-surface text-xs font-semibold text-ui-ink outline-none focus:border-brand-forest focus:ring-2 focus:ring-brand-forest/15"
             />
-            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ui-subtle">
               <Icon name="search" size={14} />
             </span>
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            <label className="text-xs font-bold text-dash-ink-soft shrink-0">Filter:</label>
+            <label className="text-xs font-bold text-ui-muted shrink-0">Filter:</label>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full sm:w-auto px-3 py-2 rounded-xl border border-gray-300 bg-white text-xs font-bold text-dash-ink outline-none focus:border-accent"
+              className="w-full sm:w-auto px-3 py-2 rounded-xl border border-ui-border bg-ui-surface text-xs font-bold text-ui-ink outline-none focus:border-brand-forest"
             >
               <option value="all">All learners ({totalLearners})</option>
               <option value="pending">Pending ({pendingCount})</option>
