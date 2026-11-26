@@ -19,7 +19,7 @@ import {
   saveMediaToSupabaseChunks,
   resolveViewableMediaUrl,
 } from '../../lib/mediaStorage.js';
-import {
+import Icon, {
   IconSearch,
   IconCheck,
   IconClose,
@@ -415,7 +415,7 @@ export default function ProgramMonitoring({
     }
 
     setSuccessToast(
-      `🗑️ "${mod.title}" moved to Deleted / Retrieve tab. You can retrieve it anytime.`
+      `"${mod.title}" moved to Deleted / Retrieve tab. You can retrieve it anytime.`
     );
     setTimeout(() => setSuccessToast(''), 5000);
   };
@@ -470,7 +470,7 @@ export default function ProgramMonitoring({
       setInspectingModule((prev) => (prev ? { ...prev, is_deleted: false, deleted_at: null } : null));
     }
 
-    setSuccessToast(`♻️ Retrieved "${mod.title}" back to active Activity Monitoring!`);
+    setSuccessToast(`Retrieved "${mod.title}" back to active Activity Monitoring!`);
     setTimeout(() => setSuccessToast(''), 4000);
   };
 
@@ -496,7 +496,7 @@ export default function ProgramMonitoring({
       setInspectingModule(null);
     }
 
-    setSuccessToast(`🗑️ Permanently deleted "${mod.title}".`);
+    setSuccessToast(`Permanently deleted "${mod.title}".`);
     setTimeout(() => setSuccessToast(''), 3500);
   };
 
@@ -563,10 +563,10 @@ export default function ProgramMonitoring({
     setCommentText('');
     setSuccessToast(
       commentDecision === 'approve'
-        ? '✅ Complied activity APPROVED by MSWD! The teacher can now post it to their specific Student Dashboard.'
+        ? 'Complied activity APPROVED by MSWD! The teacher can now post it to their specific Student Dashboard.'
         : commentDecision === 'revision'
-          ? '❌ Complied activity REJECTED by MSWD. The teacher has been notified.'
-          : '✅ Review comment saved! The teacher will see your feedback in their dashboard.'
+          ? 'Complied activity REJECTED by MSWD. The teacher has been notified.'
+          : 'Review comment saved! The teacher will see your feedback in their dashboard.'
     );
     setTimeout(() => setSuccessToast(''), 4000);
   };
@@ -602,7 +602,7 @@ export default function ProgramMonitoring({
       setInspectingModule((prev) => (prev ? { ...prev, status: 'Approved', verified_by_mswd: true } : null));
     }
 
-    setSuccessToast('✅ Complied activity APPROVED by MSWD! The teacher can now post this activity to their specific Student Dashboard.');
+    setSuccessToast('Complied activity APPROVED by MSWD! The teacher can now post this activity to their specific Student Dashboard.');
     setTimeout(() => setSuccessToast(''), 4000);
   };
 
@@ -636,7 +636,7 @@ export default function ProgramMonitoring({
       setInspectingModule((prev) => (prev ? { ...prev, status: 'Rejected', verified_by_mswd: false, posted_to_students: false } : null));
     }
 
-    setSuccessToast('❌ Complied activity marked as REJECTED by MSWD.');
+    setSuccessToast('Complied activity marked as REJECTED by MSWD.');
     setTimeout(() => setSuccessToast(''), 3500);
   };
 
@@ -722,7 +722,7 @@ export default function ProgramMonitoring({
       // Ignored
     }
 
-    setUploadSuccess('✅ Post successfully recorded and verified!');
+    setUploadSuccess('Post successfully recorded and verified!');
     setTimeout(() => {
       setUploadModalOpen(false);
       setUploadSuccess('');
@@ -810,7 +810,7 @@ export default function ProgramMonitoring({
       {successToast && (
         <div className="p-3.5 rounded-2xl bg-[#DCEBDD] border border-emerald-300 text-[#2E6B38] font-bold text-xs flex items-center justify-between gap-2 shadow-xs animate-fadeIn">
           <div className="flex items-center gap-2">
-            <span className="text-sm">🔔</span>
+            <Icon name="bell" size={15} className="shrink-0" />
             <span>{successToast}</span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -818,17 +818,19 @@ export default function ProgramMonitoring({
               <button
                 type="button"
                 onClick={() => handleRetrieveModule(lastDeletedModule)}
-                className="px-2.5 py-1 rounded-lg bg-[#2E6B38] hover:bg-[#23532B] text-white text-[11px] font-bold cursor-pointer"
+                className="px-2.5 py-1 rounded-lg bg-[#2E6B38] hover:bg-[#23532B] text-white text-[11px] font-bold cursor-pointer inline-flex items-center gap-1"
               >
-                ♻️ Retrieve / Undo
+                <Icon name="restore" size={12} />
+                <span>Retrieve / Undo</span>
               </button>
             )}
             <button
               type="button"
               onClick={() => setSuccessToast('')}
-              className="text-[#2E6B38] hover:text-[#23532B] font-bold text-sm px-2 cursor-pointer"
+              aria-label="Dismiss notification"
+              className="text-[#2E6B38] hover:text-[#23532B] font-bold text-sm px-2 cursor-pointer inline-flex items-center justify-center"
             >
-              ✕
+              <Icon name="close" size={14} />
             </button>
           </div>
         </div>
@@ -893,7 +895,7 @@ export default function ProgramMonitoring({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-[#F0E6D2]">
           <div>
             <div className="inline-flex items-center gap-1.5 text-[11px] font-bold text-accent bg-[#FFF5EE] px-2.5 py-0.5 rounded-full mb-1">
-              <span>📋</span>
+              <Icon name="clipboard-check" size={13} />
               <span>Activity &amp; File Monitoring</span>
             </div>
             <h3 className="font-fraunces text-lg font-bold text-dash-ink m-0">
@@ -910,24 +912,26 @@ export default function ProgramMonitoring({
               <button
                 type="button"
                 onClick={() => setViewLayout('table')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewLayout === 'table'
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${viewLayout === 'table'
                   ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-500 hover:text-slate-900'
                   }`}
                 title="Concise Table View"
               >
-                📑 Concise Table
+                <Icon name="table" size={13} />
+                <span>Concise Table</span>
               </button>
               <button
                 type="button"
                 onClick={() => setViewLayout('cards')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewLayout === 'cards'
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${viewLayout === 'cards'
                   ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-500 hover:text-slate-900'
                   }`}
                 title="Expanded Cards View"
               >
-                🗂️ Cards
+                <Icon name="cards" size={13} />
+                <span>Cards</span>
               </button>
             </div>
 
@@ -938,7 +942,7 @@ export default function ProgramMonitoring({
               className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-300 shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               title="Sync latest teacher uploads directly from Supabase across all devices"
             >
-              <span className={isLoadingSupabase ? 'animate-spin' : ''}>🔄</span>
+              <Icon name="refresh" size={14} className={isLoadingSupabase ? 'animate-spin' : ''} />
               <span>{isLoadingSupabase ? 'Syncing...' : 'Sync Supabase'}</span>
             </button>
 
@@ -961,7 +965,8 @@ export default function ProgramMonitoring({
               : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
           >
-            <span>📚 All Posts</span>
+            <Icon name="books" size={14} />
+            <span>All Posts</span>
             <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'all_posts' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
               {totalModules}
             </span>
@@ -974,7 +979,8 @@ export default function ProgramMonitoring({
               : 'bg-amber-50 text-amber-900 hover:bg-amber-100'
               }`}
           >
-            <span>✏️ Activity Worksheets</span>
+            <Icon name="edit" size={14} />
+            <span>Activity Worksheets</span>
             <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'activities' ? 'bg-white/20 text-white' : 'bg-amber-200/60 text-amber-900'}`}>
               {activityCount}
             </span>
@@ -987,7 +993,8 @@ export default function ProgramMonitoring({
               : 'bg-sky-50 text-sky-900 hover:bg-sky-100'
               }`}
           >
-            <span>📁 Files &amp; Documents</span>
+            <Icon name="folder" size={14} />
+            <span>Files &amp; Documents</span>
             <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'files' ? 'bg-white/20 text-white' : 'bg-sky-200/60 text-sky-900'}`}>
               {fileCount}
             </span>
@@ -1000,7 +1007,8 @@ export default function ProgramMonitoring({
               : 'bg-purple-50 text-purple-900 hover:bg-purple-100'
               }`}
           >
-            <span>🎬 Video Lessons</span>
+            <Icon name="film" size={14} />
+            <span>Video Lessons</span>
             <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'videos' ? 'bg-white/20 text-white' : 'bg-purple-200/60 text-purple-900'}`}>
               {videoCount}
             </span>
@@ -1014,7 +1022,8 @@ export default function ProgramMonitoring({
               }`}
             title="View deleted activities and retrieve or permanently remove them"
           >
-            <span>♻️ Deleted / Retrieve</span>
+            <Icon name="restore" size={14} />
+            <span>Deleted / Retrieve</span>
             <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === 'trash' ? 'bg-white/20 text-white' : 'bg-rose-200/70 text-rose-900'}`}>
               {deletedCount}
             </span>
@@ -1027,7 +1036,8 @@ export default function ProgramMonitoring({
               : 'bg-[#FAF5EC] text-dash-ink hover:bg-[#F0E8D8]'
               }`}
           >
-            <span>📊 Center Compliance Tracker</span>
+            <Icon name="bar-chart" size={14} />
+            <span>Center Compliance Tracker</span>
           </button>
         </div>
 
@@ -1114,17 +1124,20 @@ export default function ProgramMonitoring({
                       <td className="px-3.5 py-3 text-center whitespace-nowrap">
                         {cat === 'activity' && (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10.5px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                            <span>✏️ Activity</span>
+                            <Icon name="edit" size={11} />
+                            <span>Activity</span>
                           </span>
                         )}
                         {cat === 'file' && (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10.5px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
-                            <span>📁 File/Doc</span>
+                            <Icon name="folder" size={11} />
+                            <span>File/Doc</span>
                           </span>
                         )}
                         {cat === 'video' && (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10.5px] font-bold bg-purple-50 text-purple-800 border border-purple-200">
-                            <span>🎬 Video</span>
+                            <Icon name="film" size={11} />
+                            <span>Video</span>
                           </span>
                         )}
                       </td>
@@ -1147,7 +1160,8 @@ export default function ProgramMonitoring({
                             className="text-[10px] text-amber-800 bg-amber-50/90 px-2 py-0.5 rounded border border-amber-200 mt-1 flex items-center gap-1 font-medium"
                             title={module.mswd_comments}
                           >
-                            <span className="font-bold shrink-0">💬 MSWD Note:</span>
+                            <Icon name="comment" size={11} className="shrink-0" />
+                            <span className="font-bold shrink-0">MSWD Note:</span>
                             <span className="truncate">{module.mswd_comments}</span>
                           </div>
                         )}
@@ -1193,29 +1207,40 @@ export default function ProgramMonitoring({
                       <td className="px-3 py-3 text-center whitespace-nowrap">
                         <div className="flex flex-col items-center gap-1">
                           <span
-                            className={`inline-block px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${module.verified_by_mswd || module.status === 'Approved'
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${module.verified_by_mswd || module.status === 'Approved'
                               ? 'bg-[#DCEBDD] text-[#2E6B38] border border-emerald-200'
                               : module.status === 'Rejected' || module.status === 'Needs Revision'
                                 ? 'bg-rose-100 text-rose-800 border border-rose-200'
                                 : 'bg-amber-100 text-amber-800 border border-amber-200'
                               }`}
                           >
-                            {module.verified_by_mswd || module.status === 'Approved'
-                              ? 'Approved ✓'
-                              : module.status === 'Rejected' || module.status === 'Needs Revision'
-                                ? 'Rejected ✕'
-                                : 'Pending Review'}
+                            {module.verified_by_mswd || module.status === 'Approved' ? (
+                              <>
+                                <Icon name="check" size={11} />
+                                <span>Approved</span>
+                              </>
+                            ) : module.status === 'Rejected' || module.status === 'Needs Revision' ? (
+                              <>
+                                <Icon name="close" size={11} />
+                                <span>Rejected</span>
+                              </>
+                            ) : (
+                              <span>Pending Review</span>
+                            )}
                           </span>
                           {(module.verified_by_mswd || module.status === 'Approved') && (
                             <span
-                              className={`text-[9.5px] font-bold px-2 py-0.5 rounded ${module.posted_to_students
+                              className={`text-[9.5px] font-bold px-2 py-0.5 rounded inline-flex items-center gap-1 ${module.posted_to_students
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                 : 'bg-amber-50 text-amber-800 border border-amber-200'
                                 }`}
                             >
-                              {module.posted_to_students
-                                ? `🚀 Posted (${module.target_student_name || 'Class'})`
-                                : '🔓 Teacher Can Post Now'}
+                              <Icon name={module.posted_to_students ? 'rocket' : 'unlock'} size={10} />
+                              <span>
+                                {module.posted_to_students
+                                  ? `Posted (${module.target_student_name || 'Class'})`
+                                  : 'Teacher Can Post Now'}
+                              </span>
                             </span>
                           )}
                         </div>
@@ -1230,7 +1255,7 @@ export default function ProgramMonitoring({
                             className="px-2.5 py-1.5 rounded-lg bg-[#FAF5EC] hover:bg-[#EFE8DC] text-dash-ink font-bold text-[11px] transition-colors cursor-pointer border border-[#E5DAC4] flex items-center gap-1 shadow-2xs"
                             title="View or play activity file, image, or video before & after checking"
                           >
-                            <span>👁️</span>
+                            <Icon name="eye" size={12} />
                             <span>View</span>
                           </button>
 
@@ -1242,7 +1267,7 @@ export default function ProgramMonitoring({
                                 className="px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-900 font-bold text-[11px] transition-colors cursor-pointer border border-sky-200 flex items-center gap-1 shadow-2xs"
                                 title="Add MSWD review notes & comments"
                               >
-                                <span>💬</span>
+                                <Icon name="comment" size={12} />
                                 <span>{module.mswd_comments ? 'Commented' : 'Comment'}</span>
                               </button>
 
@@ -1254,7 +1279,7 @@ export default function ProgramMonitoring({
                                     className="px-2.5 py-1.5 rounded-lg bg-[#2E6B38] hover:bg-[#23532B] text-white font-bold text-[11px] shadow-xs transition-colors cursor-pointer flex items-center gap-1"
                                     title="Approve and publish to this teacher's students"
                                   >
-                                    <span>✓</span>
+                                    <Icon name="check" size={12} />
                                     <span>Approve</span>
                                   </button>
                                   <button
@@ -1262,7 +1287,7 @@ export default function ProgramMonitoring({
                                     className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] border border-rose-200 transition-colors cursor-pointer flex items-center gap-1"
                                     title="Reject / Request revisions from teacher"
                                   >
-                                    <span>✕</span>
+                                    <Icon name="close" size={12} />
                                     <span>Reject</span>
                                   </button>
                                 </div>
@@ -1272,7 +1297,7 @@ export default function ProgramMonitoring({
                                     className="px-2.5 py-1.5 rounded-lg bg-[#DCEBDD] text-[#2E6B38] font-bold text-[11px] border border-emerald-300 inline-flex items-center gap-1"
                                     title="Officially approved by MSWD & live on student dashboard"
                                   >
-                                    <span>✓</span>
+                                    <Icon name="check" size={12} />
                                     <span>Approved</span>
                                   </span>
                                   <button
@@ -1291,7 +1316,7 @@ export default function ProgramMonitoring({
                                 className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] border border-rose-200 transition-colors cursor-pointer flex items-center gap-1"
                                 title="Delete activity (can be retrieved from Deleted / Retrieve tab)"
                               >
-                                <span>🗑️</span>
+                                <Icon name="trash" size={12} />
                                 <span>Delete</span>
                               </button>
                             </>
@@ -1302,7 +1327,7 @@ export default function ProgramMonitoring({
                                 className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shadow-xs transition-colors cursor-pointer flex items-center gap-1"
                                 title="Retrieve and restore this deleted activity"
                               >
-                                <span>♻️</span>
+                                <Icon name="restore" size={12} />
                                 <span>Retrieve</span>
                               </button>
                               <button
@@ -1310,7 +1335,7 @@ export default function ProgramMonitoring({
                                 className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] shadow-xs transition-colors cursor-pointer flex items-center gap-1"
                                 title="Permanently delete this activity"
                               >
-                                <span>🗑️</span>
+                                <Icon name="trash" size={12} />
                                 <span>Delete Forever</span>
                               </button>
                             </div>
@@ -1325,8 +1350,8 @@ export default function ProgramMonitoring({
 
             {filteredModules.length === 0 && (
               <div className="text-center py-12 px-4 bg-slate-50/50">
-                <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xl flex items-center justify-center mx-auto mb-3">
-                  📂
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 flex items-center justify-center mx-auto mb-3">
+                  <Icon name="folder-open" size={22} />
                 </div>
                 <h4 className="font-fraunces text-base font-bold text-dash-ink">
                   {totalModules === 0 ? 'No Teacher Activities Posted Yet' : 'No Matching Posts Found'}
@@ -1365,16 +1390,19 @@ export default function ProgramMonitoring({
                   <div className="space-y-1.5 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       {cat === 'activity' ? (
-                        <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                          ✏️ Activity Worksheet
+                        <span className="inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                          <Icon name="edit" size={11} />
+                          <span>Activity Worksheet</span>
                         </span>
                       ) : cat === 'file' ? (
-                        <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-sky-100 text-sky-900 border border-sky-300">
-                          📁 Document File / PDF
+                        <span className="inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-sky-100 text-sky-900 border border-sky-300">
+                          <Icon name="folder" size={11} />
+                          <span>Document File / PDF</span>
                         </span>
                       ) : (
-                        <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-purple-100 text-purple-900 border border-purple-300">
-                          🎬 Video Lesson
+                        <span className="inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-purple-100 text-purple-900 border border-purple-300">
+                          <Icon name="film" size={11} />
+                          <span>Video Lesson</span>
                         </span>
                       )}
 
@@ -1392,14 +1420,15 @@ export default function ProgramMonitoring({
                       </span>
 
                       <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${module.verified_by_mswd
+                        className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold ${module.verified_by_mswd
                           ? 'bg-[#DCEBDD] text-[#2E6B38]'
                           : module.status === 'Needs Revision'
                             ? 'bg-[#FDE2E2] text-danger'
                             : 'bg-[#FFF3D6] text-[#8C6200]'
                           }`}
                       >
-                        {module.verified_by_mswd ? 'Verified by MSWDO ✓' : module.status || 'Pending Review'}
+                        {module.verified_by_mswd && <Icon name="check" size={11} />}
+                        <span>{module.verified_by_mswd ? 'Verified by MSWDO' : module.status || 'Pending Review'}</span>
                       </span>
                     </div>
 
@@ -1431,16 +1460,23 @@ export default function ProgramMonitoring({
 
                     {module.mswd_comments && (
                       <div className="p-2.5 rounded-xl bg-amber-50/90 border border-amber-200 text-xs text-amber-950 flex items-start gap-2">
-                        <span className="font-bold text-amber-800 shrink-0">💬 MSWD Note:</span>
+                        <span className="font-bold text-amber-800 shrink-0 inline-flex items-center gap-1">
+                          <Icon name="comment" size={12} />
+                          <span>MSWD Note:</span>
+                        </span>
                         <span className="italic leading-relaxed">{module.mswd_comments}</span>
                       </div>
                     )}
 
                     <div className="text-[11px] text-dash-ink-soft flex items-center gap-3 pt-1">
-                      <span className="bg-[#FAF5EC] px-2 py-0.5 rounded border border-[#EBE1CF] font-mono">
-                        📄 {module.module_type || 'Activity Worksheet'} ({module.file_type || 'PDF'} • {module.file_size || '2.4 MB'})
+                      <span className="bg-[#FAF5EC] px-2 py-0.5 rounded border border-[#EBE1CF] font-mono inline-flex items-center gap-1">
+                        <Icon name="file" size={12} />
+                        <span>{module.module_type || 'Activity Worksheet'} ({module.file_type || 'PDF'} • {module.file_size || '2.4 MB'})</span>
                       </span>
-                      <span>📥 {module.downloads_count || 0} Downloads</span>
+                      <span className="inline-flex items-center gap-1">
+                        <Icon name="download" size={12} />
+                        <span>{module.downloads_count || 0} Downloads</span>
+                      </span>
                     </div>
                   </div>
 
@@ -1453,7 +1489,7 @@ export default function ProgramMonitoring({
                         className="px-3 py-1.5 rounded-xl bg-[#FAF5EC] hover:bg-[#EFE8DC] text-dash-ink font-bold text-xs transition-colors cursor-pointer border border-[#E5DAC4] flex items-center gap-1 shadow-2xs"
                         title="View or play activity file, image, or video before & after checking"
                       >
-                        <span>👁️</span>
+                        <Icon name="eye" size={13} />
                         <span>View</span>
                       </button>
 
@@ -1465,7 +1501,7 @@ export default function ProgramMonitoring({
                             className="px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-900 font-bold text-xs transition-colors cursor-pointer border border-sky-200 flex items-center gap-1 shadow-2xs"
                             title="Add MSWD review feedback & comment"
                           >
-                            <span>💬</span>
+                            <Icon name="comment" size={13} />
                             <span>{module.mswd_comments ? 'Edit Comment' : 'Comment'}</span>
                           </button>
 
@@ -1477,7 +1513,7 @@ export default function ProgramMonitoring({
                                 className="px-3 py-1.5 rounded-xl bg-[#2E6B38] hover:bg-[#23532B] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1"
                                 title="Approve and publish to this teacher's students"
                               >
-                                <span>✓</span>
+                                <Icon name="check" size={13} />
                                 <span>Approve</span>
                               </button>
                               <button
@@ -1485,14 +1521,14 @@ export default function ProgramMonitoring({
                                 className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition-colors cursor-pointer flex items-center gap-1"
                                 title="Reject / Request revisions from teacher"
                               >
-                                <span>✕</span>
+                                <Icon name="close" size={13} />
                                 <span>Reject</span>
                               </button>
                             </div>
                           ) : (
                             <div className="inline-flex items-center gap-1.5">
                               <span className="px-3 py-1.5 rounded-xl bg-[#DCEBDD] text-[#2E6B38] font-bold text-xs border border-emerald-300 flex items-center gap-1">
-                                <span>✓</span>
+                                <Icon name="check" size={13} />
                                 <span>Approved</span>
                               </span>
                               <button
@@ -1511,7 +1547,7 @@ export default function ProgramMonitoring({
                             className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition-colors cursor-pointer flex items-center gap-1"
                             title="Delete activity (can be retrieved from Deleted / Retrieve tab)"
                           >
-                            <span>🗑️</span>
+                            <Icon name="trash" size={13} />
                             <span>Delete</span>
                           </button>
                         </>
@@ -1522,7 +1558,7 @@ export default function ProgramMonitoring({
                             className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1"
                             title="Retrieve and restore this deleted activity"
                           >
-                            <span>♻️</span>
+                            <Icon name="restore" size={13} />
                             <span>Retrieve</span>
                           </button>
                           <button
@@ -1530,7 +1566,7 @@ export default function ProgramMonitoring({
                             className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1"
                             title="Permanently delete this activity"
                           >
-                            <span>🗑️</span>
+                            <Icon name="trash" size={13} />
                             <span>Delete Forever</span>
                           </button>
                         </div>
@@ -1543,8 +1579,8 @@ export default function ProgramMonitoring({
 
             {filteredModules.length === 0 && (
               <div className="text-center py-12 px-4 rounded-2xl bg-slate-50/50 border border-dashed border-slate-200">
-                <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xl flex items-center justify-center mx-auto mb-3">
-                  📂
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 flex items-center justify-center mx-auto mb-3">
+                  <Icon name="folder-open" size={22} />
                 </div>
                 <h4 className="font-fraunces text-base font-bold text-dash-ink">
                   {totalModules === 0 ? 'No Teacher Activities Posted Yet' : 'No Matching Posts Found'}
@@ -1678,12 +1714,13 @@ export default function ProgramMonitoring({
                     {inspectingModule.week}: {inspectingModule.sub_theme || inspectingModule.theme}
                   </span>
                   <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${inspectingModule.verified_by_mswd
+                    className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-bold ${inspectingModule.verified_by_mswd
                       ? 'bg-[#DCEBDD] text-[#2E6B38]'
                       : 'bg-[#FFF3D6] text-[#8C6200]'
                       }`}
                   >
-                    {inspectingModule.verified_by_mswd ? 'Verified by MSWDO ✓' : 'Pending Review'}
+                    {inspectingModule.verified_by_mswd && <Icon name="check" size={11} />}
+                    <span>{inspectingModule.verified_by_mswd ? 'Verified by MSWDO' : 'Pending Review'}</span>
                   </span>
                 </div>
                 <h3 className="font-fraunces text-xl font-bold text-dash-ink m-0">
@@ -1692,9 +1729,10 @@ export default function ProgramMonitoring({
               </div>
               <button
                 onClick={() => setInspectingModule(null)}
+                aria-label="Close module inspector"
                 className="w-8 h-8 rounded-full bg-[#FAF5EC] hover:bg-[#F0E6D2] flex items-center justify-center text-dash-ink-soft text-sm transition-colors cursor-pointer"
               >
-                ✕
+                <Icon name="close" size={15} />
               </button>
             </div>
 
@@ -1715,12 +1753,23 @@ export default function ProgramMonitoring({
               <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#F0E6D2]">
                 <div>
                   <span className="text-dash-ink-soft block">Post Category</span>
-                  <span className="font-bold text-dash-ink">
-                    {getItemCategory(inspectingModule) === 'video'
-                      ? '🎬 Video Lesson'
-                      : getItemCategory(inspectingModule) === 'file'
-                        ? '📁 Document File / PDF'
-                        : '✏️ Activity Worksheet'}
+                  <span className="font-bold text-dash-ink inline-flex items-center gap-1">
+                    {getItemCategory(inspectingModule) === 'video' ? (
+                      <>
+                        <Icon name="film" size={13} />
+                        <span>Video Lesson</span>
+                      </>
+                    ) : getItemCategory(inspectingModule) === 'file' ? (
+                      <>
+                        <Icon name="folder" size={13} />
+                        <span>Document File / PDF</span>
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="edit" size={13} />
+                        <span>Activity Worksheet</span>
+                      </>
+                    )}
                   </span>
                 </div>
                 <div>
@@ -1747,7 +1796,7 @@ export default function ProgramMonitoring({
 
             {/* Student linkage notice */}
             <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-950 flex items-center gap-2.5">
-              <span className="text-base">🏫</span>
+              <Icon name="school" size={18} className="text-amber-800 shrink-0" />
               <div>
                 <span className="font-bold text-amber-900">MSWD Approval → Teacher Posts to Student Dashboard:</span> Once MSWD approves this complied activity, Teacher <span className="font-bold text-slate-900">{inspectingModule.teacher_name}</span> at <span className="font-bold text-slate-900">{inspectingModule.cdc_name || 'Assigned CDC'}</span> (Brgy. {inspectingModule.barangay}) can post it to their specific student dashboard.
               </div>
@@ -1765,14 +1814,16 @@ export default function ProgramMonitoring({
                     onClick={() => handleDownloadFile(inspectingModule, 'view')}
                     className="text-[11px] font-bold text-accent hover:underline flex items-center gap-1 cursor-pointer bg-transparent border-0"
                   >
-                    <span>🔍 View / Open in New Tab ↗</span>
+                    <Icon name="external-link" size={12} />
+                    <span>View / Open in New Tab</span>
                   </button>
                 )}
               </div>
 
               {inspectingMediaLoading ? (
-                <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-600 font-semibold">
-                  ⏳ Loading teacher&apos;s uploaded material...
+                <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-600 font-semibold inline-flex items-center justify-center gap-2 w-full">
+                  <Icon name="clock" size={15} />
+                  <span>Loading teacher&apos;s uploaded material...</span>
                 </div>
               ) : inspectingMediaUrl ? (
                 <div className="rounded-2xl border border-[#E5DAC4] bg-slate-900/5 overflow-hidden p-3 space-y-2">
@@ -1851,7 +1902,7 @@ export default function ProgramMonitoring({
                     return (
                       <div className="p-4 rounded-xl bg-white border border-slate-200 flex items-center justify-between">
                         <div className="flex items-center gap-2.5">
-                          <span className="text-2xl">📄</span>
+                          <Icon name="file" size={22} className="text-slate-500 shrink-0" />
                           <div>
                             <div className="font-bold text-xs text-slate-900">
                               {inspectingModule.file_name || inspectingModule.title}
@@ -1864,9 +1915,10 @@ export default function ProgramMonitoring({
                         <button
                           type="button"
                           onClick={() => handleDownloadFile(inspectingModule, 'view')}
-                          className="px-3.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer"
+                          className="px-3.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer inline-flex items-center gap-1.5"
                         >
-                          👁️ Open / View File
+                          <Icon name="eye" size={14} />
+                          <span>Open / View File</span>
                         </button>
                       </div>
                     );
@@ -1875,15 +1927,17 @@ export default function ProgramMonitoring({
               ) : (
                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <div className="font-bold text-slate-900">
-                      📎 {inspectingModule.file_name || inspectingModule.title} ({inspectingModule.file_type || 'FILE'} • {inspectingModule.file_size || '2.4 MB'})
+                    <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                      <Icon name="paperclip" size={14} className="shrink-0" />
+                      <span>{inspectingModule.file_name || inspectingModule.title} ({inspectingModule.file_type || 'FILE'} • {inspectingModule.file_size || '2.4 MB'})</span>
                     </div>
                     <div className="text-[11px] text-slate-500 mt-0.5">
                       If this material was uploaded before cloud chunk sync was enabled, select the file once to cache and view/play it directly:
                     </div>
                   </div>
-                  <label className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs cursor-pointer shrink-0 transition-colors">
-                    📂 Load Teacher File / Video to View
+                  <label className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs cursor-pointer shrink-0 transition-colors inline-flex items-center gap-1.5">
+                    <Icon name="folder-open" size={14} />
+                    <span>Load Teacher File / Video to View</span>
                     <input
                       type="file"
                       accept="image/*,video/*,.mp4,.webm,.mov,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
@@ -1902,7 +1956,7 @@ export default function ProgramMonitoring({
               <div className="p-3.5 rounded-xl bg-amber-50/90 border border-amber-300 text-xs text-amber-950 space-y-1">
                 <div className="flex items-center justify-between font-bold text-amber-900">
                   <span className="flex items-center gap-1.5">
-                    <span>💬</span>
+                    <Icon name="comment" size={14} />
                     <span>MSWDO Pedagogical Feedback &amp; Review Notes:</span>
                   </span>
                   {inspectingModule.mswd_comment_date && (
@@ -1917,7 +1971,10 @@ export default function ProgramMonitoring({
 
             {inspectingModule.revision_notes && !inspectingModule.mswd_comments && (
               <div className="p-3.5 rounded-xl bg-[#FDE2E2] border border-rose-200 text-xs text-danger space-y-1">
-                <div className="font-bold">⚠️ Requested Revision Note:</div>
+                <div className="font-bold flex items-center gap-1.5">
+                  <Icon name="warning" size={14} />
+                  <span>Requested Revision Note:</span>
+                </div>
                 <div>{inspectingModule.revision_notes}</div>
               </div>
             )}
@@ -1932,7 +1989,8 @@ export default function ProgramMonitoring({
                     }}
                     className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                   >
-                    <span>👁️ View / Open Material in New Tab</span>
+                    <Icon name="eye" size={14} />
+                    <span>View / Open Material in New Tab</span>
                   </button>
                 )}
 
@@ -1942,14 +2000,16 @@ export default function ProgramMonitoring({
                     className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition-colors cursor-pointer flex items-center gap-1.5"
                     title="Delete activity (can be retrieved from Deleted / Retrieve tab)"
                   >
-                    <span>🗑️ Delete</span>
+                    <Icon name="trash" size={14} />
+                    <span>Delete</span>
                   </button>
                 ) : (
                   <button
                     onClick={() => handleRetrieveModule(inspectingModule)}
                     className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors cursor-pointer flex items-center gap-1.5"
                   >
-                    <span>♻️ Retrieve Activity</span>
+                    <Icon name="restore" size={14} />
+                    <span>Retrieve Activity</span>
                   </button>
                 )}
               </div>
@@ -1959,7 +2019,7 @@ export default function ProgramMonitoring({
                   onClick={() => handleOpenComment(inspectingModule)}
                   className="px-3.5 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-900 font-bold text-xs transition-colors cursor-pointer border border-sky-300 flex items-center gap-1.5 shadow-2xs"
                 >
-                  <span>💬</span>
+                  <Icon name="comment" size={14} />
                   <span>{inspectingModule.mswd_comments ? 'Edit Feedback' : 'Add Note'}</span>
                 </button>
 
@@ -1969,7 +2029,7 @@ export default function ProgramMonitoring({
                       onClick={() => handleRejectModule(inspectingModule.id)}
                       className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-300 transition-colors cursor-pointer flex items-center gap-1.5"
                     >
-                      <span>✕</span>
+                      <Icon name="close" size={14} />
                       <span>Reject Activity</span>
                     </button>
                     <button
@@ -1978,14 +2038,14 @@ export default function ProgramMonitoring({
                       }}
                       className="px-4 py-2 rounded-xl bg-[#2E6B38] hover:bg-[#23532B] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
                     >
-                      <span>✓</span>
-                      <span>Approve & Link to Students</span>
+                      <Icon name="check" size={14} />
+                      <span>Approve &amp; Link to Students</span>
                     </button>
                   </>
                 ) : (
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-[#2E6B38] bg-[#DCEBDD] px-3.5 py-2 rounded-xl border border-emerald-300 flex items-center gap-1">
-                      <span>✓</span>
+                      <Icon name="check" size={14} />
                       <span>Officially Approved</span>
                     </span>
                     <button
@@ -2010,8 +2070,9 @@ export default function ProgramMonitoring({
           <div className="bg-white rounded-3xl border border-card-border shadow-2xl max-w-lg w-full p-6 space-y-4 animate-scaleUp max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-[#F0E6D2]">
               <div>
-                <div className="inline-flex items-center gap-1 text-[11px] font-bold text-accent bg-[#FFF5EE] px-2.5 py-0.5 rounded-full mb-1">
-                  <span>💬 MSWD Activity Review</span>
+                <div className="inline-flex items-center gap-1.5 text-[11px] font-bold text-accent bg-[#FFF5EE] px-2.5 py-0.5 rounded-full mb-1">
+                  <Icon name="comment" size={13} />
+                  <span>MSWD Activity Review</span>
                 </div>
                 <h3 className="font-fraunces text-lg font-bold text-dash-ink m-0">
                   Review &amp; Comment on Activity
@@ -2023,9 +2084,10 @@ export default function ProgramMonitoring({
               <button
                 type="button"
                 onClick={() => setCommentingModule(null)}
+                aria-label="Close review modal"
                 className="w-8 h-8 rounded-full bg-[#FAF5EC] hover:bg-[#F0E6D2] flex items-center justify-center text-dash-ink-soft text-sm transition-colors cursor-pointer"
               >
-                ✕
+                <Icon name="close" size={15} />
               </button>
             </div>
 
@@ -2054,7 +2116,9 @@ export default function ProgramMonitoring({
                       : 'bg-white border-[#E5DCC9] text-dash-ink-soft hover:bg-slate-50'
                       }`}
                   >
-                    <div className="text-base mb-0.5">✓</div>
+                    <div className="flex justify-center mb-1">
+                      <Icon name="check" size={16} />
+                    </div>
                     <div className="text-[11.5px]">Approve &amp; Link</div>
                     <div className="text-[9.5px] font-normal opacity-80">Publish to Students</div>
                   </button>
@@ -2067,7 +2131,9 @@ export default function ProgramMonitoring({
                       : 'bg-white border-[#E5DCC9] text-dash-ink-soft hover:bg-slate-50'
                       }`}
                   >
-                    <div className="text-base mb-0.5">✕</div>
+                    <div className="flex justify-center mb-1">
+                      <Icon name="close" size={16} />
+                    </div>
                     <div className="text-[11.5px]">Reject / Revision</div>
                     <div className="text-[9.5px] font-normal opacity-80">Notify Teacher to Fix</div>
                   </button>
@@ -2080,7 +2146,9 @@ export default function ProgramMonitoring({
                       : 'bg-white border-[#E5DCC9] text-dash-ink-soft hover:bg-slate-50'
                       }`}
                   >
-                    <div className="text-base mb-0.5">💬</div>
+                    <div className="flex justify-center mb-1">
+                      <Icon name="comment" size={16} />
+                    </div>
                     <div className="text-[11.5px]">Comment Only</div>
                     <div className="text-[9.5px] font-normal opacity-80">Keep Current Status</div>
                   </button>
@@ -2116,7 +2184,8 @@ export default function ProgramMonitoring({
                   type="submit"
                   className="px-5 py-2 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1.5"
                 >
-                  <span>💾 Save Comment &amp; Update Status</span>
+                  <Icon name="save" size={14} />
+                  <span>Save Comment &amp; Update Status</span>
                 </button>
               </div>
             </form>
@@ -2141,9 +2210,10 @@ export default function ProgramMonitoring({
               </div>
               <button
                 onClick={() => setUploadModalOpen(false)}
+                aria-label="Close record post modal"
                 className="w-8 h-8 rounded-full bg-[#FAF5EC] hover:bg-[#F0E6D2] flex items-center justify-center text-dash-ink-soft text-sm transition-colors cursor-pointer"
               >
-                ✕
+                <Icon name="close" size={15} />
               </button>
             </div>
 
@@ -2236,13 +2306,13 @@ export default function ProgramMonitoring({
                   onChange={(e) => setNewModuleType(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-[#E5DCC9] bg-[#FFFDF8] font-bold text-dash-ink outline-none focus:border-accent"
                 >
-                  <option value="Activity Worksheet">✏️ Activity Worksheet</option>
-                  <option value="Lesson Plan & Practice Sheet">📁 Lesson Plan &amp; Practice Sheet (File)</option>
-                  <option value="Official PDF Document">📁 Official PDF Document (File)</option>
-                  <option value="Cut-out Sorting Activity">✏️ Cut-out Sorting Activity</option>
-                  <option value="Printable Emotion Flashcards">✏️ Printable Emotion Flashcards</option>
-                  <option value="Video Lesson Guide">🎬 Video Lesson Guide</option>
-                  <option value="Sensory Art & Parent Guide">📁 Sensory Art &amp; Parent Guide</option>
+                  <option value="Activity Worksheet">Activity Worksheet</option>
+                  <option value="Lesson Plan & Practice Sheet">Lesson Plan &amp; Practice Sheet (File)</option>
+                  <option value="Official PDF Document">Official PDF Document (File)</option>
+                  <option value="Cut-out Sorting Activity">Cut-out Sorting Activity</option>
+                  <option value="Printable Emotion Flashcards">Printable Emotion Flashcards</option>
+                  <option value="Video Lesson Guide">Video Lesson Guide</option>
+                  <option value="Sensory Art & Parent Guide">Sensory Art &amp; Parent Guide</option>
                 </select>
               </div>
 
@@ -2262,8 +2332,10 @@ export default function ProgramMonitoring({
                 <label className="font-bold text-dash-ink block">
                   Attach Activity File, Image, or Video (Optional)
                 </label>
-                <div className="px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200/80 text-[11px] font-semibold text-amber-900">
-                  📏 <span className="font-bold">Applicable File Size Limits:</span> 🖼️ Images: Max 10 MB • 📁 Files/Docs (PDF/Word/PPT): Max 15 MB • 🎬 Videos (MP4/WebM/MOV): Max 50 MB
+                <div className="px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200/80 text-[11px] font-semibold text-amber-900 flex items-center gap-1.5 flex-wrap">
+                  <Icon name="ruler" size={13} className="shrink-0" />
+                  <span className="font-bold">Applicable File Size Limits:</span>
+                  <span>Images: Max 10 MB • Files/Docs (PDF/Word/PPT): Max 15 MB • Videos (MP4/WebM/MOV): Max 50 MB</span>
                 </div>
                 <input
                   type="file"
@@ -2272,15 +2344,17 @@ export default function ProgramMonitoring({
                   className="w-full text-xs text-slate-700 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer"
                 />
                 {newFileError && (
-                  <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 font-bold text-[11px]">
-                    ⚠️ {newFileError}
+                  <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 font-bold text-[11px] flex items-center gap-1.5">
+                    <Icon name="warning" size={13} className="shrink-0" />
+                    <span>{newFileError}</span>
                   </div>
                 )}
                 {newFileName && !newFileError && (
                   <div className="p-2.5 rounded-xl bg-white border border-emerald-200 space-y-2">
                     <div className="flex items-center justify-between text-[11px]">
-                      <span className="font-bold text-emerald-800 truncate">
-                        ✓ Attached: {newFileName} ({newFileSize})
+                      <span className="font-bold text-emerald-800 truncate inline-flex items-center gap-1">
+                        <Icon name="check" size={13} className="shrink-0" />
+                        <span>Attached: {newFileName} ({newFileSize})</span>
                       </span>
                       <button
                         type="button"
