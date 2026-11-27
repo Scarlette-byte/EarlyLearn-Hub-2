@@ -237,34 +237,61 @@ export default function SignUp() {
   }
 
   return (
-        <div className="min-h-screen min-h-[100dvh] flex items-center justify-center overflow-x-hidden relative bg-[#FFFBEA]/60 font-nunito py-6">
-          {/* Soft pastel ambient background shapes matching brand reference */}
-          <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-            <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-[#FFD34E]/25 blur-3xl" />
-            <div className="absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-[#78BD58]/20 blur-3xl" />
-            <span className="absolute top-[10%] left-[8%] select-none opacity-70">
-              <PlayfulIcon name="star" size={28} blob={false} />
-            </span>
-            <span className="absolute top-[20%] right-[10%] select-none opacity-60">
-              <PlayfulIcon name="sparkles" size={24} blob={false} />
-            </span>
-            <span className="absolute bottom-[14%] left-[6%] select-none opacity-55">
-              <PlayfulIcon name="seedling" size={28} blob={false} />
-            </span>
-            <span className="absolute bottom-[18%] right-[8%] select-none opacity-55">
-              <PlayfulIcon name="balloon" size={26} blob={false} />
-            </span>
+        <div className="min-h-screen min-h-[100dvh] bg-ui-panel text-ui-ink font-nunito flex flex-col items-center justify-center p-3 sm:p-6 lg:p-8 relative overflow-x-hidden selection:bg-brand-yellow/40 selection:text-ui-ink">
+          {/* Full-Screen Playful Preschool Learning Landscape Background */}
+          <div className="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
+            <img
+              src="/login-landscape-bg.png"
+              alt=""
+              className="w-full h-full object-cover object-center"
+            />
+            <div className="absolute inset-0 bg-gradient-to-br from-[#0D2B1E]/65 via-[#123B29]/50 to-[#1B5139]/60 backdrop-blur-[2px]" />
           </div>
 
-              <div className="animate-pop safe-x relative z-10 bg-white w-full max-w-[460px] my-4 p-7 sm:p-9 rounded-[32px] shadow-[0_16px_50px_rgba(43,36,28,0.08)] border border-[#F4EEDF] text-center">
-                {/* Official Pineapple Logo */}
-                <div className="mb-3 flex justify-center">
-                  <PineappleLogo variant="vertical" size="lg" />
-                </div>
-                  <h1 className="font-baloo font-extrabold text-2xl sm:text-[22px] text-[#2B241C] m-0 mb-1">
+          {/* Centered Wide Rounded Card matching Login.jsx */}
+          <div className="relative z-10 w-full max-w-4xl bg-ui-surface rounded-3xl shadow-2xl border border-white/15 overflow-hidden grid grid-cols-1 lg:grid-cols-12">
+            {/* LEFT HALF: BRAND-GRADIENT PANEL */}
+            <aside
+              aria-label="Program information"
+              className="lg:col-span-5 relative overflow-hidden bg-ui-panel text-white flex flex-col justify-between p-6 sm:p-8 lg:p-9 min-h-[200px] lg:min-h-[560px]"
+            >
+              <img
+                src="/login-landscape-bg.png"
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-0 w-full h-full object-cover object-center"
+              />
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 bg-gradient-to-br from-[#0D2B1E]/85 via-[#123B29]/75 to-[#1B5139]/80"
+              />
+              <div className="relative z-10 space-y-4">
+                <PineappleLogo variant="horizontal" size={42} theme="dark" />
+              </div>
+              <div className="relative z-10 space-y-2.5 my-4 lg:my-auto">
+                <h2 className="font-baloo text-3xl sm:text-4xl font-black uppercase tracking-wider text-white m-0 leading-none">
+                  WELCOME
+                </h2>
+                <p className="text-xs sm:text-sm font-extrabold uppercase tracking-[0.18em] text-brand-yellow m-0">
+                  EarlyLearn Hub
+                </p>
+                <p className="text-xs sm:text-sm text-white/85 leading-relaxed m-0 max-w-sm pt-1">
+                  Register as a parent or guardian to access your child&apos;s Day Care Center activities, flashcards, and progress records.
+                </p>
+              </div>
+              <div className="relative z-10 hidden lg:flex items-center gap-2 text-[11px] text-white/75 font-semibold pt-4 border-t border-white/15">
+                <Icon name="shield" size={14} className="text-brand-yellow shrink-0" />
+                <span>Municipality of Manolo Fortich • MSWDO ECCD</span>
+              </div>
+            </aside>
+
+            {/* RIGHT HALF: WHITE SIGN-UP FORM PANEL */}
+            <main className="lg:col-span-7 bg-ui-surface p-6 sm:p-8 lg:p-9 relative overflow-hidden flex flex-col justify-center text-center">
+              <div className="relative z-10 w-full">
+                  <h1 className="font-baloo font-extrabold text-2xl sm:text-[26px] text-ui-ink m-0 mb-1">
                     Create Your Account
                   </h1>
-                    <p className="text-xs text-[#7A6B52] m-0 mb-5 font-semibold">
+                    <p className="text-xs text-ui-muted m-0 mb-5 font-semibold">
                       Join EarlyLearn Hub • Manolo Fortich, Bukidnon
                     </p>
 
@@ -603,12 +630,14 @@ export default function SignUp() {
                       <div className="mt-3">
                         <Link
                           to="/login"
-                          className="block text-xs text-[#F46D70] no-underline font-extrabold hover:underline"
+                          className="block text-xs text-[#1B5139] no-underline font-extrabold hover:underline"
                         >
                           Already have an account? Log In here
                         </Link>
                       </div>
                     </div>
+                  </main>
                   </div>
+                </div>
                   );
 }
