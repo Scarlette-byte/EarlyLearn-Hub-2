@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { OFFICIAL_TEMPLATES, downloadOfficialTemplate } from '../../lib/templateExport.js';
 import { supabase, barangays } from '../../lib/supabaseClient';
 import { REPORT_REGISTRY, exportReportToCsv, logReportExport } from '../../lib/reportRegistry.js';
 import { Button, Table, FormField, Badge, EmptyState } from '../ui/index.js';
@@ -66,7 +67,27 @@ export default function ReportsGeneration({
               Role-scoped MSWD &amp; ECCD reports with print and CSV export.
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <select
+              aria-label="Download official MSWDO template"
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value) {
+                  downloadOfficialTemplate(e.target.value, filters?.barangay || 'MSWDO');
+                  e.target.value = '';
+                }
+              }}
+              className="px-3 py-1.5 rounded-full border border-ui-border bg-ui-surface text-xs font-semibold text-ui-ink cursor-pointer"
+            >
+              <option value="" disabled>
+                Official Template (.docx)…
+              </option>
+              {OFFICIAL_TEMPLATES.map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
             <Button variant="secondary" size="sm" onClick={handlePrint}>
               Print
             </Button>
