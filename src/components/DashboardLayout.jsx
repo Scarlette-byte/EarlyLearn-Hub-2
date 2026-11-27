@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { LogOut } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import PineappleLogo from './PineappleLogo.jsx';
 import Icon from './Icons.jsx';
+import { DashboardTabSkeleton } from './ui/Skeleton.jsx';
 
 const PIN_STORAGE_KEY = 'earlylearn_sidebar_pinned';
 
@@ -26,6 +28,7 @@ export default function DashboardLayout({
   headerActions,
   isSuperAdmin,
   stats, // [{ label, value }]
+  loading = false,
   activeTab,
   onTabChange,
   children,
@@ -35,16 +38,9 @@ export default function DashboardLayout({
   const mainContentRef = useRef(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const [pinned, setPinned] = useState(() => {
-    try {
-      return typeof localStorage !== 'undefined' && localStorage.getItem(PIN_STORAGE_KEY) === 'true';
-    } catch {
-      return false;
-    }
-  });
   const collapseTimerRef = useRef(null);
 
-  const isExpanded = pinned || hovered;
+  const isExpanded = hovered;
 
   function handleMouseEnter() {
     if (collapseTimerRef.current) {
@@ -59,18 +55,6 @@ export default function DashboardLayout({
     collapseTimerRef.current = setTimeout(() => {
       setHovered(false);
     }, 150);
-  }
-
-  function togglePin() {
-    setPinned((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(PIN_STORAGE_KEY, String(next));
-      } catch {
-        // Ignore storage errors
-      }
-      return next;
-    });
   }
 
   useEffect(() => {
@@ -223,28 +207,8 @@ export default function DashboardLayout({
           })}
         </nav>
 
-        {/* Bottom User Card + Pin & Sign Out */}
+        {/* Bottom User Card + Sign Out */}
         <div className="mt-auto p-2.5 border-t border-[#1E3F2B]/15 space-y-2 shrink-0">
-          {/* Pin / Unpin Toggle (Desktop only) */}
-          <button
-            type="button"
-            onClick={togglePin}
-            title={pinned ? 'Unpin sidebar (hover to expand)' : 'Pin sidebar open'}
-            aria-label={pinned ? 'Unpin sidebar' : 'Pin sidebar'}
-            className="hidden md:flex w-full items-center gap-3 px-2.5 py-2 rounded-full text-xs font-semibold text-[#1E3F2B]/75 hover:bg-white/40 hover:text-[#1E3F2B] cursor-pointer border-none bg-transparent transition-colors"
-          >
-            <span className="w-7 h-7 flex items-center justify-center shrink-0">
-              <Icon name={pinned ? 'chevron-left' : 'chevron-right'} size={15} />
-            </span>
-            <span
-              className={`truncate transition-opacity duration-150 ${
-                isExpanded ? 'opacity-100' : 'opacity-0 w-0'
-              }`}
-            >
-              {pinned ? 'Collapse sidebar' : 'Pin sidebar'}
-            </span>
-          </button>
-
           {/* User Info Row */}
           <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-2xl bg-white/35">
             <div className="w-8 h-8 rounded-full bg-[#1E3F2B] text-white flex items-center justify-center text-xs font-extrabold shrink-0">
@@ -272,7 +236,7 @@ export default function DashboardLayout({
             aria-label="Sign Out"
             className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-full bg-[#1E3F2B] hover:bg-[#163020] border-none text-white cursor-pointer text-xs font-bold transition-colors shadow-xs"
           >
-            <Icon name="logout" size={15} className="shrink-0" />
+            <LogOut size={15} className="shrink-0" aria-hidden="true" />
             <span
               className={`truncate transition-opacity duration-150 ${
                 isExpanded || mobileNavOpen ? 'opacity-100' : 'md:hidden'
@@ -287,9 +251,7 @@ export default function DashboardLayout({
       {/* Main Content Area (Fixed left offset on desktop so hover-expand overlays without layout shift) */}
       <div
         ref={mainContentRef}
-        className={`flex-1 min-w-0 bg-ui-bg p-4 sm:p-6 md:p-8 overflow-y-auto transition-[padding-left] duration-200 ease-out motion-reduce:transition-none ${
-          pinned ? 'md:pl-[264px]' : 'md:pl-[92px]'
-        }`}
+        className="flex-1 min-w-0 bg-ui-bg p-4 sm:p-6 md:p-8 overflow-y-auto md:pl-[92px]"
       >
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 mb-6 border-b border-ui-border gap-4 min-w-0">
           <div className="min-w-0">
@@ -345,7 +307,9 @@ export default function DashboardLayout({
             exit={prefersReducedMotion ? undefined : { opacity: 0, y: -4 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
           >
-            {children}
+            <Suspense fallback={<DashboardTabSkeleton />}>
+              {loading ? <DashboardTabSkeleton /> : children}
+            </Suspense>
           </motion.div>
         </AnimatePresence>
       </div>
