@@ -528,11 +528,7 @@ export default function Login() {
         aria-live="polite"
       >
         <div className="bg-ui-surface border border-ui-border rounded-auth-card shadow-auth-card px-8 py-7 flex flex-col items-center gap-3.5 max-w-xs w-full text-center">
-          <PineappleLogo variant="icon" size={44} />
-          <div className="flex items-center gap-2 text-sm font-bold text-ui-ink">
-            <Icon name="loader" size={17} className="animate-spin text-brand-leaf-deep" />
-            <span>Verifying session...</span>
-          </div>
+          <Loader size="md" label="Verifying session..." />
           <p className="text-xs text-ui-ink-muted m-0">
             Connecting to MSWDO EarlyLearn Hub
           </p>
