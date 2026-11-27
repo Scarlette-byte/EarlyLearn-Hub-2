@@ -4,9 +4,10 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        baloo: ['"Baloo 2"', 'sans-serif'],
+        sans: ['Nunito', 'sans-serif'],
+        baloo: ['Nunito', 'sans-serif'],
         nunito: ['Nunito', 'sans-serif'],
-        fraunces: ['Fraunces', 'serif'],
+        fraunces: ['Nunito', 'sans-serif'],
       },
       colors: {
         // Official EarlyLearn Hub Brand Palette & AA-Accessible Variants
@@ -23,18 +24,25 @@ export default {
         'brand-coral-tint': '#FFF2F2',
         'brand-cream': '#FFFBEA',
 
-        // Shared Civic / MSWDO UI Tokens (Reusable across Auth & Uniform UI Pass)
-        'ui-bg': '#FAF7F0',
+        // Shared Dashboard UI Tokens (Sage Sidebar + Warm Cream + Peach/Terracotta + Forest)
+        'ui-bg': '#FAF5EC',
         'ui-surface': '#FFFFFF',
-        'ui-surface-subtle': '#FCFBF7',
-        'ui-panel': '#1E3A2F',
-        'ui-panel-deep': '#162B23',
-        'ui-ink': '#1F2421',
-        'ui-ink-secondary': '#4A544E',
-        'ui-ink-muted': '#636E67',
-        'ui-border': '#E4DFD3',
-        'ui-border-strong': '#C8C1B2',
-        'ui-focus': '#2F6F22',
+        'ui-surface-subtle': '#FFF8EE',
+        'ui-panel': '#C8DBC6',
+        'ui-panel-deep': '#B5CEB2',
+        'ui-ink': '#1E2D24',
+        'ui-ink-secondary': '#4A5D52',
+        'ui-ink-muted': '#677A6E',
+        'ui-border': '#E8E0D2',
+        'ui-border-strong': '#D2C7B5',
+        'ui-focus': '#D96B3B',
+        'dash-sage': '#E7F0E6',
+        'dash-peach': '#FDECE4',
+        'dash-cream': '#FFF8EE',
+        'dash-burnt': '#D96B3B',
+        'dash-burnt-hover': '#C2592B',
+        'dash-forest': '#1E3F2B',
+        'dash-forest-deep': '#163020',
 
         // Semantic Status Tokens (WCAG AA contrast on tint backgrounds)
         'status-error': '#B42318',
