@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { OFFICIAL_TEMPLATES, downloadOfficialTemplate } from '../../lib/templateExport.js';
 import { cleanStudentName, isPlaceholderStudentName } from '../../lib/learnersService.js';
 
 export function formatAgeInYears(learner) {
@@ -205,6 +206,27 @@ export default function TeacherReportSheet({
                 Download CSV
               </button>
             )}
+
+            <select
+              aria-label="Download official MSWDO template"
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value) {
+                  downloadOfficialTemplate(e.target.value, effectiveCenterName || 'CDC');
+                  e.target.value = '';
+                }
+              }}
+              className="px-3 py-2 rounded-xl border border-ui-border bg-ui-surface text-xs font-bold text-ui-ink cursor-pointer"
+            >
+              <option value="" disabled>
+                Official Form (.docx)…
+              </option>
+              {OFFICIAL_TEMPLATES.map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
 
             <button
               type="button"
