@@ -9,6 +9,7 @@ import {
 } from '../lib/roles.js';
 import { getStudentApprovalStatus } from '../lib/learnersService.js';
 import Icon from './Icons.jsx';
+import Loader from './ui/Loader.jsx';
 
 /**
  * Wraps a dashboard page and guarantees:
@@ -147,8 +148,8 @@ export default function ProtectedRoute({ allowedRoles, children }) {
 
   if (status === 'checking') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-dashbg text-dash-ink-soft font-nunito text-sm">
-        Loading...
+      <div className="min-h-screen flex items-center justify-center bg-ui-bg font-nunito px-4">
+        <Loader size="lg" label="Loading dashboard..." />
       </div>
     );
   }

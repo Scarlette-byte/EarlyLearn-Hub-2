@@ -1,6 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
-
-const Lottie = lazy(() => import('lottie-react'));
+import { useEffect, useState } from 'react';
 
 const SIZE_MAP = {
   sm: 'w-8 h-5',
@@ -21,9 +19,10 @@ function StaticDotsFallback({ size = 'md' }) {
 
 /**
  * Shared three-bouncing-dots Lottie Loader.
- * Lazy-loads lottie-react + local JSON; respects prefers-reduced-motion.
+ * Dynamically imports lottie-react + local JSON; respects prefers-reduced-motion.
  */
 export default function Loader({ size = 'md', label, className = '' }) {
+  const [LottieComp, setLottieComp] = useState(null);
   const [animationData, setAnimationData] = useState(null);
   const [reducedMotion, setReducedMotion] = useState(false);
 
@@ -32,9 +31,17 @@ export default function Loader({ size = 'md', label, className = '' }) {
       setReducedMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     }
     let mounted = true;
-    import('../../assets/lottie/loader-dots.json')
-      .then((mod) => {
-        if (mounted) setAnimationData(mod.default || mod);
+    Promise.all([
+      import('lottie-react'),
+      import('../../assets/lottie/loader-dots.json'),
+    ])
+      .then(([lottieMod, jsonMod]) => {
+        if (!mounted) return;
+        const Comp = lottieMod.default?.default || lottieMod.default || lottieMod.Lottie || lottieMod;
+        if (typeof Comp === 'function' || (Comp && typeof Comp === 'object' && Comp.$$typeof)) {
+          setLottieComp(() => Comp);
+        }
+        setAnimationData(jsonMod.default || jsonMod);
       })
       .catch(() => {});
     return () => {
@@ -50,17 +57,15 @@ export default function Loader({ size = 'md', label, className = '' }) {
       className={`inline-flex flex-col items-center justify-center gap-2 ${className}`}
     >
       <div className={`relative overflow-hidden flex items-center justify-center ${SIZE_MAP[size] || SIZE_MAP.md}`}>
-        {reducedMotion || !animationData ? (
+        {reducedMotion || !LottieComp || !animationData ? (
           <StaticDotsFallback size={size} />
         ) : (
-          <Suspense fallback={<StaticDotsFallback size={size} />}>
-            <Lottie
-              animationData={animationData}
-              loop
-              autoplay
-              className="w-[180%] h-[180%] shrink-0"
-            />
-          </Suspense>
+          <LottieComp
+            animationData={animationData}
+            loop
+            autoplay
+            className="w-[180%] h-[180%] shrink-0"
+          />
         )}
       </div>
       {label && (
