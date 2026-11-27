@@ -3723,15 +3723,6 @@ const handleFileSelected = async (file) => {
                               <Icon name="lock" size={13} />
                               <span>Upload Closed (Deadline Passed)</span>
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteAssignedTopic(item)}
-                              className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
-                              title="Remove from active Assigned Topics (can be retrieved)"
-                            >
-                              <Icon name="trash" size={13} />
-                              <span>Delete</span>
-                            </button>
                           </div>
                         ) : matchedMod && matchedMod.status === 'Approved' ? (
                           <div className="flex flex-wrap items-center gap-2">
@@ -3784,15 +3775,6 @@ const handleFileSelected = async (file) => {
                                   : 'View Material'}
                               </span>
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteAssignedTopic(item)}
-                              className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
-                              title="Remove from active Assigned Topics (can be retrieved)"
-                            >
-                              <Icon name="trash" size={13} />
-                              <span>Delete</span>
-                            </button>
                           </div>
                         ) : matchedMod && matchedMod.status === 'Rejected' ? (
                           <div className="flex flex-wrap items-center gap-2">
@@ -3803,15 +3785,6 @@ const handleFileSelected = async (file) => {
                             >
                               <Icon name="refresh" size={13} />
                               <span>Re-upload Revised Activity →</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteAssignedTopic(item)}
-                              className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
-                              title="Remove from active Assigned Topics (can be retrieved)"
-                            >
-                              <Icon name="trash" size={13} />
-                              <span>Delete</span>
                             </button>
                           </div>
                         ) : item.isCompleted ? (
@@ -3863,15 +3836,6 @@ const handleFileSelected = async (file) => {
                                 </span>
                               </button>
                             )}
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteAssignedTopic(item)}
-                              className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
-                              title="Remove from active Assigned Topics (can be retrieved)"
-                            >
-                              <Icon name="trash" size={13} />
-                              <span>Delete</span>
-                            </button>
                           </div>
                         ) : (
                           <div className="flex flex-wrap items-center gap-2">
@@ -3882,15 +3846,6 @@ const handleFileSelected = async (file) => {
                             >
                               <Icon name="upload" size={13} />
                               <span>Comply &amp; Upload Activity →</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteAssignedTopic(item)}
-                              className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
-                              title="Remove from active Assigned Topics (can be retrieved)"
-                            >
-                              <Icon name="trash" size={13} />
-                              <span>Delete</span>
                             </button>
                           </div>
                         )}
