@@ -53,18 +53,18 @@ export default function DashboardLayout({
         {/* Sidebar */}
         <div
           className={`${mobileNavOpen ? 'flex' : 'hidden'
-            } md:flex w-full md:w-[240px] lg:w-[250px] md:h-screen md:sticky md:top-0 bg-ui-panel text-white/85 p-5 flex-col gap-1 flex-shrink-0 border-r border-white/10 overflow-hidden`}
+            } md:flex w-full md:w-[240px] lg:w-[250px] md:h-screen md:sticky md:top-0 bg-ui-panel text-[#1E3F2B] p-5 flex-col gap-1 flex-shrink-0 border-r border-[#1E3F2B]/10 overflow-hidden`}
         >
-          <div className="hidden md:flex items-center gap-2 mb-6 px-1 border-b border-slate-800/80 pb-5 w-full min-w-0 overflow-hidden">
+          <div className="hidden md:flex items-center gap-2 mb-5 px-1 border-b border-[#1E3F2B]/15 pb-5 w-full min-w-0 overflow-hidden">
             <PineappleLogo
               variant="horizontal"
-              theme="dark"
+              theme="light"
               size={36}
               subtitle={logoSubtitle ? `${logoSubtitle} • LGU Manolo Fortich` : 'LGU Manolo Fortich'}
             />
           </div>
 
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1">
+          <div className="text-[10px] font-extrabold text-[#1E3F2B]/65 uppercase tracking-wider px-3 mb-1">
             Navigation
           </div>
 
@@ -75,20 +75,20 @@ export default function DashboardLayout({
               onTabChange(tab.key);
               setMobileNavOpen(false);
             }}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium cursor-pointer border-none text-left transition-colors ${activeTab === tab.key
-              ? 'bg-slate-800 text-white font-semibold border-l-3 border-amber-400 shadow-2xs'
-              : 'bg-transparent text-slate-300 hover:bg-slate-800/50 hover:text-white'
+            className={`flex items-center gap-3 px-4 py-2.5 rounded-full text-xs font-semibold cursor-pointer border-none text-left transition-all ${activeTab === tab.key
+              ? 'bg-[#FAF5EC] text-[#1E3F2B] font-extrabold shadow-xs'
+              : 'bg-transparent text-[#1E3F2B]/80 hover:bg-white/45 hover:text-[#1E3F2B]'
               }`}
           >
-            <span className="shrink-0 text-slate-400">{tab.icon}</span>
+            <span className="shrink-0 text-[#1E3F2B]">{tab.icon}</span>
             <span className="truncate">{tab.label}</span>
           </button>
         ))}
 
-                <div className="mt-auto pt-6 border-t border-slate-800/80">
+                <div className="mt-auto pt-5 border-t border-[#1E3F2B]/15">
                   <button
                     onClick={handleLogout}
-                    className="w-full py-2 px-3 rounded-lg bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 text-slate-300 hover:text-white cursor-pointer text-xs font-medium transition-colors text-center"
+                    className="w-full py-2.5 px-4 rounded-full bg-[#1E3F2B] hover:bg-[#163020] border-none text-white cursor-pointer text-xs font-bold transition-colors text-center shadow-xs"
                   >
                     Sign Out
                   </button>
@@ -96,7 +96,7 @@ export default function DashboardLayout({
               </div>
 
               {/* Main */}
-              <div className="flex-1 min-w-0 p-4 sm:p-6 md:p-8 overflow-y-auto">
+              <div className="flex-1 min-w-0 bg-ui-bg p-4 sm:p-6 md:p-8 overflow-y-auto">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 mb-6 border-b border-slate-200 gap-4 min-w-0">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2.5 flex-wrap">

@@ -5,3 +5,4 @@ export { default as FormField } from './FormField.jsx';
 export { default as Badge } from './Badge.jsx';
 export { default as EmptyState } from './EmptyState.jsx';
 export { default as Toast } from './Toast.jsx';
+export { default as HeroBanner } from './HeroBanner.jsx';
