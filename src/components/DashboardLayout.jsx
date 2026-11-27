@@ -53,7 +53,7 @@ export default function DashboardLayout({
         {/* Sidebar */}
         <div
           className={`${mobileNavOpen ? 'flex' : 'hidden'
-            } md:flex w-full md:w-[240px] lg:w-[250px] bg-[#0F172A] text-slate-300 p-5 flex-col gap-1 flex-shrink-0 border-r border-slate-800 overflow-x-hidden`}
+            } md:flex w-full md:w-[240px] lg:w-[250px] md:h-screen md:sticky md:top-0 bg-ui-panel text-white/85 p-5 flex-col gap-1 flex-shrink-0 border-r border-white/10 overflow-hidden`}
         >
           <div className="hidden md:flex items-center gap-2 mb-6 px-1 border-b border-slate-800/80 pb-5 w-full min-w-0 overflow-hidden">
             <PineappleLogo
