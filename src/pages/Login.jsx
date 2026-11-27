@@ -16,6 +16,7 @@ import { validatePassword, PASSWORD_MIN_LENGTH } from '../lib/passwordPolicy.js'
 import PasswordStrengthMeter from '../components/PasswordStrengthMeter.jsx';
 import PineappleLogo from '../components/PineappleLogo.jsx';
 import Icon from '../components/Icons.jsx';
+import Loader from '../components/ui/Loader.jsx';
 
 async function checkMustChangePassword(user, effectiveRole) {
   if (!user) return false;
@@ -1139,7 +1140,7 @@ export default function Login() {
                       >
                         {loading ? (
                           <>
-                            <Icon name="loader" size={18} className="animate-spin" />
+                            <Loader size="sm" />
                             <span>Signing in...</span>
                           </>
                         ) : isSuccess ? (
