@@ -56,11 +56,11 @@ export default function SignUp() {
   }, [helperBarangay]);
 
   async function handleVerifyCode(codeToVerify = registrationCode) {
-    const trimmed = (codeToVerify || '').trim().toUpperCase();
+    const trimmed = String(codeToVerify || '').trim().toUpperCase().replace(/\s+/g, '');
     setCodeError('');
     if (!trimmed) {
       setVerifiedTeacher(null);
-      setCodeError('Please enter the registration code provided by your assigned teacher.');
+      setCodeError('Please enter the registration code provided by your assigned Day Care Teacher.');
       return null;
     }
 
@@ -75,7 +75,10 @@ export default function SignUp() {
       return result;
     } else {
       setVerifiedTeacher(null);
-      setCodeError('Invalid registration code. Please check the code from your assigned teacher.');
+      setCodeError(
+        result?.message ||
+          'Invalid registration code. Please check the code from your assigned Day Care Teacher.'
+      );
       return null;
     }
   }
@@ -155,6 +158,7 @@ export default function SignUp() {
           teacher_name: assignedTeacherName,
           cdc_name: assignedCdcName,
           cdc_id: assignedCdcId,
+          class_id: isValidUuid(matchedTeacher.classId) ? matchedTeacher.classId : null,
           registration_code: matchedTeacher.code,
           approval_status: 'pending',
         },
