@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { supabase } from '../lib/supabaseClient';
 import PineappleLogo from './PineappleLogo.jsx';
 import Icon from './Icons.jsx';
@@ -30,6 +31,8 @@ export default function DashboardLayout({
   children,
 }) {
   const navigate = useNavigate();
+  const prefersReducedMotion = useReducedMotion();
+  const mainContentRef = useRef(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [pinned, setPinned] = useState(() => {
@@ -85,6 +88,12 @@ export default function DashboardLayout({
       if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (mainContentRef.current) {
+      mainContentRef.current.scrollTop = 0;
+    }
+  }, [activeTab]);
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -277,6 +286,7 @@ export default function DashboardLayout({
 
       {/* Main Content Area (Fixed left offset on desktop so hover-expand overlays without layout shift) */}
       <div
+        ref={mainContentRef}
         className={`flex-1 min-w-0 bg-ui-bg p-4 sm:p-6 md:p-8 overflow-y-auto transition-[padding-left] duration-200 ease-out motion-reduce:transition-none ${
           pinned ? 'md:pl-[264px]' : 'md:pl-[92px]'
         }`}
@@ -327,7 +337,17 @@ export default function DashboardLayout({
           </div>
         )}
 
-        {children}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab || 'default'}
+            initial={prefersReducedMotion ? false : { opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={prefersReducedMotion ? undefined : { opacity: 0, y: -4 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+          >
+            {children}
+          </motion.div>
+        </AnimatePresence>
       </div>
     </div>
   );

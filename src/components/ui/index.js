@@ -6,3 +6,4 @@ export { default as Badge } from './Badge.jsx';
 export { default as EmptyState } from './EmptyState.jsx';
 export { default as Toast } from './Toast.jsx';
 export { default as HeroBanner } from './HeroBanner.jsx';
+export { default as Skeleton, StatCardSkeleton, TableRowSkeleton, DashboardTabSkeleton } from './Skeleton.jsx';
