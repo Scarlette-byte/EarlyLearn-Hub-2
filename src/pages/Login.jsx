@@ -1054,10 +1054,11 @@ export default function Login() {
                           type="button"
                           onClick={() => setShowPassword((v) => !v)}
                           disabled={loading}
-                          className="absolute inset-y-0 right-0 px-3.5 flex items-center text-[11px] font-extrabold uppercase tracking-wider text-brand-forest hover:text-brand-forest-deep rounded-r-ui-input focus:outline-none focus-visible:ring-2 focus-visible:ring-ui-focus cursor-pointer bg-transparent border-none"
+                          className="absolute inset-y-0 right-0 px-3.5 flex items-center text-ui-ink-muted hover:text-[#1B5139] rounded-r-ui-input focus:outline-none focus-visible:ring-2 focus-visible:ring-ui-focus cursor-pointer bg-transparent border-none transition-colors"
                           aria-label={showPassword ? 'Hide password' : 'Show password'}
+                          title={showPassword ? 'Hide password' : 'Show password'}
                         >
-                          {showPassword ? 'HIDE' : 'SHOW'}
+                          <Icon name={showPassword ? 'eye-off' : 'eye'} size={18} />
                         </button>
                       </div>
 
@@ -1133,7 +1134,7 @@ export default function Login() {
                         className={`w-full py-3.5 px-5 min-h-12 rounded-xl border-none font-baloo text-base font-bold tracking-wide text-white cursor-pointer transition-all active:scale-[0.99] shadow-sm hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ui-focus focus-visible:ring-offset-2 disabled:opacity-65 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
                           isSuccess
                             ? 'bg-status-ok'
-                            : 'bg-brand-forest hover:bg-brand-forest-deep'
+                            : 'bg-[#1B5139] hover:bg-[#123B29]'
                         }`}
                       >
                         {loading ? (
@@ -1152,22 +1153,6 @@ export default function Login() {
                       </button>
                     </motion.div>
 
-                    {/* Or Divider */}
-                    <motion.div variants={itemVariants} className="flex items-center gap-3 py-1">
-                      <div className="h-px flex-1 bg-ui-border" />
-                      <span className="text-xs font-bold text-ui-ink-muted uppercase">Or</span>
-                      <div className="h-px flex-1 bg-ui-border" />
-                    </motion.div>
-
-                    {/* Outlined Secondary Button: Register as a parent */}
-                    <motion.div variants={itemVariants}>
-                      <Link
-                        to="/signup"
-                        className="w-full py-3 px-5 rounded-xl border border-ui-border bg-white hover:bg-ui-surface-subtle text-ui-ink font-baloo text-sm font-bold flex items-center justify-center gap-2 no-underline transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ui-focus"
-                      >
-                        <span>Register as a parent</span>
-                      </Link>
-                    </motion.div>
                   </form>
 
                   {/* Don't have an account? Sign Up */}
@@ -1178,7 +1163,7 @@ export default function Login() {
                     Don&apos;t have an account?{' '}
                     <Link
                       to="/signup"
-                      className="font-extrabold text-brand-forest hover:text-brand-forest-deep no-underline hover:underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-ui-focus"
+                      className="font-extrabold text-[#1B5139] hover:text-[#123B29] no-underline hover:underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-ui-focus"
                     >
                       Sign Up
                     </Link>
