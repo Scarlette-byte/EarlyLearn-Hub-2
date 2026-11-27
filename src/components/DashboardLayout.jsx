@@ -101,17 +101,8 @@ export default function DashboardLayout({
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-ui-bg font-nunito text-ui-ink">
       {/* Mobile top bar */}
-      <header className="md:hidden flex items-center justify-between bg-ui-panel text-[#1E3F2B] px-4 py-3 border-b border-[#1E3F2B]/15 gap-2 min-w-0 sticky top-0 z-30">
-        <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
-          <PineappleLogo
-            variant="horizontal"
-            theme="light"
-            size={28}
-            subtitle={logoSubtitle ? `${logoSubtitle} • LGU Manolo Fortich` : 'LGU Manolo Fortich'}
-          />
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {notificationSlot}
+      <header className="md:hidden flex items-center justify-between bg-[#C8DBC6] text-[#1E3F2B] px-4 py-3 border-b border-[#1E3F2B]/15 gap-3 min-w-0 sticky top-0 z-30">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1 overflow-hidden">
           <button
             type="button"
             onClick={() => setMobileNavOpen((v) => !v)}
@@ -121,6 +112,15 @@ export default function DashboardLayout({
           >
             {mobileNavOpen ? <Icon name="close" size={20} /> : <Icon name="menu" size={20} />}
           </button>
+          <PineappleLogo
+            variant="horizontal"
+            theme="light"
+            size={28}
+            subtitle={logoSubtitle ? `${logoSubtitle} • LGU Manolo Fortich` : 'LGU Manolo Fortich'}
+          />
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {notificationSlot}
         </div>
       </header>
 
@@ -140,7 +140,7 @@ export default function DashboardLayout({
         onMouseLeave={handleMouseLeave}
         onFocus={handleMouseEnter}
         onBlur={handleMouseLeave}
-        className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-ui-panel text-[#1E3F2B] border-r border-[#1E3F2B]/10 shadow-sm transition-[width,transform] duration-200 ease-out motion-reduce:transition-none overflow-hidden ${
+        className={`fixed inset-y-0 left-0 z-50 h-[100dvh] flex flex-col bg-[#C8DBC6] text-[#1E3F2B] border-r border-[#1E3F2B]/10 shadow-sm transition-[width,transform] duration-200 ease-out motion-reduce:transition-none overflow-hidden ${
           mobileNavOpen ? 'translate-x-0 w-[250px]' : '-translate-x-full md:translate-x-0'
         } ${isExpanded ? 'md:w-[240px] md:shadow-xl' : 'md:w-[68px]'}`}
       >
