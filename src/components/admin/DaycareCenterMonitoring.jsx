@@ -624,7 +624,7 @@ export default function DaycareCenterMonitoring({
                             onClick={() => setInspectingCdc(cdc)}
                             className="px-3 py-1.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold text-xs transition-colors shadow-xs cursor-pointer inline-flex items-center gap-1.5"
                           >
-                            <span>View Roster &amp; Ops</span>
+                            <span>View Center Details</span>
                             <span>→</span>
                           </button>
                         </td>
@@ -725,7 +725,7 @@ export default function DaycareCenterMonitoring({
                 onClick={() => setInspectingCdc(cdc)}
                 className="w-full py-2 rounded-xl bg-[#FAF5EC] hover:bg-accent hover:text-white text-accent font-bold text-xs transition-colors cursor-pointer text-center mt-2 border border-[#EADBCE]"
               >
-                View Roster &amp; Ops →
+                View Center Details →
               </button>
             </div>
           ))}
@@ -743,7 +743,7 @@ export default function DaycareCenterMonitoring({
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-[10.5px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-[#FAF5EC] text-accent tracking-wider border border-[#EADBCE]">
-                    Official MSWDO Center Dossier
+                    Child Development Center Details
                   </span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
                     Accredited Level 1
@@ -760,7 +760,7 @@ export default function DaycareCenterMonitoring({
               <button
                 type="button"
                 onClick={() => setInspectingCdc(null)}
-                aria-label="Close center dossier"
+                aria-label="Close center details"
                 className="w-8 h-8 rounded-full bg-[#FAF5EC] text-dash-ink font-bold text-sm hover:bg-[#EFE8DC] transition-colors cursor-pointer flex items-center justify-center"
               >
                 <Icon name="close" size={15} />
@@ -917,7 +917,7 @@ export default function DaycareCenterMonitoring({
                 onClick={() => setInspectingCdc(null)}
                 className="px-5 py-2.5 rounded-xl bg-accent hover:bg-[#B5673C] text-white font-bold transition-colors cursor-pointer shadow-xs"
               >
-                Close Dossier
+                CLOSE
               </button>
             </div>
           </div>

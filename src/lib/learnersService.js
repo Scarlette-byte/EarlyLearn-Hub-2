@@ -165,32 +165,47 @@ export async function saveTeacherRegistrationCode({ teacherId, contactNumber, re
  * and accredited MSWDO teacher records. Works across devices even before the parent logs in.
  */
 export async function verifyTeacherRegistrationCode(codeInput) {
-  const cleanInput = (codeInput || '').trim().toUpperCase();
-  if (!cleanInput) return { valid: false };
+  const cleanInput = String(codeInput || '').trim().toUpperCase().replace(/\s+/g, '');
+  if (!cleanInput) {
+    return {
+      valid: false,
+      reason: 'blank',
+      message: 'Please enter the registration code provided by your assigned Day Care Teacher.',
+    };
+  }
 
-  // 1. Narrow RPC lookup (anon-safe, no contact_number or credentials exposed)
+  // 1. Narrow RPC lookup (anon-safe, no contact_number or teacher list exposed)
   try {
     const { data: rpcRows, error: rpcErr } = await supabase.rpc('verify_teacher_registration_code', {
       p_code: cleanInput,
     });
     if (!rpcErr && Array.isArray(rpcRows) && rpcRows[0]) {
       const t = rpcRows[0];
+      if (t.valid === false) {
+        return {
+          valid: false,
+          reason: t.reason || 'invalid',
+          message: t.message || 'Invalid registration code. Please check with your assigned Day Care Teacher.',
+        };
+      }
       const fallbackCdc = getCdcForBarangay(t.barangay);
       return {
         valid: true,
-        code: cleanInput,
+        reason: 'ok',
+        code: t.code || cleanInput,
         teacherId: t.id,
         teacherName: t.full_name,
         barangay: t.barangay || fallbackCdc?.barangay || 'Dalirig',
-        cdcId: null,
+        cdcId: t.cdc_id || null,
         cdcName: t.cdc_name || fallbackCdc?.name || 'Child Development Center',
+        classId: t.class_id || null,
       };
     }
   } catch (err) {
     console.warn('Supabase teacher code lookup warning:', err);
   }
 
-  // 2. Also check accredited MSWDO teacher baseline list
+  // 2. Fallback check against accredited MSWDO teacher baseline list (only if RPC unavailable)
   for (const t of realTeachersList) {
     const defaultCode = buildDefaultTeacherCode(t);
     const shortBrgyCode = t.barangay
@@ -199,18 +214,23 @@ export async function verifyTeacherRegistrationCode(codeInput) {
     if (defaultCode.toUpperCase() === cleanInput || (shortBrgyCode && shortBrgyCode === cleanInput)) {
       return {
         valid: true,
+        reason: 'ok',
         code: defaultCode,
         teacherId: t.id,
         teacherName: t.full_name,
         barangay: t.barangay,
         cdcId: null,
         cdcName: t.cdc_name || `${t.barangay} Child Development Center`,
-        contactNumber: t.contact_number || '',
+        classId: null,
       };
     }
   }
 
-  return { valid: false };
+  return {
+    valid: false,
+    reason: 'invalid',
+    message: 'Invalid registration code. Please check the code from your assigned Day Care Teacher.',
+  };
 }
 
 export function formatLearnerAgeLabel(ageVal) {
