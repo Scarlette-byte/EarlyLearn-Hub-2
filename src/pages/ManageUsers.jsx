@@ -539,56 +539,56 @@ export default function ManageUsers({ currentUser }) {
       {/* 1. KPI SUMMARY STRIP                                 */}
       {/* ---------------------------------------------------- */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-card-border text-center">
-          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-dash-ink block">
+        <div className="bg-ui-surface rounded-ui-card p-4 shadow-ui-card border border-ui-border text-center">
+          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-ui-ink block">
             {totalCount}
           </span>
-          <span className="text-[11px] font-bold text-dash-ink-soft uppercase tracking-wider">
+          <span className="text-[11px] font-bold text-ui-muted uppercase tracking-wider">
             Total Users
           </span>
         </div>
 
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-card-border text-center">
-          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-[#5A2E9E] block">
+        <div className="bg-ui-surface rounded-ui-card p-4 shadow-ui-card border border-ui-border text-center">
+          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-brand-forest block">
             {superadminCount}
           </span>
-          <span className="text-[11px] font-bold text-[#5A2E9E] uppercase tracking-wider">
+          <span className="text-[11px] font-bold text-brand-forest uppercase tracking-wider">
             Superadmins
           </span>
         </div>
 
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-card-border text-center">
-          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-[#8A6420] block">
+        <div className="bg-ui-surface rounded-ui-card p-4 shadow-ui-card border border-ui-border text-center">
+          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-status-warn block">
             {adminCount}
           </span>
-          <span className="text-[11px] font-bold text-[#8A6420] uppercase tracking-wider">
+          <span className="text-[11px] font-bold text-status-warn uppercase tracking-wider">
             Administrators
           </span>
         </div>
 
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-card-border text-center">
-          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-[#2E6B39] block">
+        <div className="bg-ui-surface rounded-ui-card p-4 shadow-ui-card border border-ui-border text-center">
+          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-status-ok block">
             {teacherCount}
           </span>
-          <span className="text-[11px] font-bold text-[#2E6B39] uppercase tracking-wider">
+          <span className="text-[11px] font-bold text-status-ok uppercase tracking-wider">
             Teachers
           </span>
         </div>
 
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-card-border text-center">
-          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-[#2A5E85] block">
+        <div className="bg-ui-surface rounded-ui-card p-4 shadow-ui-card border border-ui-border text-center">
+          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-brand-leaf-deep block">
             {studentCount}
           </span>
-          <span className="text-[11px] font-bold text-[#2A5E85] uppercase tracking-wider">
+          <span className="text-[11px] font-bold text-brand-leaf-deep uppercase tracking-wider">
             Learners / Parents
           </span>
         </div>
 
-        <div className="bg-white rounded-xl p-4 shadow-xs border border-card-border text-center">
-          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-accent block">
+        <div className="bg-ui-surface rounded-ui-card p-4 shadow-ui-card border border-ui-border text-center">
+          <span className="font-fraunces text-2xl sm:text-3xl font-bold text-brand-coral-deep block">
             {barangayCount}
           </span>
-          <span className="text-[11px] font-bold text-dash-ink-soft uppercase tracking-wider">
+          <span className="text-[11px] font-bold text-ui-muted uppercase tracking-wider">
             Active Barangays
           </span>
         </div>
